@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import Head from 'next/head';
 
+// 줄바꿈 등 불필요한 공백 제거 함수
 const cleanContent = (text) => {
-  return text.replace(/\n{3,}/g, '\n'); // 2개 이상의 줄바꿈 → 1개로
+  return text.replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
 };
 
 export default function Home() {
@@ -20,6 +22,7 @@ export default function Home() {
     bottom.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typedText]);
 
+  // 타자 효과
   const typeEffect = (text) => {
     let i = 0;
     const speed = 50;
@@ -33,30 +36,25 @@ export default function Home() {
     type();
   };
 
-const speakText = (text) => {
-  // 기존 음성 재생 중단(중복 방지)
-  window.speechSynthesis.cancel();
+  // TTS
+  const speakText = (text) => {
+    window.speechSynthesis.cancel(); // 중복 방지
+    const voices = window.speechSynthesis.getVoices();
+    const childlikeVoice = voices.find(voice =>
+      voice.lang === 'ko-KR' && (voice.name.includes('Google') || voice.name.includes('Microsoft'))
+    );
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ko-KR';
+    utterance.pitch = 1.0;
+    utterance.rate = 1.1;
+    if (childlikeVoice) utterance.voice = childlikeVoice;
+    window.speechSynthesis.speak(utterance);
+  };
 
-  const voices = window.speechSynthesis.getVoices();
-  const childlikeVoice = voices.find(voice =>
-    voice.lang === 'ko-KR' && (voice.name.includes('Google') || voice.name.includes('Microsoft'))
-  );
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = 'ko-KR';
-  utterance.pitch = 1.0;
-  utterance.rate = 1.1;
-  if (childlikeVoice) {
-    utterance.voice = childlikeVoice;
-  }
-  window.speechSynthesis.speak(utterance);
-};
-
-  const sendMessage = async () => {
-    if (!input) return;
-    const newMsg = { role: 'user', content: input };
-    const systemMsg = {
-      role: 'system',
-      content: `
+  // 시스템 역할 프롬프트 (챗봇 정체성)
+  const systemMsg = {
+    role: 'system',
+    content: `
 당신은 '뭐냐면'이라는 이름의 AI 챗봇입니다.
 역사에 대해 잘 모르는 초등학생을 위해 복잡한 개념, 유적, 사건을 쉽고 명확하게 설명하는 역할을 합니다.
 
@@ -79,7 +77,6 @@ const speakText = (text) => {
 - 대화의 끝 부분에 '더 궁금한 게 있니? 아니면 이제 그만할까?'를 물어본다.
 
 ※ 특별 기능 - 학습 평가 및 보고서 생성:
-
 학생이 '그만할게요', '이제 끝', '감사합니다' 등 대화를 종료하는 표현을 사용하면, 지금까지의 대화를 바탕으로 다음 기준에 따라 평가하고 보고서를 작성합니다.
 
 1. 평가 (세 단계 중 하나만 선택, 아래 기준을 엄격하게 적용):
@@ -93,9 +90,12 @@ const speakText = (text) => {
 - 질문 내용을 통한 학생의 이해도 요약
 - 특별히 흥미를 보인 부분이나 인상 깊은 대화 요소
 - 종합적 평어 및 격려 멘트
-      `
-    };
+    `
+  };
 
+  const sendMessage = async () => {
+    if (!input) return;
+    const newMsg = { role: 'user', content: input };
     const updated = [systemMsg, ...messages, newMsg];
 
     const initialText = loadingMessages[loadingMessageIndex % loadingMessages.length];
@@ -120,7 +120,6 @@ const speakText = (text) => {
       body: JSON.stringify({ messages: updated })
     });
     const data = await res.json();
-
 
     clearInterval(interval);
     setMessages(prevMessages => [
@@ -153,7 +152,21 @@ const speakText = (text) => {
           {m.role === 'assistant' && !isTyping ? (
             <>
               <ReactMarkdown>{cleanContent(content)}</ReactMarkdown>
-              <button onClick={() => speakText(content)} style={{ marginTop: 5 }}>🔊 </button>
+              <button
+                onClick={() => speakText(content)}
+                style={{
+                  marginTop: 5,
+                  fontSize: '1rem',
+                  padding: '6px 14px',
+                  borderRadius: '4px',
+                  background: '#fffbe8',
+                  border: '1px solid #fdd835',
+                  color: '#333',
+                  fontFamily: 'Segoe UI, sans-serif',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >🔊 </button>
             </>
           ) : (
             <p style={{ fontStyle: isTyping ? 'italic' : 'normal', minHeight: '1.5em' }}>{content}</p>
@@ -164,60 +177,75 @@ const speakText = (text) => {
   });
 
   return (
-    <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20, fontFamily: 'Segoe UI, sans-serif' }}>
-      <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-        <h1 style={{ fontSize: '2rem', margin: 0 }}>뭐냐면</h1>
-        <p style={{ fontSize: '1rem', color: '#666', margin: 0 }}>초등 역사 유적·사건·인물 자료를 쉽게 풀어주는 AI 챗봇</p>
-      </div>
+    <>
+      <Head>
+        <title>뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇</title>
+        <meta name="description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
+        {/* 미리보기(OG, Twitter) */}
+        <meta property="og:title" content="뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇" />
+        <meta property="og:description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
+        <meta property="og:image" content="https://mnm-kappa.vercel.app/preview.png" />
+        <meta property="og:url" content="https://mnm-kappa.vercel.app" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇" />
+        <meta name="twitter:description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
+        <meta name="twitter:image" content="https://mnm-kappa.vercel.app/preview.png" />
+      </Head>
 
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: '10px',
-        border: '1px solid #ccc', padding: 10, height: '60vh',
-        overflowY: 'auto', borderRadius: '8px', backgroundColor: '#fff'
-      }}>
-        {renderedMessages}
-        <div ref={bottom} />
+      <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20, fontFamily: 'Segoe UI, sans-serif' }}>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <h1 style={{ fontSize: '2rem', margin: 0, fontWeight: 'bold' }}>뭐냐면</h1>
+          <p style={{ fontSize: '1rem', color: '#666', margin: 0 }}>
+            초등 역사 유적·사건·인물 자료를 쉽게 풀어주는 AI 챗봇
+          </p>
+        </div>
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: '10px',
+          border: '1px solid #ccc', padding: 10, height: '60vh',
+          overflowY: 'auto', borderRadius: '8px', backgroundColor: '#fff'
+        }}>
+          {renderedMessages}
+          <div ref={bottom} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
+          <textarea
+            style={{
+              padding: 10,
+              minHeight: '60px',
+              maxHeight: '200px',
+              resize: 'vertical',
+              overflowY: 'auto',
+              fontSize: '1rem',
+              lineHeight: '1.5',
+              marginBottom: '0.5rem',
+              fontFamily: 'Segoe UI, sans-serif'
+            }}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder="메시지를 입력하세요... (Shift + Enter로 줄바꿈)"
+          />
+          <button
+            onClick={sendMessage}
+            style={{
+              padding: '10px',
+              fontSize: '1rem',
+              borderRadius: '6px',
+              backgroundColor: '#FDD835',
+              fontWeight: 'bold',
+              color: 'black',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'Segoe UI, sans-serif'
+            }}
+          >보내기</button>
+        </div>
       </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
-        <textarea
-          style={{
-            padding: 10,
-            minHeight: '60px',
-            maxHeight: '200px',
-            resize: 'vertical',
-            overflowY: 'auto',
-            fontSize: '1rem',
-            lineHeight: '1.5',
-            marginBottom: '0.5rem',
-          fontFamily: 'Segoe UI, sans-serif' 
-          }}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
-            }
-          }}
-          placeholder="메시지를 입력하세요... (Shift + Enter로 줄바꿈)"
-        />
-        <button
-          onClick={sendMessage}
-          style={{
-            padding: '10px',
-            fontSize: '1rem',
-            borderRadius: '6px',
-            backgroundColor: '#FDD835',
-            fontWeight: 'bold',
-            color: 'black',
-            border: 'none',
-            cursor: 'pointer',
-            fontFamily: 'Segoe UI, sans-serif',
-
-          }}
-        >보내기</button>
-      </div>
-    </div>
+    </>
   );
 }
