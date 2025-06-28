@@ -40,8 +40,8 @@ export default function Home() {
     );
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ko-KR';
-    utterance.pitch = 1.5;
-    utterance.rate = 1.1;
+    utterance.pitch = 1.0;
+    utterance.rate = 1.3;
     if (childlikeVoice) {
       utterance.voice = childlikeVoice;
     }
