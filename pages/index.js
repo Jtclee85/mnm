@@ -33,20 +33,23 @@ export default function Home() {
     type();
   };
 
-  const speakText = (text) => {
-    const voices = window.speechSynthesis.getVoices();
-    const childlikeVoice = voices.find(voice =>
-      voice.lang === 'ko-KR' && (voice.name.includes('Google') || voice.name.includes('Microsoft'))
-    );
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ko-KR';
-    utterance.pitch = 1.0;
-    utterance.rate = 1.3;
-    if (childlikeVoice) {
-      utterance.voice = childlikeVoice;
-    }
-    window.speechSynthesis.speak(utterance);
-  };
+const speakText = (text) => {
+  // 기존 음성 재생 중단(중복 방지)
+  window.speechSynthesis.cancel();
+
+  const voices = window.speechSynthesis.getVoices();
+  const childlikeVoice = voices.find(voice =>
+    voice.lang === 'ko-KR' && (voice.name.includes('Google') || voice.name.includes('Microsoft'))
+  );
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'ko-KR';
+  utterance.pitch = 1.0;
+  utterance.rate = 1.1;
+  if (childlikeVoice) {
+    utterance.voice = childlikeVoice;
+  }
+  window.speechSynthesis.speak(utterance);
+};
 
   const sendMessage = async () => {
     if (!input) return;
