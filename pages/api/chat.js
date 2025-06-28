@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   const { messages } = req.body;
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo',
+      model: 'gpt-4o',
       messages
     });
     res.status(200).json({ text: completion.choices[0].message.content });
