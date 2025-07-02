@@ -24,11 +24,17 @@ const getKoreanNameWithPostposition = (name) => {
   return name + (hasJongseong ? '아' : '야');
 };
 
+// ✨ [추가됨] 12지신 이모지 배열
+const zodiacEmojis = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷'];
+
 
 export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_name');
   const [userName, setUserName] = useState('');
   const [sourceText, setSourceText] = useState('');
+  
+  // ✨ [추가됨] 사용자 프로필 이모지 상태
+  const [userEmoji, setUserEmoji] = useState('');
 
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '안녕, 친구! 나는 역사 이야기를 재미있게 들려주는 [뭐냐면]이야. 만나서 반가워! 네 이름은 뭐니?' }
@@ -38,6 +44,11 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showExtraFeatures, setShowExtraFeatures] = useState(false);
   const inputRef = useRef(null);
+
+  // ✨ [추가됨] 페이지 로드 시 사용자 이모지 랜덤 선택
+  useEffect(() => {
+    setUserEmoji(zodiacEmojis[Math.floor(Math.random() * zodiacEmojis.length)]);
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -193,33 +204,46 @@ ${source}
   const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 15자 내외의 짧은 구절로 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!");
   const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 알려줄게!");
 
-  // ✨ [수정됨] style 속성 대신 className을 사용하도록 변경
+  // ✨ [수정됨] 프로필 사진을 포함하도록 렌더링 로직 전체 변경
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
-    const speakerName = m.role === 'user' ? userName : '뭐냐면';
+    const isUser = m.role === 'user';
+    const speakerName = isUser ? userName : '뭐냐면';
     const isNameVisible = conversationPhase === 'chatting' && i > 0;
 
+    const profilePic = isUser ? (
+      <div className="profile-pic">{userEmoji}</div>
+    ) : (
+      <div className="profile-pic">
+        <img src="/monyamyeon-logo.png" alt="뭐냐면 로고" />
+      </div>
+    );
+
     return (
-      <div key={i} className="message-container">
-        {isNameVisible && <p className={`speaker-name ${m.role}-name`}>{speakerName}</p>}
-        <div className={`message-bubble ${m.role}-bubble`}>
-          <ReactMarkdown
-            components={{
-              a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
-            }}
-          >
-            {cleanContent(content)}
-          </ReactMarkdown>
-          {m.role === 'assistant' && !isLoading && <button
-            onClick={() => speakText(content)}
-            style={{
-              marginTop: 10, fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
-              background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
-              fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
-            }}
-          >🔊</button>
-          }
+      <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
+        {!isUser && profilePic}
+        <div className="message-content-container">
+          {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
+          <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
+            <ReactMarkdown
+              components={{
+                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
+              }}
+            >
+              {cleanContent(content)}
+            </ReactMarkdown>
+            {m.role === 'assistant' && !isLoading && <button
+              onClick={() => speakText(content)}
+              style={{
+                marginTop: 10, fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
+                background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
+                fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
+              }}
+            >🔊</button>
+            }
+          </div>
         </div>
+        {isUser && profilePic}
       </div>
     );
   });
@@ -243,8 +267,8 @@ ${source}
           </p>
         </div>
         <div style={{
-          display: 'flex', flexDirection: 'column', gap: '10px',
-          border: '1px solid #ddd', padding: '10px', height: '60vh',
+          display: 'flex', flexDirection: 'column',
+          border: '1px solid #ddd', padding: '20px', height: '60vh',
           overflowY: 'auto', borderRadius: '8px', backgroundColor: '#EAE7DC'
         }}>
           {renderedMessages}
