@@ -307,14 +307,14 @@ ${source}
             }
             disabled={isLoading}
           />
-          {/* ✨ [수정됨] 모든 버튼에 className 적용 */}
+          {/* ✨ [수정됨] 모든 버튼에 className 및 이모지 적용 */}
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={sendMessage}
               disabled={isLoading}
               className="btn btn-primary"
             >
-              보내기
+              보내기 ✈️
             </button>
             {conversationPhase === 'chatting' && messages.length > 4 && (
               <button
@@ -328,9 +328,9 @@ ${source}
           </div>
           {showExtraFeatures && conversationPhase === 'chatting' && messages.length > 4 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-               <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">퀴즈 풀기</button>
-               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">3줄요약</button>
-               <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">나 어땠어?</button>
+               <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
+               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 3줄요약</button>
+               <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
             </div>
           )}
         </div>
