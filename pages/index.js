@@ -3,7 +3,6 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 
 const cleanContent = (text) => {
-  // <summary> ... </summary> 태그 안의 내용만 남기고, 태그는 제거
   const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
@@ -72,13 +71,13 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] '나 어땠어?' 평가 기준을 고도화한 시스템 프롬프트
   const createSystemMessage = (name, source) => {
-    const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
+    const givenName = getGivenName(name);
+    const friendlyName = getKoreanNameWithPostposition(givenName);
     return {
       role: 'system',
       content: `
-너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 너는 지금 '${name}'이라는 이름의 초등 저학년 친구와 대화하고 있어. 대화상대의 나이는 대략 8세~10세 사이야. 사용자를 부를 때는 반드시 '${friendlyName}'라고 불러야 해.
+너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 너는 지금 '${name}'이라는 이름의 초등 저학년 친구와 대화하고 있어. 사용자를 부를 때는 반드시 '${friendlyName}'라고 불러야 해.
 너의 핵심 임무는 사용자가 제공한 아래의 [원본 자료]를 바탕으로, 역사 이야기를 쉽고 재미있게 설명해주는 것이야.
 
 [원본 자료]
@@ -88,28 +87,16 @@ ${source}
 **[꼭 지켜야 할 규칙]**
 - **가장 중요한 규칙: 답변은 사용자가 제공한 [원본 자료]를 최우선으로 하되, 아이들의 이해를 돕기 위해 필요한 경우 너의 일반 지식을 활용하여 배경지식이나 쉬운 예시를 덧붙여 설명할 수 있어. 하지만 [원본 자료]와 전혀 관련 없는 이야기는 하지 마.**
 - **말투:** 초등 저학년 학생이 이해할 수 있도록 쉬운 단어와 친절한 설명을 사용해야 해.
-- **답변 형식:** 어려운 소제목 대신, '~~이야기', '~~은 뭘까?'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
+- **답변 형식:** 어려운 소제목 대신, '👑 왕관 이야기', '⚔️ 칼 이야기'처럼 내용과 관련된 재미있는 이모티콘과 함께 짧은 제목을 붙여줘.
 - **질문 유도:** 설명이 끝나면, 아이들이 더 궁금해할 만한 질문을 "혹시 이런 것도 궁금해?" 하고 물어봐 줘.
 - **추가 정보:** 설명의 마지막에는, "[Google에서 '핵심주제' 더 찾아보기](https://www.google.com/search?q=핵심주제)" 링크를 달아서 더 찾아볼 수 있게 도와줘.
-
-**[답변 내용 및 문체, 단어에 대한 규칙]**
-- 학생들이 알기 쉽게 역사적 용어에 나오는 한자어를 쉽게 풀이해서 알려줍니다.
-- 너무 많은 정보를 한 번에 제공하지 않고, 핵심 중심으로 간결하게 말합니다.
-- 주제와 중심 내용에 따라 단락을 나누어서 설명합니다.
-- 창작된 내용이나 근거 없는 정보는 절대 포함하지 않습니다.
-- 초등학생에게 낯선 용어나 개념은 먼저 간단하게 정의해준 후 설명합니다.
-- 단계적으로 분절하여 논리적으로 설명합니다.
-- 이해하기 쉽게 단어를 바꾸고, 어려운 개념에 대해서는 부연설명하는 내용을 넣어서 설명합니다.
 
 **[특별 기능 설명]**
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 우선 제목으로 '조사 대상'의 이름이 들어가야 하고 그 다음 부터 3줄 시작이야. 개조식으로 작성해야 하고, 한 줄당 25자 미만의 간단한 요약글이어야 해. 항목을 나눌 수는 있지만 번호를 붙인다거나 하지는 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
-3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
-    - **'최고야!':** 역사적 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 했을 경우에만 이 평가를 내린다.
-    - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
-    - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 역사를 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
+3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
       `
     };
   };
@@ -215,6 +202,18 @@ ${source}
   const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 평가해 줄게!");
 
+  const handleCopy = async (text) => {
+    const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
+    const textToCopy = summaryMatch ? summaryMatch[1].trim() : text.trim();
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setMessages(prev => [...prev, { role: 'assistant', content: '클립보드에 복사되었습니다. 패들릿이나 띵커벨에 붙여넣어 보세요!'}]);
+    } catch (err) {
+      console.error('클립보드 복사 실패:', err);
+      setMessages(prev => [...prev, { role: 'assistant', content: '앗, 복사에 실패했어. 다시 시도해 줄래?'}]);
+    }
+  };
 
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
@@ -248,11 +247,7 @@ ${source}
               <div style={{ marginTop: 10 }}>
                   <button
                     onClick={() => handleCopy(content)}
-                    style={{
-                      fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
-                      background: '#E8F5E9', border: '1px solid #4CAF50', color: '#333',
-                      fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
-                    }}
+                    className="btn btn-tertiary"
                   >📋 복사하기</button>
               </div>
             )}
@@ -312,15 +307,12 @@ ${source}
             }
             disabled={isLoading}
           />
+          {/* ✨ [수정됨] 모든 버튼에 className 적용 */}
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={sendMessage}
               disabled={isLoading}
-              style={{
-                flex: 1, padding: '12px', fontSize: '1.1rem', borderRadius: '8px',
-                backgroundColor: isLoading ? '#e0e0e0' : '#FDD835', fontWeight: 'bold',
-                color: 'black', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer'
-              }}
+              className="btn btn-primary"
             >
               보내기
             </button>
@@ -328,11 +320,7 @@ ${source}
               <button
                 onClick={() => setShowExtraFeatures(!showExtraFeatures)}
                 disabled={isLoading}
-                style={{
-                  padding: '12px', fontSize: '1rem', borderRadius: '8px',
-                  backgroundColor: isLoading ? '#e0e0e0' : '#8D8741', fontWeight: 'bold',
-                  color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer'
-                }}
+                className="btn btn-secondary"
               >
                 {showExtraFeatures ? '기능 숨기기 ▲' : '더 많은 기능 보기 📚'}
               </button>
@@ -340,9 +328,9 @@ ${source}
           </div>
           {showExtraFeatures && conversationPhase === 'chatting' && messages.length > 4 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-               <button onClick={handleRequestQuiz} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>퀴즈 풀기</button>
-               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>3줄요약</button>
-               <button onClick={handleRequestEvaluation} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>나 어땠어?</button>
+               <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">퀴즈 풀기</button>
+               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">3줄요약</button>
+               <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">나 어땠어?</button>
             </div>
           )}
         </div>
