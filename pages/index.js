@@ -25,16 +25,18 @@ const getKoreanNameWithPostposition = (name) => {
   return name + (hasJongseong ? '아' : '야');
 };
 
-// ✨ [추가됨] 일반적인 한국 성씨 목록
 const commonSurnames = "김이박최정강조윤장임한오서신권황안송유홍전고문양손배조백허남심노하곽성차주우구신임나지엄원천방공현";
 
-// ✨ [추가됨] 전체 이름에서 이름만 추출하는 함수
+// ✨ [수정됨] 이름이 비어있을 경우에 대한 예외 처리 추가
 const getGivenName = (name) => {
+    if (!name || typeof name !== 'string') return ''; // 이름이 없거나 문자열이 아니면 빈 문자열 반환
     if (name.length === 3 && commonSurnames.includes(name.charAt(0))) {
         return name.substring(1);
     }
     return name;
 };
+
+const zodiacEmojis = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷'];
 
 
 export default function Home() {
@@ -81,8 +83,8 @@ export default function Home() {
   };
   
   const createSystemMessage = (name, source) => {
-    const givenName = getGivenName(name); // 이름만 추출
-    const friendlyName = getKoreanNameWithPostposition(givenName); // 이름에만 조사 붙임
+    const givenName = getGivenName(name);
+    const friendlyName = getKoreanNameWithPostposition(givenName);
     return {
       role: 'system',
       content: `
@@ -150,7 +152,6 @@ ${source}
     }
   };
 
-  // ✨ [수정됨] 이름 처리 로직 변경
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
@@ -218,7 +219,6 @@ ${source}
     const content = m.content;
     const isUser = m.role === 'user';
     
-    // ✨ [수정됨] 이름표에는 전체 이름을, 호칭은 이름만 사용하도록 구분
     const speakerName = isUser ? userName : '뭐냐면';
     const isNameVisible = conversationPhase === 'chatting' && i > 2;
 
