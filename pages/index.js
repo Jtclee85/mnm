@@ -81,7 +81,6 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
-  // ✨ [수정됨] 3줄 요약 시 <summary> 태그 사용 규칙 추가
   const createSystemMessage = (name, source) => {
     const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
     return {
@@ -212,9 +211,7 @@ ${source}
   const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 25자 내외의 구절로 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 평가해 줄게!");
 
-  // ✨ [수정됨] <summary> 태그 안의 내용만 복사하도록 로직 변경
   const handleCopy = async (text) => {
-    // <summary> 태그 안의 내용만 추출, 없으면 전체 텍스트 사용
     const summaryMatch = text.match(/<summary>([\s\S]*)<\/summary>/);
     const textToCopy = summaryMatch ? summaryMatch[1].trim() : text.trim();
 
@@ -247,11 +244,11 @@ ${source}
         <div className="message-content-container">
           {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
           <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
+            {/* ✨ [수정됨] summary 태그를 화면에 보이지 않도록 components prop에 추가 */}
             <ReactMarkdown
               components={{
                 a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                // summary 태그는 화면에 보이지 않도록 처리
-                summary: () => null, 
+                summary: ({node, ...props}) => <>{props.children}</>
               }}
             >
               {cleanContent(content)}
