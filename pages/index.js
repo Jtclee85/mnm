@@ -273,7 +273,7 @@ ${source}
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <h1 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 'bold' }}>뭐냐면</h1>
           <p style={{ fontSize: '1.1rem', color: '#666', margin: '5px 0 0 0' }}>
-            조사한 원본 자료를 쉽고 재미있게 설명해주는 AI 친구
+            역사 자료를 쉽고 재미있게 설명해주는 AI 친구
           </p>
         </div>
         <div style={{
