@@ -99,3 +99,10 @@ export default function Home() {
       console.error("스트리밍 오류:", error);
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
+        const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
+        return [...prev.slice(0, -1), updatedLastMessage];
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }; //
