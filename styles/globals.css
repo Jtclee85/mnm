@@ -4,12 +4,12 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css') format('woff');
 
 body {
-  background-color: #FAF8F0; /* 따뜻한 아이보리 배경색 */
-  font-family: 'Jalnan2', sans-serif; /* 제목 등 기본 폰트를 '잘난체'로 변경 */
+  background-color: #FAF8F0;
+  font-family: 'Jalnan2', sans-serif;
   color: #333;
 }
 
-/* 말풍선 공통 스타일 */
+/* 말풍선 스타일 */
 .message-container {
   display: flex;
   flex-direction: column;
@@ -24,17 +24,15 @@ body {
   font-size: 1.05rem;
   line-height: 1.6;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  font-family: 'Pretendard', sans-serif; /* 가독성을 위해 본문은 '프리텐다드' 사용 */
+  font-family: 'Pretendard', sans-serif;
 }
 
-/* 사용자 말풍선 (오른쪽 정렬, 하늘색) */
 .user-bubble {
   align-self: flex-end;
   background-color: #DDEEFE;
   color: #333;
 }
 
-/* 챗봇 말풍선 (왼쪽 정렬, 흰색) */
 .assistant-bubble {
   align-self: flex-start;
   background-color: #FFFFFF;
@@ -57,17 +55,17 @@ body {
   text-align: left;
 }
 
-/* ✨ [추가됨] 입력창과 안내문구 폰트 지정을 위한 스타일 */
+/* 입력창 스타일 */
 textarea {
-  font-family: 'Pretendard', sans-serif; /* 채팅창과 동일한 '프리텐다드' 폰트 적용 */
+  font-family: 'Pretendard', sans-serif;
 }
 
 textarea::placeholder {
-  font-family: 'Pretendard', sans-serif; /* 안내문구도 동일하게 적용 */
+  font-family: 'Pretendard', sans-serif;
   color: #999;
 }
 
-/* ✨ [추가됨] 프로필 사진 스타일 */
+/* 프로필 사진 스타일 */
 .profile-pic {
   width: 40px;
   height: 40px;
@@ -76,7 +74,7 @@ textarea::placeholder {
   display: flex;
   justify-content: center;
   align-items: center;
-  font-size: 1.5rem; /* 이모지 크기 */
+  font-size: 1.5rem;
   box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
@@ -105,4 +103,42 @@ textarea::placeholder {
 
 .assistant-row {
   justify-content: flex-start;
+}
+
+
+/* ✨ [추가/수정됨] 버튼 스타일 */
+.btn {
+  padding: 12px;
+  font-size: 1rem;
+  border-radius: 8px;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-primary {
+  flex: 1;
+  background-color: #FDD835;
+  color: black;
+  font-size: 1.1rem;
+}
+
+.btn-secondary {
+  background-color: #8D8741;
+  color: white;
+}
+
+.btn-tertiary {
+  background-color: #f0f0f0;
+  border: 1px solid #ccc;
+  font-size: 0.9rem;
+  padding: 8px;
+  font-family: 'Pretendard', sans-serif;
+}
+
+.btn:disabled {
+  background-color: #e0e0e0;
+  color: #9e9e9e;
+  cursor: not-allowed;
 }
