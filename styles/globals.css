@@ -7,50 +7,75 @@ body {
   color: #333;
 }
 
-/* 말풍선 공통 스타일 */
-.message-container {
+/* ✨ [수정됨] 메시지 한 줄 전체를 위한 컨테이너 */
+.message-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+/* ✨ [추가됨] 프로필 사진 스타일 */
+.profile-pic {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #fff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem; /* 이모지 크기 */
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.profile-pic img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* ✨ [추가됨] 이름과 말풍선을 묶는 컨테이너 */
+.message-content-container {
   display: flex;
   flex-direction: column;
-  margin-bottom: 10px;
+  max-width: 85%;
 }
 
 .message-bubble {
   padding: 12px 18px;
   border-radius: 20px;
-  max-width: 85%;
   white-space: pre-wrap;
   font-size: 1.05rem;
   line-height: 1.6;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  font-family: 'pretendard', sans-serif; /* 가독성을 위해 본문은 다른 폰트 사용 */
+  font-family: 'pretendard', sans-serif;
 }
 
-/* 사용자 말풍선 (오른쪽 정렬, 하늘색) */
+/* 사용자 말풍선 (오른쪽 정렬) */
+.user-row {
+  justify-content: flex-end;
+}
 .user-bubble {
-  align-self: flex-end;
   background-color: #DDEEFE;
   color: #333;
 }
 
-/* 챗봇 말풍선 (왼쪽 정렬, 흰색) */
+/* 챗봇 말풍선 (왼쪽 정렬) */
+.assistant-row {
+  justify-content: flex-start;
+}
 .assistant-bubble {
-  align-self: flex-start;
   background-color: #FFFFFF;
 }
 
-/* ✨ [수정됨] 이름표 스타일 */
+/* 이름표 스타일 */
 .speaker-name {
-  font-size: 0.9rem; /* 0.8rem에서 0.9rem으로 크기 증가 */
-  font-weight: bold; /* 글씨를 약간 굵게 하여 잘 보이도록 수정 */
+  font-size: 0.9rem;
+  font-weight: bold;
   color: #555;
   margin-bottom: 4px;
-  padding: 0 8px;
 }
 
 .user-name {
   text-align: right;
-}
-
-.assistant-name {
-  text-align: left;
 }
