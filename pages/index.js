@@ -14,27 +14,20 @@ export default function Home() {
   const [input, setInput] = useState('');
   const bottom = useRef();
   
-  // 로딩 상태 관련
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [loadingInterval, setLoadingInterval] = useState(null);
   const [typedText, setTypedText] = useState('');
   const loadingMessages = ['그게 뭐냐면...', '생각중이니 잠깐만요...'];
 
-  // 퀴즈 상태 관련
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [quizData, setQuizData] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
-  // ✨ [수정됨] 스크롤 로직 수정
   useEffect(() => {
-    // 로딩 중이 아닐 때만 맨 아래로 스크롤
-    if (!isLoading) {
-      bottom.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isLoading]); // isLoading을 의존성 배열에 추가
+    bottom.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, typedText]); // typedText가 변경될 때도 스크롤
 
-  // 타자 효과
   const typeEffect = (text) => {
     let i = 0;
     const speed = 50;
@@ -48,9 +41,8 @@ export default function Home() {
     type();
   };
 
-  // TTS
   const speakText = (text) => {
-    window.speechSynthesis.cancel(); // 중복 방지
+    window.speechSynthesis.cancel();
     const voices = window.speechSynthesis.getVoices();
     const childlikeVoice = voices.find(voice =>
       voice.lang === 'ko-KR' && (voice.name.includes('Google') || voice.name.includes('Microsoft'))
@@ -102,7 +94,6 @@ export default function Home() {
     `
   };
 
-  // 로딩 애니메이션 시작/종료 함수
   const startLoadingAnimation = () => {
     setIsLoading(true);
     const initialText = loadingMessages[0];
@@ -121,30 +112,28 @@ export default function Home() {
     if (loadingInterval) clearInterval(loadingInterval);
     setLoadingInterval(null);
     setIsLoading(false);
+    setTypedText(''); // 로딩 텍스트 초기화
   };
 
-  const sendMessage = async () => {
-    if (!input) return;
-
-    if (isQuizMode) {
-      handleQuizAnswer();
-    } else {
-      const newMsg = { role: 'user', content: input };
-      setMessages(prev => [...prev, newMsg]);
-      setInput('');
-      startLoadingAnimation();
-      
-      const updatedHistory = [systemMsg, ...messages, newMsg];
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: updatedHistory })
-      });
-      const data = await res.json();
-      
-      stopLoadingAnimation();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
-    }
+  // ✨ [수정됨] 일반 대화 전송 전용 함수
+  const sendChatMessage = async () => {
+    if (!input || isLoading) return;
+    
+    const newMsg = { role: 'user', content: input };
+    setMessages(prev => [...prev, newMsg]);
+    setInput('');
+    startLoadingAnimation();
+    
+    const updatedHistory = [systemMsg, ...messages, newMsg];
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: updatedHistory })
+    });
+    const data = await res.json();
+    
+    setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
+    stopLoadingAnimation();
   };
 
   const handleRequestQuiz = async () => {
@@ -159,7 +148,6 @@ export default function Home() {
       body: JSON.stringify({ messages: updatedHistory })
     });
     const data = await res.json();
-    stopLoadingAnimation();
 
     try {
       const quizJson = JSON.parse(data.text);
@@ -169,15 +157,19 @@ export default function Home() {
       setMessages(prev => [...prev, { role: 'assistant', content: `${quizJson[0].question}\n${quizJson[0].choices.join('\n')}` }]);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: "앗, 퀴즈를 만드는 데 문제가 생겼어. 다시 시도해 줄래?" }]);
+    } finally {
+        stopLoadingAnimation();
     }
   };
-
+  
+  // ✨ [수정됨] 퀴즈 답변 처리 전용 함수
   const handleQuizAnswer = () => {
+    if (!input || isLoading) return;
+
     const userAnswer = input.trim();
     const currentQuiz = quizData[currentQuestionIndex];
     
-    // ✨ [수정됨] 정답 비교 로직 (숫자, 원문자 모두 인식)
-    const answerNumber = currentQuiz.answer.match(/\d+/)[0]; // '②' -> '2' 추출
+    const answerNumber = currentQuiz.answer.match(/\d+/)[0];
     const isCorrect = (userAnswer === answerNumber || userAnswer === currentQuiz.answer);
 
     let feedback = '';
@@ -196,7 +188,7 @@ export default function Home() {
       setCurrentQuestionIndex(nextQuestionIndex);
       setTimeout(() => {
         setMessages(prev => [...prev, { role: 'assistant', content: `${nextQuiz.question}\n${nextQuiz.choices.join('\n')}` }]);
-      }, 1500); // 다음 문제 제시 전 약간의 텀
+      }, 1500);
     } else {
       setIsQuizMode(false);
       setQuizData([]);
@@ -207,18 +199,13 @@ export default function Home() {
     }
   };
 
-
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
     const messageBoxStyle = {
       backgroundColor: m.role === 'user' ? '#e6f3ff' : '#f7f7f8',
-      padding: '10px 15px',
-      borderRadius: '15px',
-      maxWidth: '80%',
+      padding: '10px 15px', borderRadius: '15px', maxWidth: '80%',
       alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-      whiteSpace: 'pre-wrap',
-      fontSize: '1rem',
-      lineHeight: '1.6',
+      whiteSpace: 'pre-wrap', fontSize: '1rem', lineHeight: '1.6',
       boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
     };
     return (
@@ -294,7 +281,12 @@ export default function Home() {
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                sendMessage();
+                // ✨ [수정됨] 퀴즈 모드 여부에 따라 다른 함수 호출
+                if (isQuizMode) {
+                  handleQuizAnswer();
+                } else {
+                  sendChatMessage();
+                }
               }
             }}
             placeholder={isQuizMode ? "정답 번호를 입력하세요... (예: 1)" : "메시지를 입력하세요... (Shift + Enter로 줄바꿈)"}
@@ -302,7 +294,8 @@ export default function Home() {
           />
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
-              onClick={sendMessage}
+              // ✨ [수정됨] 퀴즈 모드 여부에 따라 다른 함수 호출
+              onClick={isQuizMode ? handleQuizAnswer : sendChatMessage}
               disabled={isLoading}
               style={{
                 flex: 1, padding: '10px', fontSize: '1rem',
