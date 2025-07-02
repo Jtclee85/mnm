@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
-import Banner from '../components/Banner'; // ✨ [추가됨] 배너 컴포넌트 import
+import Banner from '../components/Banner';
 
 const cleanContent = (text) => {
   const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
@@ -73,8 +73,7 @@ export default function Home() {
   }, [isLoading]);
 
   const createSystemMessage = (name, source) => {
-    const givenName = getGivenName(name);
-    const friendlyName = getKoreanNameWithPostposition(givenName);
+    const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
     return {
       role: 'system',
       content: `
@@ -110,6 +109,7 @@ ${source}
     - **'최고야!':** 역사적 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 했을 경우에만 이 평가를 내린다.
     - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
     - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 역사를 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
+4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **이 결과물은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
       `
     };
   };
@@ -136,7 +136,7 @@ ${source}
             const data = JSON.parse(line.substring(6));
             setMessages(prev => {
               const lastMessage = prev[prev.length - 1];
-              const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data };
+              const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data, metadata: lastMessage.metadata };
               return [...prev.slice(0, -1), updatedLastMessage];
             });
           }
@@ -203,7 +203,7 @@ ${source}
     }
   };
   
-  const handleSpecialRequest = (prompt, userMessage, metadata) => {
+  const handleSpecialRequest = (prompt, userMessage, metadata = {}) => {
     if (isLoading) return;
     setMessages(prev => [...prev, { role: 'assistant', content: userMessage }]);
     const newMsg = { role: 'user', content: prompt };
@@ -213,7 +213,8 @@ ${source}
   
   const handleRequestQuiz = () => handleSpecialRequest("지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게.");
   const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!", { type: 'summary' });
-  const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 평가해 줄게!");
+  const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 평가해 줄게!", { type: 'evaluation' });
+  const handleRequestTeacherComment = () => handleSpecialRequest("지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", "알겠어. 선생님께 보여드릴 멋진 교과평어를 만들어 줄게!", { type: 'teacher_comment' });
 
   const handleCopy = async (text) => {
     const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
@@ -256,12 +257,17 @@ ${source}
             >
               {cleanContent(content)}
             </ReactMarkdown>
-            {m.role === 'assistant' && !isLoading && m.metadata?.type === 'summary' && (
-              <div style={{ marginTop: 10 }}>
-                  <button
-                    onClick={() => handleCopy(content)}
-                    className="btn btn-tertiary"
-                  >📋 복사하기</button>
+            {m.role === 'assistant' && !isLoading && (
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {m.metadata?.type === 'summary' && (
+                  <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
+                )}
+                {m.metadata?.type === 'evaluation' && (
+                  <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 선생님께 보낼 교과평어 만들기</button>
+                )}
+                {m.metadata?.type === 'teacher_comment' && (
+                  <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 교과평어 복사하기</button>
+                )}
               </div>
             )}
           </div>
@@ -283,7 +289,6 @@ ${source}
       </Head>
 
       <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20 }}>
-        {/* ✨ [수정됨] 기존 제목 div를 Banner 컴포넌트로 교체 */}
         <Banner />
         
         <div style={{
