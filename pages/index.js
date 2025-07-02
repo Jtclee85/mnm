@@ -8,7 +8,7 @@ const cleanContent = (text) => {
 
 export default function Home() {
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: '안녕, 친구! 나는 역사 이야기를 재미있게 들려주는 [뭐냐면]이야. 궁금한 걸 알려주면, 내가 아는 모든 걸 동화처럼 재미있게 설명해 줄게!' }
+    { role: 'assistant', content: '안녕, 친구! 나는 역사 이야기를 재미있게 들려주는 [뭐냐면]이야. 궁금한 걸 알려주면, 내가 아는 모든 걸 쉽고 재미있게 설명해 줄게!' }
   ]);
   const [input, setInput] = useState('');
   const bottomRef = useRef(null);
@@ -34,20 +34,20 @@ export default function Home() {
     );
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'ko-KR';
-    utterance.pitch = 1.2; // 목소리 톤을 약간 높여 더 친근하게
+    utterance.pitch = 1.2;
     utterance.rate = 1.0;
     if (childlikeVoice) utterance.voice = childlikeVoice;
     window.speechSynthesis.speak(utterance);
   };
   
-  // ✨ [수정됨] 유치원생 눈높이에 맞춘 시스템 프롬프트
+  // ✨ [수정됨] 말투 규칙을 '친절한 설명' 스타일로 변경
   const systemMsg = {
     role: 'system',
     content: `
-너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 아주 어린 아이들도 이해할 수 있도록, 역사 이야기를 재미있는 동화처럼 들려주는 역할을 해.
+너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 아주 어린 아이들도 이해할 수 있도록, 역사 이야기를 재미있게 들려주는 역할을 해.
 
 **[꼭 지켜야 할 규칙]**
-- **말투:** 모든 설명은 유치원생도 알아들을 수 있도록 아주 아주 쉬운 단어와 짧은 문장을 사용하고, '옛날 옛날에~'처럼 친근한 말투를 사용해야 해.
+- **말투:** 유치원생도 이해할 수 있도록 아주 쉬운 단어와 짧은 문장을 사용하되, 동화처럼 꾸며서 말하지는 마. 친절하고 똑똑한 형이나 누나가 설명해주는 것처럼 다정한 말투를 사용해.
 - **답변 형식:** 어려운 소제목 대신, '👑 왕관 이야기', '⚔️ 칼 이야기'처럼 내용과 관련된 재미있는 이모티콘과 함께 짧은 제목을 붙여줘.
 - **질문 유도:** 설명이 끝나면, 아이들이 더 궁금해할 만한 질문을 "혹시 이런 것도 궁금해?" 하고 물어봐 줘.
 - **추가 정보:** 설명의 마지막에는, "[Google에서 '핵심주제' 더 찾아보기](https://www.google.com/search?q=핵심주제)" 링크를 달아서 더 찾아볼 수 있게 도와줘.
@@ -59,11 +59,7 @@ export default function Home() {
     - 지금까지 이야기한 내용을 바탕으로, 재미있는 퀴즈를 하나 내줘. 그리고 친구가 대답하면 맞았는지 틀렸는지 알려주고, 왜 그런지 쉽게 설명해 줘.
 
 2.  **'3줄요약' 요청이 오면:**
-    - 지금까지 알려준 것 중에서, 제일 중요한 것 3가지만 뽑아서 보여줘.
-    - 예시:
-      - 1. 아주아주 오래된 돌이야.
-      - 2. 옛날 사람들이 그림을 그렸어.
-      - 3. 지금은 박물관에 있어.
+    - 대화 초반에 제시된 '조사 대상' 자체의 가장 중요한 특징 3가지를 뽑아 요약해. 각 줄은 15자 내외의 짧은 핵심 구절로 만들어야 해.
 
 3.  **'나 어땠어?' 요청이 오면:**
     - 지금까지 대화한 걸 보고, 얼마나 잘했는지 칭찬해 줘.
@@ -134,7 +130,7 @@ export default function Home() {
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게.");
-  const handleRequestThreeLineSummary = () => handleSpecialRequest("지금까지의 대화 내용을 바탕으로, 가장 중요한 것 3가지만 뽑아서 요약해 줘.", "알았어. 지금까지 나눈 이야기를 딱 3가지로 요약해 줄게!");
+  const handleRequestThreeLineSummary = () => handleSpecialRequest("지금까지의 대화 내용을 바탕으로, 보고서에 쓸 3줄 요약을 만들어 줘.", "알았어. 지금까지 나눈 이야기를 딱 3가지로 요약해 줄게!");
   const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 알려줄게!");
 
 
