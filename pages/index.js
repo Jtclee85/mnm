@@ -13,10 +13,18 @@ export default function Home() {
   ]);
   const [input, setInput] = useState('');
   const bottom = useRef();
+  
+  // 로딩 상태 관련
+  const [isLoading, setIsLoading] = useState(false);
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
   const [loadingInterval, setLoadingInterval] = useState(null);
   const [typedText, setTypedText] = useState('');
   const loadingMessages = ['그게 뭐냐면...', '생각중이니 잠깐만요...'];
+
+  // ✨ [추가됨] 퀴즈 상태 관련
+  const [isQuizMode, setIsQuizMode] = useState(false);
+  const [quizData, setQuizData] = useState([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' });
@@ -50,82 +58,52 @@ export default function Home() {
     if (childlikeVoice) utterance.voice = childlikeVoice;
     window.speechSynthesis.speak(utterance);
   };
-
-// 시스템 역할 프롬프트 (챗봇 정체성)
+  
+  // ✨ [수정됨] 퀴즈 규칙이 JSON 형식으로 변경된 시스템 프롬프트
   const systemMsg = {
     role: 'system',
     content: `
-당신은 '뭐냐면'이라는 이름의 AI 챗봇입니다.
-역사에 대해 잘 모르는 초등학생을 위해 복잡한 개념, 유적, 사건을 쉽고 명확하게 설명하는 역할을 합니다.
-
-다음 조건을 반드시 지켜야 합니다:
-- 설명은 초등학생이 이해할 수 있도록 쉽고 구체적으로 합니다.
-- 학생들이 알기 쉽게 역사적 용어에 나오는 한자어를 쉽게 풀이해서 알려줍니다.
-- 너무 많은 정보를 한 번에 제공하지 않고, 핵심 중심으로 간결하게 말합니다.
-- 주제와 중심 내용에 따라 단락을 나누어서 설명합니다.
-- 질문과 관련 없는 내용은 답하지 않으며, 역사 외 분야의 질문은 “나는 역사에 대해서만 도와줄 수 있어.”라고 대답합니다.
-- 친절하고 부드러운 말투를 사용합니다.
-- 불확실하거나 모르는 정보는 추측하지 말고 '잘 모르겠습니다. 관련 자료를 직접 검색해서 찾아보세요' 라고 답해줍니다.
-- 공식 문서, 논문, 뉴스 등 출처가 명확한 정보만 제공합니다.
-- 창작된 내용이나 근거 없는 정보는 절대 포함하지 않습니다.
-- 초등학생에게 낯선 용어나 개념은 먼저 간단하게 정의해준 후 설명합니다.
-- 단계적으로 분절하여 논리적으로 설명합니다.
-- 이해하기 쉽게 단어를 바꾸고, 어려운 개념에 대해서는 부연설명하는 내용을 넣어서 설명합니다.
-- 해당 국가유산에 대해 학생이 질문하지 않은 다른 정보도 웹 검색을 통해 더해서 설명해 줍니다.
-- 학생이 입력한 문화유산에 대해 웹페이지에서 추가적인 자료를 찾아 덧붙여 소개한다.
-- 조사한 내용을 발표자료로 만들 수 있도록 요약본을 제공할 지 물어본다.
-- 대화의 끝 부분에 '더 궁금한 게 있니? 아니면 이제 그만할까?'를 물어본다.
+당신은 '뭐냐면'이라는 이름의 AI 챗봇입니다. 초등학생을 위해 역사 개념을 쉽고 명확하게 설명합니다. 다음 규칙을 반드시 지켜야 합니다.
+- 설명은 초등학생 눈높이에서 친절하고 부드러운 말투를 사용합니다.
+- 단락을 나눠 간결하게 설명하고, 어려운 한자어는 쉽게 풀이합니다.
+- 관련 없는 질문에는 "나는 역사에 대해서만 도와줄 수 있어."라고 대답합니다.
+- 대화의 끝에는 '더 궁금한 게 있니? 아니면 이제 그만할까?'를 물어봅니다.
 
 ※ 특별 기능 1 - 학습 평가 및 보고서 생성:
-학생이 '그만할게요', '이제 끝', '감사합니다' 등 대화를 종료하는 표현을 사용하면, 지금까지의 대화를 바탕으로 다음 기준에 따라 평가하고 보고서를 작성합니다.
-
-1. 평가 (세 단계 중 하나만 선택, 아래 기준을 엄격하게 적용):
-- 잘함: 조사 대상의 역사적 배경이나 가치에 대해 스스로 질문하거나, 관련 사건과의 연결성을 묻는 등 탐구적 질문이 3개 이상 있는 경우에만 해당.
-- 보통: 질문이 주로 단어의 뜻, 건물 구조, 연도 등 기본 정보 확인에 머무른 경우. 탐구적 질문이 없거나 1~2개 이하.
-- 노력 요함: 질문이 거의 없거나, 단순한 감탄이나 확인만 있는 경우. 모호한 경우에도 이 범주로 판단.
-
-2. 보고서 작성 (간결한 개조식, 최대 6줄 내외):
-- 조사 대상의 기본 정보
-- 역사적 배경 및 가치
-- 질문 내용을 통한 학생의 이해도 요약
-- 특별히 흥미를 보인 부분이나 인상 깊은 대화 요소
-- 종합적 평어 및 격려 멘트
+학생이 '그만할게요' 등 대화 종료를 표현하면, 다음 기준에 따라 평가하고 보고서를 작성합니다.
+1. 평가 (엄격하게 적용): '잘함'(탐구 질문 3개 이상), '보통'(단순 질문 1-2개), '노력 요함'(질문 거의 없음).
+2. 보고서 작성 (간결한 개조식): 조사 대상 정보, 학생 이해도 요약, 격려 멘트 포함.
 
 ※ 특별 기능 2 - 학습 퀴즈 생성:
-사용자가 "퀴즈를 만들어 줘" 또는 이와 유사한 요청을 하면, 지금까지 대화한 내용을 바탕으로 다음 규칙에 따라 퀴즈를 생성합니다.
-
-1. 퀴즈 형식: 객관식 퀴즈 3문제를 출제합니다. 각 문제에는 4개의 보기(①, ②, ③, ④)를 제시해야 합니다.
-2. 난이도 조절: 대화 내용에서 핵심적이고 중요한 개념을 중심으로 문제를 출제하되, 너무 지엽적이거나 어려운 내용은 피합니다.
-3. 퀴즈 내용:
-    - 첫 번째 문제는 대화의 핵심 주제에 대한 이해도를 묻는 질문으로 구성합니다.
-    - 두 번째 문제는 세부 정보나 사실을 정확히 기억하는지 묻는 질문으로 구성합니다.
-    - 세 번째 문제는 대화 내용을 바탕으로 추론하거나 응용해야 하는 질문을 포함하여 사고력을 자극합니다.
-4. 정답 및 해설: 모든 문제를 제시한 후, 명확하게 구분된 섹션에 [정답 및 해설]이라는 제목을 붙여 각 문제의 정답과 친절한 해설을 함께 제공합니다. 해설은 왜 그것이 정답인지, 다른 보기는 왜 틀렸는지를 간략하게 설명해 줍니다.
-5. 격려 메시지: 퀴즈가 끝난 후, "퀴즈를 푸느라 수고했어요! 참 잘했어요." 와 같은 긍정적인 격려 메시지를 덧붙여 줍니다.
+사용자가 "퀴즈를 만들어 줘"라고 요청하면, **반드시 아래의 JSON 형식에 맞춰 퀴즈 데이터를 생성**합니다. 다른 설명 없이 오직 JSON 데이터만 출력해야 합니다.
+[
+  {
+    "question": "첫 번째 문제 내용",
+    "choices": ["① 보기 1", "② 보기 2", "③ 보기 3", "④ 보기 4"],
+    "answer": "①",
+    "explanation": "이것이 정답인 이유에 대한 친절한 해설"
+  },
+  {
+    "question": "두 번째 문제 내용",
+    "choices": ["① 보기 1", "② 보기 2", "③ 보기 3", "④ 보기 4"],
+    "answer": "②",
+    "explanation": "두 번째 문제에 대한 친절한 해설"
+  },
+  {
+    "question": "세 번째 문제 내용",
+    "choices": ["① 보기 1", "② 보기 2", "③ 보기 3", "④ 보기 4"],
+    "answer": "③",
+    "explanation": "세 번째 문제에 대한 친절한 해설"
+  }
+]
     `
   };
-  
-  // ✨ [수정됨] 메시지 전송 함수 (내부 호출 가능하도록 수정)
-  const sendMessage = async (content) => {
-    const messageContent = content || input;
-    if (!messageContent) return;
 
-    const newMsg = { role: 'user', content: messageContent };
-    const updated = [systemMsg, ...messages, newMsg];
-
-    // 사용자가 입력한 내용만 화면에 즉시 반영
-    if(!content) {
-      setMessages(prev => [...prev, newMsg]);
-      setInput('');
-    }
-    
-    // 로딩 애니메이션 시작
-    const initialText = loadingMessages[loadingMessageIndex % loadingMessages.length];
-    setLoadingMessageIndex(prev => prev + 1);
-    setTypedText('');
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+  // 로딩 애니메이션 시작/종료 함수
+  const startLoadingAnimation = () => {
+    setIsLoading(true);
+    const initialText = loadingMessages[0];
     typeEffect(initialText);
-
     const interval = setInterval(() => {
       setLoadingMessageIndex(prev => {
         const nextIndex = (prev + 1) % loadingMessages.length;
@@ -134,35 +112,101 @@ export default function Home() {
       });
     }, 1000);
     setLoadingInterval(interval);
+  };
 
+  const stopLoadingAnimation = () => {
+    if (loadingInterval) clearInterval(loadingInterval);
+    setLoadingInterval(null);
+    setIsLoading(false);
+  };
+
+  // ✨ [수정됨] 퀴즈 모드와 일반 대화 모드를 구분하는 메시지 전송 함수
+  const sendMessage = async () => {
+    if (!input) return;
+
+    if (isQuizMode) {
+      handleQuizAnswer();
+    } else {
+      const newMsg = { role: 'user', content: input };
+      setMessages(prev => [...prev, newMsg]);
+      setInput('');
+      startLoadingAnimation();
+      
+      const updatedHistory = [systemMsg, ...messages, newMsg];
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: updatedHistory })
+      });
+      const data = await res.json();
+      
+      stopLoadingAnimation();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
+    }
+  };
+
+  // ✨ [추가됨] 퀴즈 요청 처리 함수
+  const handleRequestQuiz = async () => {
+    const quizPrompt = "지금까지 대화한 내용을 바탕으로, 정해진 JSON 형식에 맞춰 객관식 퀴즈 3개를 만들어 줘.";
+    setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게."}]);
+    
+    startLoadingAnimation();
+    const updatedHistory = [systemMsg, ...messages, { role: 'user', content: quizPrompt }];
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: updated })
+      body: JSON.stringify({ messages: updatedHistory })
     });
     const data = await res.json();
+    stopLoadingAnimation();
 
-    clearInterval(interval);
-    setMessages(prevMessages => [
-      ...prevMessages.slice(0, -1),
-      { role: 'assistant', content: data.text }
-    ]);
-    setTypedText('');
+    try {
+      const quizJson = JSON.parse(data.text);
+      setQuizData(quizJson);
+      setIsQuizMode(true);
+      setCurrentQuestionIndex(0);
+      setMessages(prev => [...prev, { role: 'assistant', content: `${quizJson[0].question}\n${quizJson[0].choices.join('\n')}` }]);
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'assistant', content: "앗, 퀴즈를 만드는 데 문제가 생겼어. 다시 시도해 줄래?" }]);
+    }
   };
-  
-  // ✨ [추가됨] 퀴즈 요청 함수
-  const handleRequestQuiz = () => {
-    const quizPrompt = "지금까지 대화한 내용을 바탕으로, 객관식 퀴즈 3개를 만들어 줘.";
-    // 화면에 표시하지 않고 바로 sendMessage 함수에 명령어를 전달
-    const currentMessages = [...messages, { role: 'user', content: quizPrompt }];
-    sendMessage(quizPrompt);
+
+  // ✨ [추가됨] 퀴즈 답변 처리 함수
+  const handleQuizAnswer = () => {
+    const userAnswer = input;
+    const currentQuiz = quizData[currentQuestionIndex];
+    const isCorrect = userAnswer.includes(currentQuiz.answer.charAt(0));
+
+    let feedback = '';
+    if (isCorrect) {
+      feedback = `딩동댕! 정답이야. \n\n[해설] ${currentQuiz.explanation}`;
+    } else {
+      feedback = `아쉽지만 틀렸어. 정답은 ${currentQuiz.answer}이야.\n\n[해설] ${currentQuiz.explanation}`;
+    }
+    
+    setMessages(prev => [...prev, { role: 'user', content: userAnswer }, { role: 'assistant', content: feedback }]);
+    setInput('');
+
+    const nextQuestionIndex = currentQuestionIndex + 1;
+    if (nextQuestionIndex < quizData.length) {
+      const nextQuiz = quizData[nextQuestionIndex];
+      setCurrentQuestionIndex(nextQuestionIndex);
+      setTimeout(() => {
+        setMessages(prev => [...prev, { role: 'assistant', content: `${nextQuiz.question}\n${nextQuiz.choices.join('\n')}` }]);
+      }, 1000);
+    } else {
+      setIsQuizMode(false);
+      setQuizData([]);
+      setCurrentQuestionIndex(0);
+      setTimeout(() => {
+        setMessages(prev => [...prev, { role: 'assistant', content: "퀴즈를 모두 풀었어! 정말 대단하다! 더 궁금한 게 있니?" }]);
+      }, 1000);
+    }
   };
+
 
   const renderedMessages = messages.map((m, i) => {
-    const isLast = i === messages.length - 1;
-    const isTyping = isLast && m.role === 'assistant' && m.content === '';
-    const content = isTyping ? typedText : m.content;
-
+    const content = m.content;
     const messageBoxStyle = {
       backgroundColor: m.role === 'user' ? '#e6f3ff' : '#f7f7f8',
       padding: '10px 15px',
@@ -174,43 +218,42 @@ export default function Home() {
       lineHeight: '1.6',
       boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
     };
-
     return (
       <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: messageBoxStyle.alignSelf }}>
         <div style={messageBoxStyle}>
-          {m.role === 'assistant' && !isTyping ? (
-            <>
-              <ReactMarkdown>{cleanContent(content)}</ReactMarkdown>
-              <button
-                onClick={() => speakText(content)}
-                style={{
-                  marginTop: 5,
-                  fontSize: '1rem',
-                  padding: '6px 14px',
-                  borderRadius: '4px',
-                  background: '#fffbe8',
-                  border: '1px solid #fdd835',
-                  color: '#333',
-                  fontFamily: 'Segoe UI, sans-serif',
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
-              >🔊 읽어주기</button>
-            </>
-          ) : (
-            <p style={{ fontStyle: isTyping ? 'italic' : 'normal', minHeight: '1.5em' }}>{content}</p>
-          )}
+          <ReactMarkdown>{cleanContent(content)}</ReactMarkdown>
+          {m.role === 'assistant' && !isQuizMode && <button
+            onClick={() => speakText(content)}
+            style={{
+              marginTop: 5, fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
+              background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
+              fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
+            }}
+          >🔊 읽어주기</button>
+          }
         </div>
       </div>
     );
   });
+  
+  // 로딩 중일 때 렌더링
+  const loadingDisplay = (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+      <div style={{
+        backgroundColor: '#f7f7f8', padding: '10px 15px', borderRadius: '15px',
+        maxWidth: '80%', alignSelf: 'flex-start', whiteSpace: 'pre-wrap', fontSize: '1rem',
+        lineHeight: '1.6', boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+      }}>
+        <p style={{ fontStyle: 'italic', minHeight: '1.5em', color: '#888' }}>{typedText}</p>
+      </div>
+    </div>
+  );
 
   return (
     <>
       <Head>
         <title>뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇</title>
         <meta name="description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
-        {/* 미리보기(OG, Twitter) */}
         <meta property="og:title" content="뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇" />
         <meta property="og:description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
         <meta property="og:image" content="https://mnm-kappa.vercel.app/preview.png" />
@@ -234,20 +277,15 @@ export default function Home() {
           overflowY: 'auto', borderRadius: '8px', backgroundColor: '#fff'
         }}>
           {renderedMessages}
+          {isLoading && loadingDisplay}
           <div ref={bottom} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
           <textarea
             style={{
-              padding: 10,
-              minHeight: '60px',
-              maxHeight: '200px',
-              resize: 'vertical',
-              overflowY: 'auto',
-              fontSize: '1rem',
-              lineHeight: '1.5',
-              marginBottom: '0.5rem',
-              fontFamily: 'Segoe UI, sans-serif'
+              padding: 10, minHeight: '60px', maxHeight: '200px',
+              resize: 'vertical', overflowY: 'auto', fontSize: '1rem',
+              lineHeight: '1.5', marginBottom: '0.5rem', fontFamily: 'Segoe UI, sans-serif'
             }}
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -257,38 +295,30 @@ export default function Home() {
                 sendMessage();
               }
             }}
-            placeholder="메시지를 입력하세요... (Shift + Enter로 줄바꿈)"
+            placeholder={isQuizMode ? "정답 번호를 입력하세요... (예: 1)" : "메시지를 입력하세요... (Shift + Enter로 줄바꿈)"}
+            disabled={isLoading}
           />
-          { /* ✨ [수정됨] 버튼들을 감싸는 div 추가 */ }
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
-              onClick={() => sendMessage()}
+              onClick={sendMessage}
+              disabled={isLoading}
               style={{
-                flex: 1, // 너비를 채움
-                padding: '10px',
-                fontSize: '1rem',
-                borderRadius: '6px',
-                backgroundColor: '#FDD835',
-                fontWeight: 'bold',
-                color: 'black',
-                border: 'none',
-                cursor: 'pointer',
-                fontFamily: 'Segoe UI, sans-serif'
+                flex: 1, padding: '10px', fontSize: '1rem',
+                borderRadius: '6px', backgroundColor: isLoading ? '#e0e0e0' : '#FDD835',
+                fontWeight: 'bold', color: 'black', border: 'none',
+                cursor: isLoading ? 'not-allowed' : 'pointer', fontFamily: 'Segoe UI, sans-serif'
               }}
-            >보내기</button>
-            { /* ✨ [추가됨] 퀴즈 풀기 버튼 */ }
+            >
+              {isQuizMode ? '정답 확인' : '보내기'}
+            </button>
             <button
               onClick={handleRequestQuiz}
-              disabled={messages.length <= 3} // 대화가 3개 이하면 비활성화
+              disabled={isLoading || isQuizMode || messages.length <= 3}
               style={{
-                padding: '10px',
-                fontSize: '1rem',
-                borderRadius: '6px',
-                backgroundColor: messages.length <= 3 ? '#e0e0e0' : '#4CAF50',
-                fontWeight: 'bold',
-                color: 'white',
-                border: 'none',
-                cursor: messages.length <= 3 ? 'not-allowed' : 'pointer',
+                padding: '10px', fontSize: '1rem', borderRadius: '6px',
+                backgroundColor: (isLoading || isQuizMode || messages.length <= 3) ? '#e0e0e0' : '#4CAF50',
+                fontWeight: 'bold', color: 'white', border: 'none',
+                cursor: (isLoading || isQuizMode || messages.length <= 3) ? 'not-allowed' : 'pointer',
                 fontFamily: 'Segoe UI, sans-serif'
               }}
             >퀴즈 풀기</button>
