@@ -314,7 +314,7 @@ ${source}
               disabled={isLoading}
               className="btn btn-primary"
             >
-              보내기 ✈️
+              보내기 📨
             </button>
             {conversationPhase === 'chatting' && messages.length > 4 && (
               <button
