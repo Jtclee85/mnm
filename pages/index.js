@@ -3,6 +3,11 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 
 const cleanContent = (text) => {
+  // <summary> ... </summary> 태그 안의 내용만 남기고, 태그는 제거
+  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
+  if (summaryMatch) {
+    return summaryMatch[1].trim();
+  }
   return text.replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
 };
 
@@ -37,7 +42,6 @@ const getGivenName = (name) => {
 
 const zodiacEmojis = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷'];
 
-
 export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_name');
   const [userName, setUserName] = useState('');
@@ -67,7 +71,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] 3줄 요약 규칙을 '문단 요약'으로 변경
   const createSystemMessage = (name, source) => {
     const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
     return {
@@ -199,7 +202,7 @@ ${source}
   const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 평가해 줄게!");
 
   const handleCopy = async (text) => {
-    const summaryMatch = text.match(/<summary>([\s\S]*)<\/summary>/);
+    const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
     const textToCopy = summaryMatch ? summaryMatch[1].trim() : text.trim();
 
     try {
@@ -317,31 +320,3 @@ ${source}
                 color: 'black', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer'
               }}
             >
-              보내기
-            </button>
-            {conversationPhase === 'chatting' && messages.length > 4 && (
-              <button
-                onClick={() => setShowExtraFeatures(!showExtraFeatures)}
-                disabled={isLoading}
-                style={{
-                  padding: '12px', fontSize: '1rem', borderRadius: '8px',
-                  backgroundColor: isLoading ? '#e0e0e0' : '#8D8741', fontWeight: 'bold',
-                  color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {showExtraFeatures ? '기능 숨기기 ▲' : '더 많은 기능 보기 📚'}
-              </button>
-            )}
-          </div>
-          {showExtraFeatures && conversationPhase === 'chatting' && messages.length > 4 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-               <button onClick={handleRequestQuiz} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>퀴즈 풀기</button>
-               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>3줄요약</button>
-               <button onClick={handleRequestEvaluation} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>나 어땠어?</button>
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  );
-}
