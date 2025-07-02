@@ -132,54 +132,22 @@ ${source}
     }
   };
 
-  // ✨ [추가됨] 의도 분석처럼, 스트리밍이 아닌 전체 답변을 받는 함수
-  const fetchFullResponse = async (messageHistory) => {
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messageHistory })
-      });
-      if (!res.ok) throw new Error(res.statusText);
-      
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            fullText += JSON.parse(line.substring(6));
-          }
-        }
-      }
-      return fullText;
-    } catch (error) {
-      console.error("전체 답변 요청 오류:", error);
-      return null;
-    }
-  };
-
-
-  // ✨ [수정됨] 의도 분석 기능이 포함된 sendMessage 함수
+  // ✨ [수정됨] '의도 분석' 로직을 잠시 제거하고, '글자 수' 기반의 단순 검증 로직으로 복원
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
-    setMessages(prev => [...prev, { role: 'user', content: userInput }]);
-    setInput('');
 
     // 1단계: 이름 받기
     if (conversationPhase === 'asking_name') {
       const name = extractNameFromInput(userInput);
       if (!name) {
-          setMessages(prev => [...prev, { role: 'assistant', content: '이름을 알려주지 않으면 다음으로 넘어갈 수 없어. 다시 한번 알려줄래?'}]);
+          setMessages(prev => [...prev, { role: 'user', content: userInput }, { role: 'assistant', content: '이름을 알려주지 않으면 다음으로 넘어갈 수 없어. 다시 한번 알려줄래?'}]);
+          setInput('');
           return;
       }
       setUserName(name);
+      setMessages(prev => [...prev, { role: 'user', content: userInput }]);
+      setInput('');
       setTimeout(() => {
         const friendlyName = getKoreanNameWithPostposition(name);
         setMessages(prev => [...prev, { role: 'assistant', content: `만나서 반가워, ${friendlyName}! 이제 네가 조사한 역사 자료의 원본 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게.` }]);
@@ -188,38 +156,32 @@ ${source}
       return;
     }
 
-    // 2단계: 원본 자료 입력 단계 (의도 분석 포함)
+    // 2단계: 원본 자료 받기 (단순 길이 검증)
     if (conversationPhase === 'asking_source') {
-      setIsLoading(true);
-      const classificationSystemPrompt = {
-        role: 'system',
-        content: `너는 사용자의 입력 텍스트를 '자료 붙여넣기', '직접 질문', '일반 대화' 세 가지 유형으로 분류하는 분류기야. 다른 말은 절대 하면 안 되고, 반드시 세 가지 유형 중 하나로만 답해야 해.`
-      };
-      const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
-      setIsLoading(false);
-      
-      switch (intent) {
-        case '자료 붙여넣기':
-          setSourceText(userInput);
-          const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
-          const systemMsg = createSystemMessage(userName, userInput);
-          processStreamedResponse([systemMsg, firstPrompt]);
-          setConversationPhase('chatting');
-          break;
-        case '직접 질문':
-          setMessages(prev => [...prev, { role: 'assistant', content: '좋은 질문이네! 그 내용에 대해 더 정확하게 설명해주려면, 먼저 백과사전이나 믿을 만한 곳에서 찾은 자료를 여기에 붙여넣어 줄래?' }]);
-          break;
-        default: // '일반 대화' 또는 기타
-          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 지금은 대화하는 대신 조사한 자료를 붙여넣어 줘야 해.' }]);
-          break;
+      if (userInput.length < 30) {
+        setMessages(prev => [...prev, { role: 'user', content: userInput }, { role: 'assistant', content: '앗, 그건 설명할 자료가 아닌 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
+        setInput('');
+        return;
       }
+      setSourceText(userInput);
+      const userMsg = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
+      const updatedMessages = [...messages, userMsg];
+      setMessages(updatedMessages);
+      setInput('');
+      const systemMsg = createSystemMessage(userName, userInput);
+      processStreamedResponse([systemMsg, userMsg]);
+      setConversationPhase('chatting');
       return;
     }
     
     // 3단계: 자유 대화
     if (conversationPhase === 'chatting') {
+      const newMsg = { role: 'user', content: userInput };
+      const updatedMessages = [...messages, newMsg];
       const systemMsg = createSystemMessage(userName, sourceText);
-      processStreamedResponse([systemMsg, ...messages, { role: 'user', content: userInput }]);
+      setMessages(updatedMessages);
+      setInput('');
+      processStreamedResponse([systemMsg, ...updatedMessages]);
     }
   };
   
@@ -237,13 +199,47 @@ ${source}
 
 
   const renderedMessages = messages.map((m, i) => {
-    // ... (이 부분은 이전과 동일하므로 생략)
+    const content = m.content;
+    const messageBoxStyle = {
+      backgroundColor: m.role === 'user' ? '#e6f3ff' : '#f7f7f8',
+      padding: '10px 15px', borderRadius: '15px', maxWidth: '80%',
+      alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+      whiteSpace: 'pre-wrap', fontSize: '1rem', lineHeight: '1.6',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
+    };
+    return (
+      <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: messageBoxStyle.alignSelf }}>
+        <div style={messageBoxStyle}>
+          <ReactMarkdown
+            components={{
+              a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
+            }}
+          >
+            {cleanContent(content)}
+          </ReactMarkdown>
+          {m.role === 'assistant' && !isLoading && <button
+            onClick={() => speakText(content)}
+            style={{
+              marginTop: 10, fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
+              background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
+              fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
+            }}
+          >🔊</button>
+          }
+        </div>
+      </div>
+    );
   });
 
   return (
     <>
       <Head>
-        {/* ... (이 부분은 이전과 동일하므로 생략) */}
+        <title>뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇</title>
+        <meta name="description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
+        <meta property="og:title" content="뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇" />
+        <meta property="og:description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
+        <meta property="og:image" content="https://mnm-kappa.vercel.app/preview.png" />
+        <meta property="og:url" content="https://mnm-kappa.vercel.app" />
       </Head>
 
       <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20, fontFamily: 'Segoe UI, sans-serif' }}>
@@ -258,7 +254,8 @@ ${source}
           border: '1px solid #ccc', padding: 10, height: '60vh',
           overflowY: 'auto', borderRadius: '8px', backgroundColor: '#fff'
         }}>
-          {/* ... (이 부분은 이전과 동일하므로 생략) */}
+          {renderedMessages}
+          <div ref={bottomRef} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
           <textarea
