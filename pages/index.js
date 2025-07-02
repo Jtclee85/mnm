@@ -24,17 +24,11 @@ const getKoreanNameWithPostposition = (name) => {
   return name + (hasJongseong ? '아' : '야');
 };
 
-// ✨ [추가됨] 12지신 이모지 배열
-const zodiacEmojis = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷'];
-
 
 export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_name');
   const [userName, setUserName] = useState('');
   const [sourceText, setSourceText] = useState('');
-  
-  // ✨ [추가됨] 사용자 프로필 이모지 상태
-  const [userEmoji, setUserEmoji] = useState('');
 
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '안녕, 친구! 나는 역사 이야기를 재미있게 들려주는 [뭐냐면]이야. 만나서 반가워! 네 이름은 뭐니?' }
@@ -44,11 +38,6 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showExtraFeatures, setShowExtraFeatures] = useState(false);
   const inputRef = useRef(null);
-
-  // ✨ [추가됨] 페이지 로드 시 사용자 이모지 랜덤 선택
-  useEffect(() => {
-    setUserEmoji(zodiacEmojis[Math.floor(Math.random() * zodiacEmojis.length)]);
-  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -74,6 +63,7 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
+  // ✨ [수정됨] '나 어땠어?' 평가 규칙을 강화한 시스템 프롬프트
   const createSystemMessage = (name, source) => {
     const friendlyName = getKoreanNameWithPostposition(name);
     return {
@@ -97,8 +87,11 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 가장 중요한 특징 3가지를 한 가지 당 25자 내외의 짧은 구절로 요약해 줘.
-3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '조금만 더 힘내자!' 중 하나로 평가하고 칭찬해 줘.
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 가장 중요한 특징 3가지를 15자 내외의 짧은 구절로 요약해 줘.
+3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
+    - **'최고야!':** 탐구적 질문(왜? 어떻게?)을 **적극적으로 3회 이상** 하고, **퀴즈를 풀었다면 정답을 맞혔을 경우**에만 이 평가를 내린다.
+    - **'정말 잘했어!':** 단순 사실 확인 질문을 1~2회 했거나, **퀴즈를 풀었지만 아쉽게 틀렸을 경우** 이 평가를 내리고 격려해준다.
+    - **'조금만 더 힘내자!':** 위 조건에 해당하지 않고, **대화에 거의 참여하지 않았거나 질문이 없었을 경우** 이 평가를 내리고, 다음에는 더 많은 질문을 해보자고 부드럽게 제안한다.
       `
     };
   };
@@ -146,7 +139,7 @@ ${source}
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
-    
+
     if (conversationPhase === 'asking_name') {
       const name = extractNameFromInput(userInput);
       if (!name) {
@@ -202,14 +195,14 @@ ${source}
   
   const handleRequestQuiz = () => handleSpecialRequest("지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게.");
   const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 15자 내외의 짧은 구절로 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!");
-  const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 알려줄게!");
+  const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준, 퀴즈 결과 등을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 평가해 줄게!");
 
-  // ✨ [수정됨] 프로필 사진을 포함하도록 렌더링 로직 전체 변경
+
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
     const isUser = m.role === 'user';
     const speakerName = isUser ? userName : '뭐냐면';
-    const isNameVisible = conversationPhase === 'chatting' && i > 0;
+    const isNameVisible = conversationPhase === 'chatting' && i > 2;
 
     const profilePic = isUser ? (
       <div className="profile-pic">{userEmoji}</div>
