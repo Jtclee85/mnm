@@ -67,20 +67,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  const speakText = (text) => {
-    window.speechSynthesis.cancel();
-    const voices = window.speechSynthesis.getVoices();
-    const childlikeVoice = voices.find(voice =>
-      voice.lang === 'ko-KR' && (voice.name.includes('Google') || voice.name.includes('Microsoft'))
-    );
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ko-KR';
-    utterance.pitch = 1.2;
-    utterance.rate = 1.0;
-    if (childlikeVoice) utterance.voice = childlikeVoice;
-    window.speechSynthesis.speak(utterance);
-  };
-  
   const createSystemMessage = (name, source) => {
     const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
     return {
@@ -244,26 +230,17 @@ ${source}
         <div className="message-content-container">
           {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
           <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-            {/* ✨ [수정됨] summary 태그를 화면에 보이지 않도록 components prop에 추가 */}
+            {/* ✨ [수정됨] summary 태그가 화면에 보이지 않도록 components prop 수정 */}
             <ReactMarkdown
               components={{
                 a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                summary: ({node, ...props}) => <>{props.children}</>
+                summary: ({ children }) => <>{children}</>,
               }}
             >
               {cleanContent(content)}
             </ReactMarkdown>
-            {m.role === 'assistant' && !isLoading && (
-              <div style={{ marginTop: 10, display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={() => speakText(content)}
-                  style={{
-                    fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
-                    background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
-                    fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
-                  }}
-                >🔊</button>
-                {m.metadata?.type === 'summary' && (
+            {m.role === 'assistant' && !isLoading && m.metadata?.type === 'summary' && (
+              <div style={{ marginTop: 10 }}>
                   <button
                     onClick={() => handleCopy(content)}
                     style={{
@@ -272,7 +249,6 @@ ${source}
                       fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
                     }}
                   >📋 복사하기</button>
-                )}
               </div>
             )}
           </div>
