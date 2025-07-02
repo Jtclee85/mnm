@@ -20,13 +20,16 @@ export default function Home() {
   const [typedText, setTypedText] = useState('');
   const loadingMessages = ['그게 뭐냐면...', '생각중이니 잠깐만요...'];
 
+  // ✨ [수정됨] 퀴즈 상태에 '정답확인' 여부 추가
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [quizData, setQuizData] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [quizFeedbackGiven, setQuizFeedbackGiven] = useState(false); // 피드백 제공 여부 상태
+
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typedText]); // typedText가 변경될 때도 스크롤
+  }, [messages, typedText]);
 
   const typeEffect = (text) => {
     let i = 0;
@@ -112,10 +115,9 @@ export default function Home() {
     if (loadingInterval) clearInterval(loadingInterval);
     setLoadingInterval(null);
     setIsLoading(false);
-    setTypedText(''); // 로딩 텍스트 초기화
+    setTypedText('');
   };
 
-  // ✨ [수정됨] 일반 대화 전송 전용 함수
   const sendChatMessage = async () => {
     if (!input || isLoading) return;
     
@@ -162,7 +164,6 @@ export default function Home() {
     }
   };
   
-  // ✨ [수정됨] 퀴즈 답변 처리 전용 함수
   const handleQuizAnswer = () => {
     if (!input || isLoading) return;
 
@@ -181,23 +182,27 @@ export default function Home() {
     
     setMessages(prev => [...prev, { role: 'user', content: userAnswer }, { role: 'assistant', content: feedback }]);
     setInput('');
+    setQuizFeedbackGiven(true); // ✨ [추가됨] 피드백이 제공되었음을 표시
+  };
 
+  // ✨ [추가됨] 다음 문제로 넘어가거나 퀴즈를 종료하는 함수
+  const handleNextQuizStep = () => {
+    setQuizFeedbackGiven(false); // 피드백 상태 초기화
     const nextQuestionIndex = currentQuestionIndex + 1;
+
     if (nextQuestionIndex < quizData.length) {
       const nextQuiz = quizData[nextQuestionIndex];
       setCurrentQuestionIndex(nextQuestionIndex);
-      setTimeout(() => {
-        setMessages(prev => [...prev, { role: 'assistant', content: `${nextQuiz.question}\n${nextQuiz.choices.join('\n')}` }]);
-      }, 1500);
+      setMessages(prev => [...prev, { role: 'assistant', content: `${nextQuiz.question}\n${nextQuiz.choices.join('\n')}` }]);
     } else {
+      // 퀴즈 종료
       setIsQuizMode(false);
       setQuizData([]);
       setCurrentQuestionIndex(0);
-      setTimeout(() => {
-        setMessages(prev => [...prev, { role: 'assistant', content: "퀴즈를 모두 풀었어! 정말 대단하다! 더 궁금한 게 있니?" }]);
-      }, 1500);
+      setMessages(prev => [...prev, { role: 'assistant', content: "퀴즈를 모두 풀었어! 정말 대단하다! 더 궁금한 게 있니?" }]);
     }
   };
+
 
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
@@ -281,31 +286,37 @@ export default function Home() {
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                // ✨ [수정됨] 퀴즈 모드 여부에 따라 다른 함수 호출
-                if (isQuizMode) {
+                if (isQuizMode && !quizFeedbackGiven) {
                   handleQuizAnswer();
-                } else {
+                } else if (!isQuizMode) {
                   sendChatMessage();
                 }
               }
             }}
             placeholder={isQuizMode ? "정답 번호를 입력하세요... (예: 1)" : "메시지를 입력하세요... (Shift + Enter로 줄바꿈)"}
-            disabled={isLoading}
+            disabled={isLoading || (isQuizMode && quizFeedbackGiven)}
           />
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              // ✨ [수정됨] 퀴즈 모드 여부에 따라 다른 함수 호출
-              onClick={isQuizMode ? handleQuizAnswer : sendChatMessage}
-              disabled={isLoading}
-              style={{
-                flex: 1, padding: '10px', fontSize: '1rem',
-                borderRadius: '6px', backgroundColor: isLoading ? '#e0e0e0' : '#FDD835',
-                fontWeight: 'bold', color: 'black', border: 'none',
-                cursor: isLoading ? 'not-allowed' : 'pointer', fontFamily: 'Segoe UI, sans-serif'
-              }}
-            >
-              {isQuizMode ? '정답 확인' : '보내기'}
-            </button>
+            {/* ✨ [수정됨] 퀴즈 모드 상태에 따라 버튼을 다르게 보여줌 */}
+            {isQuizMode && quizFeedbackGiven ? (
+              <button onClick={handleNextQuizStep} style={{ flex: 1, padding: '10px', fontSize: '1rem', borderRadius: '6px', backgroundColor: '#FDD835', fontWeight: 'bold', color: 'black', border: 'none', cursor: 'pointer', fontFamily: 'Segoe UI, sans-serif' }}>
+                {currentQuestionIndex < quizData.length -1 ? '다음 문제' : '퀴즈 종료'}
+              </button>
+            ) : (
+              <button
+                onClick={isQuizMode ? handleQuizAnswer : sendChatMessage}
+                disabled={isLoading}
+                style={{
+                  flex: 1, padding: '10px', fontSize: '1rem',
+                  borderRadius: '6px', backgroundColor: isLoading ? '#e0e0e0' : '#FDD835',
+                  fontWeight: 'bold', color: 'black', border: 'none',
+                  cursor: isLoading ? 'not-allowed' : 'pointer', fontFamily: 'Segoe UI, sans-serif'
+                }}
+              >
+                {isQuizMode ? '정답 확인' : '보내기'}
+              </button>
+            )}
+            
             <button
               onClick={handleRequestQuiz}
               disabled={isLoading || isQuizMode || messages.length <= 3}
