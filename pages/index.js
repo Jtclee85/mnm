@@ -230,11 +230,11 @@ ${source}
         <div className="message-content-container">
           {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
           <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-            {/* ✨ [수정됨] summary 태그가 화면에 보이지 않도록 components prop 수정 */}
+            {/* ✨ [수정됨] summary 태그가 화면에 보이지 않도록 components prop에 올바르게 추가 */}
             <ReactMarkdown
               components={{
                 a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                summary: ({ children }) => <>{children}</>,
+                summary: ({children}) => <>{children}</>,
               }}
             >
               {cleanContent(content)}
