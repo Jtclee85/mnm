@@ -21,14 +21,18 @@ export default function Home() {
   const [typedText, setTypedText] = useState('');
   const loadingMessages = ['그게 뭐냐면...', '생각중이니 잠깐만요...'];
 
-  // ✨ [추가됨] 퀴즈 상태 관련
+  // 퀴즈 상태 관련
   const [isQuizMode, setIsQuizMode] = useState(false);
   const [quizData, setQuizData] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
+  // ✨ [수정됨] 스크롤 로직 수정
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typedText]);
+    // 로딩 중이 아닐 때만 맨 아래로 스크롤
+    if (!isLoading) {
+      bottom.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isLoading]); // isLoading을 의존성 배열에 추가
 
   // 타자 효과
   const typeEffect = (text) => {
@@ -59,7 +63,6 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
-  // ✨ [수정됨] 퀴즈 규칙이 JSON 형식으로 변경된 시스템 프롬프트
   const systemMsg = {
     role: 'system',
     content: `
@@ -120,7 +123,6 @@ export default function Home() {
     setIsLoading(false);
   };
 
-  // ✨ [수정됨] 퀴즈 모드와 일반 대화 모드를 구분하는 메시지 전송 함수
   const sendMessage = async () => {
     if (!input) return;
 
@@ -145,7 +147,6 @@ export default function Home() {
     }
   };
 
-  // ✨ [추가됨] 퀴즈 요청 처리 함수
   const handleRequestQuiz = async () => {
     const quizPrompt = "지금까지 대화한 내용을 바탕으로, 정해진 JSON 형식에 맞춰 객관식 퀴즈 3개를 만들어 줘.";
     setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게."}]);
@@ -171,11 +172,13 @@ export default function Home() {
     }
   };
 
-  // ✨ [추가됨] 퀴즈 답변 처리 함수
   const handleQuizAnswer = () => {
-    const userAnswer = input;
+    const userAnswer = input.trim();
     const currentQuiz = quizData[currentQuestionIndex];
-    const isCorrect = userAnswer.includes(currentQuiz.answer.charAt(0));
+    
+    // ✨ [수정됨] 정답 비교 로직 (숫자, 원문자 모두 인식)
+    const answerNumber = currentQuiz.answer.match(/\d+/)[0]; // '②' -> '2' 추출
+    const isCorrect = (userAnswer === answerNumber || userAnswer === currentQuiz.answer);
 
     let feedback = '';
     if (isCorrect) {
@@ -193,14 +196,14 @@ export default function Home() {
       setCurrentQuestionIndex(nextQuestionIndex);
       setTimeout(() => {
         setMessages(prev => [...prev, { role: 'assistant', content: `${nextQuiz.question}\n${nextQuiz.choices.join('\n')}` }]);
-      }, 1000);
+      }, 1500); // 다음 문제 제시 전 약간의 텀
     } else {
       setIsQuizMode(false);
       setQuizData([]);
       setCurrentQuestionIndex(0);
       setTimeout(() => {
         setMessages(prev => [...prev, { role: 'assistant', content: "퀴즈를 모두 풀었어! 정말 대단하다! 더 궁금한 게 있니?" }]);
-      }, 1000);
+      }, 1500);
     }
   };
 
@@ -236,7 +239,6 @@ export default function Home() {
     );
   });
   
-  // 로딩 중일 때 렌더링
   const loadingDisplay = (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
       <div style={{
