@@ -38,10 +38,11 @@ body {
   background-color: #FFFFFF;
 }
 
-/* 이름표 스타일 */
+/* ✨ [수정됨] 이름표 스타일 */
 .speaker-name {
-  font-size: 0.8rem;
-  color: #888;
+  font-size: 0.9rem; /* 0.8rem에서 0.9rem으로 크기 증가 */
+  font-weight: bold; /* 글씨를 약간 굵게 하여 잘 보이도록 수정 */
+  color: #555;
   margin-bottom: 4px;
   padding: 0 8px;
 }
