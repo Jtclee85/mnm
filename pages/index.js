@@ -153,14 +153,23 @@ export default function Home() {
     const data = await res.json();
     stopLoadingAnimation();
 
-    try {
-      // GPT 응답에서 JSON 배열 부분만 추출 (가장 먼저 나오는 [...] 를 찾음)
-      const jsonMatch = data.text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
-      if (!jsonMatch) {
-        // 응답에서 JSON을 찾지 못한 경우
-        throw new Error("Invalid JSON format");
-      }
-
+   try {
+    const jsonMatch = data.text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+    if (!jsonMatch) throw new Error("Invalid JSON format");
+    const quizJson = JSON.parse(jsonMatch[0]);
+    setQuizData(quizJson);        // 퀴즈 데이터 전체 저장
+    setIsQuizMode(true);          // 퀴즈모드 ON
+    setCurrentQuestionIndex(0);   // 항상 첫 문제로 초기화
+    setQuizFeedbackGiven(false);  // 피드백 초기화
+    // **여기서 문제 한 개만 메시지로 출력**
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', content: `[퀴즈 1번]\n${quizJson[0].question}\n${quizJson[0].choices.join('\n')}` }
+    ]);
+  } catch (e) {
+    // ...에러처리 동일...
+  }
+};
       const quizJson = JSON.parse(jsonMatch[0]);
       setQuizData(quizJson);
       setIsQuizMode(true);
@@ -194,23 +203,28 @@ export default function Home() {
   };
 
   // ✨ [추가됨] 다음 문제로 넘어가거나 퀴즈를 종료하는 함수
-  const handleNextQuizStep = () => {
-    setQuizFeedbackGiven(false); // 피드백 상태 초기화
-    const nextQuestionIndex = currentQuestionIndex + 1;
+const handleNextQuizStep = () => {
+  setQuizFeedbackGiven(false); // 피드백 상태 초기화
+  const nextQuestionIndex = currentQuestionIndex + 1;
 
-    if (nextQuestionIndex < quizData.length) {
-      const nextQuiz = quizData[nextQuestionIndex];
-      setCurrentQuestionIndex(nextQuestionIndex);
-      setMessages(prev => [...prev, { role: 'assistant', content: `${nextQuiz.question}\n${nextQuiz.choices.join('\n')}` }]);
-    } else {
-      // 퀴즈 종료
-      setIsQuizMode(false);
-      setQuizData([]);
-      setCurrentQuestionIndex(0);
-      setMessages(prev => [...prev, { role: 'assistant', content: "퀴즈를 모두 풀었어! 정말 대단하다! 더 궁금한 게 있니?" }]);
-    }
-  };
-
+  if (nextQuestionIndex < quizData.length) {
+    const nextQuiz = quizData[nextQuestionIndex];
+    setCurrentQuestionIndex(nextQuestionIndex);
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', content: `[퀴즈 ${nextQuestionIndex + 1}번]\n${nextQuiz.question}\n${nextQuiz.choices.join('\n')}` }
+    ]);
+  } else {
+    // 퀴즈 종료
+    setIsQuizMode(false);
+    setQuizData([]);
+    setCurrentQuestionIndex(0);
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', content: "퀴즈를 모두 풀었어! 정말 대단하다! 더 궁금한 게 있니?" }
+    ]);
+  }
+};
 
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
