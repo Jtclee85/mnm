@@ -131,59 +131,21 @@ ${source}
       setIsLoading(false);
     }
   };
-  
-  // ✨ [추가됨] 의도 분석을 위해 스트리밍 없이 전체 답변을 받아오는 함수
-  const fetchFullResponse = async (messageHistory) => {
-    setIsLoading(true);
-    let fullText = "";
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messageHistory })
-      });
-      if (!res.ok) throw new Error(res.statusText);
-      
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            fullText += JSON.parse(line.substring(6));
-          }
-        }
-      }
-      return fullText;
-    } catch (error) {
-      console.error("전체 답변 요청 오류:", error);
-      return "오류"; // 오류 발생 시 기본값 반환
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
     
-    // 사용자가 입력한 메시지를 먼저 화면에 표시
-    const userMsgForDisplay = { role: 'user', content: userInput };
-    setMessages(prev => [...prev, userMsgForDisplay]);
-    setInput('');
-
-    // 1단계: 이름 받기
     if (conversationPhase === 'asking_name') {
       const name = extractNameFromInput(userInput);
       if (!name) {
-          setMessages(prev => [...prev, { role: 'assistant', content: '이름을 알려주지 않으면 다음으로 넘어갈 수 없어. 다시 한번 알려줄래?'}]);
+          setMessages(prev => [...prev, { role: 'user', content: userInput }, { role: 'assistant', content: '이름을 알려주지 않으면 다음으로 넘어갈 수 없어. 다시 한번 알려줄래?'}]);
+          setInput('');
           return;
       }
       setUserName(name);
+      setMessages(prev => [...prev, { role: 'user', content: userInput }]);
+      setInput('');
       setTimeout(() => {
         const friendlyName = getKoreanNameWithPostposition(name);
         setMessages(prev => [...prev, { role: 'assistant', content: `만나서 반가워, ${friendlyName}! 이제 네가 조사한 역사 자료의 원본 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게.` }]);
@@ -192,37 +154,30 @@ ${source}
       return;
     }
 
-    // 2단계: 원본 자료 입력 단계 (의도 분석 포함)
     if (conversationPhase === 'asking_source') {
-      const classificationSystemPrompt = {
-        role: 'system',
-        content: `너는 사용자의 입력 텍스트를 '자료 붙여넣기', '직접 질문', '일반 대화' 세 가지 유형으로 분류하는 분류기야. 다른 말은 절대 하면 안 되고, 반드시 세 가지 유형 중 하나로만 답해야 해.`
-      };
-      
-      const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
-      
-      switch (intent) {
-        case '자료 붙여넣기':
-          setSourceText(userInput);
-          const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
-          const systemMsg = createSystemMessage(userName, userInput);
-          processStreamedResponse([systemMsg, firstPrompt]);
-          setConversationPhase('chatting');
-          break;
-        case '직접 질문':
-          setMessages(prev => [...prev, { role: 'assistant', content: '좋은 질문이네! 그 내용에 대해 더 정확하게 설명해주려면, 먼저 백과사전이나 믿을 만한 곳에서 찾은 자료를 여기에 붙여넣어 줄래?' }]);
-          break;
-        default: // '일반 대화' 또는 기타
-          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 지금은 대화하는 대신 조사한 자료를 붙여넣어 줘야 해.' }]);
-          break;
+      if (userInput.length < 30) {
+        setMessages(prev => [...prev, { role: 'user', content: userInput }, { role: 'assistant', content: '앗, 그건 설명할 자료가 아닌 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
+        setInput('');
+        return;
       }
+      setSourceText(userInput);
+      const userMsg = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
+      const updatedMessages = [...messages, userMsg];
+      setMessages(updatedMessages);
+      setInput('');
+      const systemMsg = createSystemMessage(userName, userInput);
+      processStreamedResponse([systemMsg, userMsg]);
+      setConversationPhase('chatting');
       return;
     }
     
-    // 3단계: 자유 대화
     if (conversationPhase === 'chatting') {
+      const newMsg = { role: 'user', content: userInput };
+      const updatedMessages = [...messages, newMsg];
       const systemMsg = createSystemMessage(userName, sourceText);
-      processStreamedResponse([systemMsg, ...messages, userMsgForDisplay]);
+      setMessages(updatedMessages);
+      setInput('');
+      processStreamedResponse([systemMsg, ...updatedMessages]);
     }
   };
   
@@ -238,19 +193,16 @@ ${source}
   const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 15자 내외의 짧은 구절로 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!");
   const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 알려줄게!");
 
-
+  // ✨ [수정됨] style 속성 대신 className을 사용하도록 변경
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
-    const messageBoxStyle = {
-      backgroundColor: m.role === 'user' ? '#e6f3ff' : '#f7f7f8',
-      padding: '10px 15px', borderRadius: '15px', maxWidth: '80%',
-      alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-      whiteSpace: 'pre-wrap', fontSize: '1rem', lineHeight: '1.6',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
-    };
+    const speakerName = m.role === 'user' ? userName : '뭐냐면';
+    const isNameVisible = conversationPhase === 'chatting' && i > 0;
+
     return (
-      <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: messageBoxStyle.alignSelf }}>
-        <div style={messageBoxStyle}>
+      <div key={i} className="message-container">
+        {isNameVisible && <p className={`speaker-name ${m.role}-name`}>{speakerName}</p>}
+        <div className={`message-bubble ${m.role}-bubble`}>
           <ReactMarkdown
             components={{
               a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
@@ -283,17 +235,17 @@ ${source}
         <meta property="og:url" content="https://mnm-kappa.vercel.app" />
       </Head>
 
-      <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20, fontFamily: 'Segoe UI, sans-serif' }}>
+      <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20 }}>
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <h1 style={{ fontSize: '2rem', margin: 0, fontWeight: 'bold' }}>뭐냐면</h1>
-          <p style={{ fontSize: '1rem', color: '#666', margin: 0 }}>
+          <h1 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 'bold' }}>뭐냐면</h1>
+          <p style={{ fontSize: '1.1rem', color: '#666', margin: '5px 0 0 0' }}>
             조사한 원본 자료를 쉽고 재미있게 설명해주는 AI 친구
           </p>
         </div>
         <div style={{
           display: 'flex', flexDirection: 'column', gap: '10px',
-          border: '1px solid #ccc', padding: 10, height: '60vh',
-          overflowY: 'auto', borderRadius: '8px', backgroundColor: '#fff'
+          border: '1px solid #ddd', padding: '10px', height: '60vh',
+          overflowY: 'auto', borderRadius: '8px', backgroundColor: '#EAE7DC'
         }}>
           {renderedMessages}
           <div ref={bottomRef} />
@@ -304,7 +256,7 @@ ${source}
             style={{
               padding: 10, minHeight: '60px', maxHeight: '200px',
               resize: 'vertical', overflowY: 'auto', fontSize: '1rem',
-              lineHeight: '1.5', marginBottom: '0.5rem', fontFamily: 'Segoe UI, sans-serif'
+              lineHeight: '1.5', marginBottom: '0.5rem', border: '1px solid #ccc', borderRadius: '8px'
             }}
             value={input}
             onChange={e => setInput(e.target.value)}
@@ -326,10 +278,9 @@ ${source}
               onClick={sendMessage}
               disabled={isLoading}
               style={{
-                flex: 1, padding: '10px', fontSize: '1rem', borderRadius: '6px',
+                flex: 1, padding: '12px', fontSize: '1.1rem', borderRadius: '8px',
                 backgroundColor: isLoading ? '#e0e0e0' : '#FDD835', fontWeight: 'bold',
-                color: 'black', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
-                fontFamily: 'Segoe UI, sans-serif'
+                color: 'black', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer'
               }}
             >
               보내기
@@ -339,10 +290,9 @@ ${source}
                 onClick={() => setShowExtraFeatures(!showExtraFeatures)}
                 disabled={isLoading}
                 style={{
-                  padding: '10px', fontSize: '1rem', borderRadius: '6px',
-                  backgroundColor: isLoading ? '#e0e0e0' : '#6c757d', fontWeight: 'bold',
-                  color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
-                  fontFamily: 'Segoe UI, sans-serif'
+                  padding: '12px', fontSize: '1rem', borderRadius: '8px',
+                  backgroundColor: isLoading ? '#e0e0e0' : '#8D8741', fontWeight: 'bold',
+                  color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer'
                 }}
               >
                 {showExtraFeatures ? '기능 숨기기 ▲' : '더 많은 기능 보기 📚'}
@@ -351,9 +301,9 @@ ${source}
           </div>
           {showExtraFeatures && conversationPhase === 'chatting' && messages.length > 4 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-               <button onClick={handleRequestQuiz} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>퀴즈 풀기</button>
-               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>3줄요약</button>
-               <button onClick={handleRequestEvaluation} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>나 어땠어?</button>
+               <button onClick={handleRequestQuiz} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>퀴즈 풀기</button>
+               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>3줄요약</button>
+               <button onClick={handleRequestEvaluation} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>나 어땠어?</button>
             </div>
           )}
         </div>
