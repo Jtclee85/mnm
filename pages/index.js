@@ -11,11 +11,22 @@ export default function Home() {
     { role: 'assistant', content: '안녕하세요. 역사적 인물, 사건, 유적을 쉽게 풀어 설명해주는 [뭐냐면]입니다. 조사한 자료를 붙여넣기 해주시면 친절하고 쉽게 설명해드릴게요.' }
   ]);
   const [input, setInput] = useState('');
-  const bottom = useRef();
+  const bottomRef = useRef(null); // 채팅창 스크롤용
   const [isLoading, setIsLoading] = useState(false);
+  
+  // ✨ [1단계] 입력창(textarea)을 위한 ref 생성
+  const inputRef = useRef(null);
+
+  // ✨ [2단계] 페이지 로드 시, 그리고 답변 완료 시 포커스를 주는 useEffect 추가
+  useEffect(() => {
+    // 답변이 완료되어 로딩이 끝났을 때 포커스
+    if (!isLoading) {
+      inputRef.current?.focus();
+    }
+  }, [isLoading]);
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const speakText = (text) => {
@@ -184,10 +195,12 @@ export default function Home() {
           overflowY: 'auto', borderRadius: '8px', backgroundColor: '#fff'
         }}>
           {renderedMessages}
-          <div ref={bottom} />
+          <div ref={bottomRef} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
+          {/* ✨ [3단계] textarea에 ref 연결 */}
           <textarea
+            ref={inputRef}
             style={{
               padding: 10, minHeight: '60px', maxHeight: '200px',
               resize: 'vertical', overflowY: 'auto', fontSize: '1rem',
