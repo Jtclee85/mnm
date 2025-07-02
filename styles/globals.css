@@ -1,17 +1,70 @@
 /* 웹 폰트 (여기어때 잘난체 2) 불러오기 */
 @import url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2110@1.0/Jalnan2.woff') format('woff');
+/* 웹 폰트 (프리텐다드) 불러오기 */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css') format('woff');
 
 body {
   background-color: #FAF8F0; /* 따뜻한 아이보리 배경색 */
-  font-family: 'Jalnan2', sans-serif; /* 기본 폰트를 '잘난체'로 변경 */
+  font-family: 'Jalnan2', sans-serif; /* 제목 등 기본 폰트를 '잘난체'로 변경 */
   color: #333;
 }
 
-/* ✨ [수정됨] 메시지 한 줄 전체를 위한 컨테이너 */
-.message-row {
+/* 말풍선 공통 스타일 */
+.message-container {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
   margin-bottom: 10px;
+}
+
+.message-bubble {
+  padding: 12px 18px;
+  border-radius: 20px;
+  max-width: 85%;
+  white-space: pre-wrap;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  font-family: 'Pretendard', sans-serif; /* 가독성을 위해 본문은 '프리텐다드' 사용 */
+}
+
+/* 사용자 말풍선 (오른쪽 정렬, 하늘색) */
+.user-bubble {
+  align-self: flex-end;
+  background-color: #DDEEFE;
+  color: #333;
+}
+
+/* 챗봇 말풍선 (왼쪽 정렬, 흰색) */
+.assistant-bubble {
+  align-self: flex-start;
+  background-color: #FFFFFF;
+}
+
+/* 이름표 스타일 */
+.speaker-name {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #555;
+  margin-bottom: 4px;
+  padding: 0 8px;
+}
+
+.user-name {
+  text-align: right;
+}
+
+.assistant-name {
+  text-align: left;
+}
+
+/* ✨ [추가됨] 입력창과 안내문구 폰트 지정을 위한 스타일 */
+textarea {
+  font-family: 'Pretendard', sans-serif; /* 채팅창과 동일한 '프리텐다드' 폰트 적용 */
+}
+
+textarea::placeholder {
+  font-family: 'Pretendard', sans-serif; /* 안내문구도 동일하게 적용 */
+  color: #999;
 }
 
 /* ✨ [추가됨] 프로필 사진 스타일 */
@@ -34,48 +87,22 @@ body {
   object-fit: cover;
 }
 
-/* ✨ [추가됨] 이름과 말풍선을 묶는 컨테이너 */
+.message-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
 .message-content-container {
   display: flex;
   flex-direction: column;
   max-width: 85%;
 }
 
-.message-bubble {
-  padding: 12px 18px;
-  border-radius: 20px;
-  white-space: pre-wrap;
-  font-size: 1.05rem;
-  line-height: 1.6;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-  font-family: 'pretendard', sans-serif;
-}
-
-/* 사용자 말풍선 (오른쪽 정렬) */
 .user-row {
   justify-content: flex-end;
 }
-.user-bubble {
-  background-color: #DDEEFE;
-  color: #333;
-}
 
-/* 챗봇 말풍선 (왼쪽 정렬) */
 .assistant-row {
   justify-content: flex-start;
-}
-.assistant-bubble {
-  background-color: #FFFFFF;
-}
-
-/* 이름표 스타일 */
-.speaker-name {
-  font-size: 0.9rem;
-  font-weight: bold;
-  color: #555;
-  margin-bottom: 4px;
-}
-
-.user-name {
-  text-align: right;
 }
