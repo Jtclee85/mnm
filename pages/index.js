@@ -140,47 +140,42 @@ export default function Home() {
 
  // ✨ [수정됨] GPT 응답에서 JSON만 정확히 추출하도록 개선된 퀴즈 요청 함수
   const handleRequestQuiz = async () => {
-    const quizPrompt = "지금까지 대화한 내용을 바탕으로, 정해진 JSON 형식에 맞춰 객관식 퀴즈 3개를 만들어 줘.";
-    setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게."}]);
-    
-    startLoadingAnimation();
-    const updatedHistory = [systemMsg, ...messages, { role: 'user', content: quizPrompt }];
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: updatedHistory })
-    });
-    const data = await res.json();
-    stopLoadingAnimation();
+  const quizPrompt = "지금까지 대화한 내용을 바탕으로, 정해진 JSON 형식에 맞춰 객관식 퀴즈 3개를 만들어 줘.";
+  setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게."}]);
 
-   try {
+  startLoadingAnimation();
+  const updatedHistory = [systemMsg, ...messages, { role: 'user', content: quizPrompt }];
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: updatedHistory })
+  });
+  const data = await res.json();
+  stopLoadingAnimation();
+
+  try {
     const jsonMatch = data.text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
-    if (!jsonMatch) throw new Error("Invalid JSON format");
+    if (!jsonMatch) {
+      throw new Error("Invalid JSON format");
+    }
+
     const quizJson = JSON.parse(jsonMatch[0]);
-    setQuizData(quizJson);        // 퀴즈 데이터 전체 저장
-    setIsQuizMode(true);          // 퀴즈모드 ON
-    setCurrentQuestionIndex(0);   // 항상 첫 문제로 초기화
-    setQuizFeedbackGiven(false);  // 피드백 초기화
-    // **여기서 문제 한 개만 메시지로 출력**
+    setQuizData(quizJson);
+    setIsQuizMode(true);
+    setCurrentQuestionIndex(0);
+    setQuizFeedbackGiven(false);
     setMessages(prev => [
       ...prev,
       { role: 'assistant', content: `[퀴즈 1번]\n${quizJson[0].question}\n${quizJson[0].choices.join('\n')}` }
     ]);
   } catch (e) {
-    // ...에러처리 동일...
+    console.error("퀴즈 데이터 파싱 오류:", e);
+    setMessages(prev => [
+      ...prev,
+      { role: 'assistant', content: "앗, 퀴즈를 만드는 데 문제가 생겼어. 다시 시도해 줄래?" }
+    ]);
   }
 };
-      const quizJson = JSON.parse(jsonMatch[0]);
-      setQuizData(quizJson);
-      setIsQuizMode(true);
-      setCurrentQuestionIndex(0);
-      setMessages(prev => [...prev, { role: 'assistant', content: `${quizJson[0].question}\n${quizJson[0].choices.join('\n')}` }]);
-    } catch (e) {
-      console.error("퀴즈 데이터 파싱 오류:", e);
-      setMessages(prev => [...prev, { role: 'assistant', content: "앗, 퀴즈를 만드는 데 문제가 생겼어. 다시 시도해 줄래?" }]);
-    }
-  };
-  
   const handleQuizAnswer = () => {
     if (!input || isLoading) return;
 
