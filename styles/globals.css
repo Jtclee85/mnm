@@ -1,0 +1,55 @@
+/* 웹 폰트 (여기어때 잘난체 2) 불러오기 */
+@import url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2110@1.0/Jalnan2.woff') format('woff');
+
+body {
+  background-color: #FAF8F0; /* 따뜻한 아이보리 배경색 */
+  font-family: 'Jalnan2', sans-serif; /* 기본 폰트를 '잘난체'로 변경 */
+  color: #333;
+}
+
+/* 말풍선 공통 스타일 */
+.message-container {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+}
+
+.message-bubble {
+  padding: 12px 18px;
+  border-radius: 20px;
+  max-width: 85%;
+  white-space: pre-wrap;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  font-family: 'pretendard', sans-serif; /* 가독성을 위해 본문은 다른 폰트 사용 */
+}
+
+/* 사용자 말풍선 (오른쪽 정렬, 하늘색) */
+.user-bubble {
+  align-self: flex-end;
+  background-color: #DDEEFE;
+  color: #333;
+}
+
+/* 챗봇 말풍선 (왼쪽 정렬, 흰색) */
+.assistant-bubble {
+  align-self: flex-start;
+  background-color: #FFFFFF;
+}
+
+/* 이름표 스타일 */
+.speaker-name {
+  font-size: 0.8rem;
+  color: #888;
+  margin-bottom: 4px;
+  padding: 0 8px;
+}
+
+.user-name {
+  text-align: right;
+}
+
+.assistant-name {
+  text-align: left;
+}
