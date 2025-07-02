@@ -58,7 +58,7 @@ export default function Home() {
 5. 채점: 사용자의 다음 답변을 받으면, 이전에 결정했던 정답과 비교하여 채점하고 해설을 제공한다. 이 과정에서 절대 정답을 혼동해서는 안 된다.
     `
   };
-
+// ✨ [수정됨] 스트리밍 데이터 처리를 위한 단일 API 호출 함수 (괄호 오류 수정)
   const processStreamedResponse = async (messageHistory) => {
     setIsLoading(true);
     setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
@@ -105,4 +105,4 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  }; //
+  }; // <--- 여기에 빠져있던 '};'를 추가했습니다.
