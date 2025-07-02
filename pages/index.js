@@ -27,9 +27,8 @@ const getKoreanNameWithPostposition = (name) => {
 
 const commonSurnames = "김이박최정강조윤장임한오서신권황안송유홍전고문양손배조백허남심노하곽성차주우구신임나지엄원천방공현";
 
-// ✨ [수정됨] 이름이 비어있을 경우에 대한 예외 처리 추가
 const getGivenName = (name) => {
-    if (!name || typeof name !== 'string') return ''; // 이름이 없거나 문자열이 아니면 빈 문자열 반환
+    if (!name || typeof name !== 'string') return '';
     if (name.length === 3 && commonSurnames.includes(name.charAt(0))) {
         return name.substring(1);
     }
@@ -82,9 +81,9 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
+  // ✨ [수정됨] 3줄 요약 시 <summary> 태그 사용 규칙 추가
   const createSystemMessage = (name, source) => {
-    const givenName = getGivenName(name);
-    const friendlyName = getKoreanNameWithPostposition(givenName);
+    const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
     return {
       role: 'system',
       content: `
@@ -106,15 +105,15 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 가장 중요한 특징 3가지를 25자 내외의 구절로 요약해 줘.
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 가장 중요한 특징 3가지를 25자 내외의 구절로 요약해 줘. **이때, 순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.** 예시: <summary>1. 특징 하나\n2. 특징 둘\n3. 특징 셋</summary>
 3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '조금만 더 힘내자!' 중 하나로 평가하고 칭찬해 줘.
       `
     };
   };
 
-  const processStreamedResponse = async (messageHistory) => {
+  const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
-    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+    setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -167,8 +166,7 @@ ${source}
       setMessages(prev => [...prev, { role: 'user', content: userInput }]);
       setInput('');
       setTimeout(() => {
-        const givenName = getGivenName(name);
-        const friendlyName = getKoreanNameWithPostposition(givenName);
+        const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
         setMessages(prev => [...prev, { role: 'assistant', content: `만나서 반가워, ${friendlyName}! 이제 네가 조사한 역사 자료의 원본 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게.` }]);
         setConversationPhase('asking_source');
       }, 500);
@@ -193,7 +191,7 @@ ${source}
     }
     
     if (conversationPhase === 'chatting') {
-      const newMsg = { role: 'user', content: userInput };
+      const newMsg = { role: 'user', content: input };
       const updatedMessages = [...messages, newMsg];
       const systemMsg = createSystemMessage(userName, sourceText);
       setMessages(updatedMessages);
@@ -202,23 +200,36 @@ ${source}
     }
   };
   
-  const handleSpecialRequest = (prompt, userMessage) => {
+  const handleSpecialRequest = (prompt, userMessage, metadata) => {
     if (isLoading) return;
     setMessages(prev => [...prev, { role: 'assistant', content: userMessage }]);
     const newMsg = { role: 'user', content: prompt };
     const systemMsg = createSystemMessage(userName, sourceText);
-    processStreamedResponse([systemMsg, ...messages, newMsg]);
+    processStreamedResponse([systemMsg, ...messages, newMsg], metadata);
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게.");
-  const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 25자 내외의 구절로 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!");
+  const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 25자 내외의 구절로 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 평가해 줄게!");
 
+  // ✨ [수정됨] <summary> 태그 안의 내용만 복사하도록 로직 변경
+  const handleCopy = async (text) => {
+    // <summary> 태그 안의 내용만 추출, 없으면 전체 텍스트 사용
+    const summaryMatch = text.match(/<summary>([\s\S]*)<\/summary>/);
+    const textToCopy = summaryMatch ? summaryMatch[1].trim() : text.trim();
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setMessages(prev => [...prev, { role: 'assistant', content: '클립보드에 복사되었습니다. 패들릿이나 띵커벨에 붙여넣어 보세요!'}]);
+    } catch (err) {
+      console.error('클립보드 복사 실패:', err);
+      setMessages(prev => [...prev, { role: 'assistant', content: '앗, 복사에 실패했어. 다시 시도해 줄래?'}]);
+    }
+  };
 
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
     const isUser = m.role === 'user';
-    
     const speakerName = isUser ? userName : '뭐냐면';
     const isNameVisible = conversationPhase === 'chatting' && i > 2;
 
@@ -238,20 +249,35 @@ ${source}
           <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
             <ReactMarkdown
               components={{
-                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
+                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+                // summary 태그는 화면에 보이지 않도록 처리
+                summary: () => null, 
               }}
             >
               {cleanContent(content)}
             </ReactMarkdown>
-            {m.role === 'assistant' && !isLoading && <button
-              onClick={() => speakText(content)}
-              style={{
-                marginTop: 10, fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
-                background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
-                fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
-              }}
-            >🔊</button>
-            }
+            {m.role === 'assistant' && !isLoading && (
+              <div style={{ marginTop: 10, display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => speakText(content)}
+                  style={{
+                    fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
+                    background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
+                    fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
+                  }}
+                >🔊</button>
+                {m.metadata?.type === 'summary' && (
+                  <button
+                    onClick={() => handleCopy(content)}
+                    style={{
+                      fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
+                      background: '#E8F5E9', border: '1px solid #4CAF50', color: '#333',
+                      fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
+                    }}
+                  >📋 복사하기</button>
+                )}
+              </div>
+            )}
           </div>
         </div>
         {isUser && profilePic}
