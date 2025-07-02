@@ -319,4 +319,32 @@ ${source}
                 backgroundColor: isLoading ? '#e0e0e0' : '#FDD835', fontWeight: 'bold',
                 color: 'black', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer'
               }}
-            >
+              >
+              보내기
+            </button>
+            {conversationPhase === 'chatting' && messages.length > 4 && (
+              <button
+                onClick={() => setShowExtraFeatures(!showExtraFeatures)}
+                disabled={isLoading}
+                style={{
+                  padding: '12px', fontSize: '1rem', borderRadius: '8px',
+                  backgroundColor: isLoading ? '#e0e0e0' : '#8D8741', fontWeight: 'bold',
+                  color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {showExtraFeatures ? '기능 숨기기 ▲' : '더 많은 기능 보기 📚'}
+              </button>
+            )}
+          </div>
+          {showExtraFeatures && conversationPhase === 'chatting' && messages.length > 4 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+               <button onClick={handleRequestQuiz} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>퀴즈 풀기</button>
+               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>3줄요약</button>
+               <button onClick={handleRequestEvaluation} disabled={isLoading} style={{padding: '8px', cursor: 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>나 어땠어?</button>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
