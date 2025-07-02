@@ -20,9 +20,10 @@ export default function Home() {
   const [typedText, setTypedText] = useState('');
   const loadingMessages = ['그게 뭐냐면...', '생각중이니 잠깐만요...'];
 
+  // ✨ [수정됨] 스크롤 로직: 메시지 배열이 변경될 때만 스크롤하도록 수정
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, typedText]);
+  }, [messages]);
 
   const typeEffect = (text) => {
     let i = 0;
@@ -51,7 +52,7 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
-  // ✨ [수정됨] 퀴즈 규칙이 단순화된 시스템 프롬프트
+  // ✨ [수정됨] 퀴즈 생성 규칙을 더 엄격하게 변경한 시스템 프롬프트
   const systemMsg = {
     role: 'system',
     content: `
@@ -67,7 +68,12 @@ export default function Home() {
 2. 보고서 작성 (간결한 개조식): 조사 대상 정보, 학생 이해도 요약, 격려 멘트 포함.
 
 ※ 특별 기능 2 - 학습 퀴즈 생성:
-사용자가 "퀴즈를 만들어 줘" 또는 이와 유사한 요청을 하면, 대화 내용을 바탕으로 객관식 퀴즈 1개를 출제한다. 퀴즈는 반드시 문제, 4개의 보기(①, ②, ③, ④), 정답, 해설을 포함해야 한다. 그리고 사용자의 다음 메시지가 정답인지 확인하고 채점 결과를 친절하게 설명해준다.
+사용자가 "퀴즈를 만들어 줘" 또는 이와 유사한 요청을 하면, 다음의 체계적인 순서에 따라 퀴즈 1개를 생성하고 채점한다.
+1. 출제: 대화 내용 기반으로 객관식 퀴즈 1개를 만든다.
+2. 정답 결정: 먼저 정답이 될 보기와 그에 대한 명확한 해설을 내부적으로 결정한다.
+3. 오답 생성: 결정된 정답과 관련 있는 그럴듯한 오답 보기 3개를 만든다.
+4. 최종 출력: 위 내용을 바탕으로 문제, 4개의 보기(①, ②, ③, ④)를 사용자에게 보여준다.
+5. 채점: 사용자의 다음 답변을 받으면, 이전에 결정했던 정답과 비교하여 채점하고 해설을 제공한다. 이 과정에서 절대 정답을 혼동해서는 안 된다.
     `
   };
 
@@ -92,7 +98,6 @@ export default function Home() {
     setTypedText('');
   };
 
-  // ✨ [수정됨] 일반 메시지와 퀴즈 답변을 모두 처리하는 단일 함수
   const sendMessage = async () => {
     if (!input || isLoading) return;
     
@@ -113,17 +118,13 @@ export default function Home() {
     stopLoadingAnimation();
   };
 
-// ✨ [수정됨] 단 하나의 퀴즈만 요청하도록 프롬프트를 강화한 함수
   const handleRequestQuiz = async () => {
     if (isLoading) return;
-    
-    // GPT가 다른 생각을 못 하도록, 매우 구체적이고 한정적인 프롬프트를 사용합니다.
-    const quizPrompt = "지금까지의 대화 내용을 바탕으로, 객관식 퀴즈를 **'단 한 문제만'** 출제해 줘. 그리고 나의 다음 답변이 정답인지 확인하고, 채점과 해설을 해줘.";
+    const quizPrompt = "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.";
     
     setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 퀴즈를 하나 내볼게. 잘 맞춰봐!"}]);
     startLoadingAnimation();
     
-    // API에 보낼 때는 전체 대화 기록을 포함하여 맥락을 유지합니다.
     const updatedHistory = [systemMsg, ...messages, { role: 'user', content: quizPrompt }];
     const res = await fetch('/api/chat', {
       method: 'POST',
