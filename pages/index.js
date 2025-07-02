@@ -13,30 +13,11 @@ export default function Home() {
   ]);
   const [input, setInput] = useState('');
   const bottom = useRef();
-  
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
-  const [loadingInterval, setLoadingInterval] = useState(null);
-  const [typedText, setTypedText] = useState('');
-  const loadingMessages = ['그게 뭐냐면...', '생각중이니 잠깐만요...'];
+  const [isLoading, setIsLoading] = useState(false); // 스트리밍 중인지 확인하는 상태
 
-  // ✨ [수정됨] 스크롤 로직: 메시지 배열이 변경될 때만 스크롤하도록 수정
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  const typeEffect = (text) => {
-    let i = 0;
-    const speed = 50;
-    const type = () => {
-      if (i <= text.length) {
-        setTypedText(text.slice(0, i));
-        i++;
-        setTimeout(type, speed);
-      }
-    };
-    type();
-  };
 
   const speakText = (text) => {
     window.speechSynthesis.cancel();
@@ -52,7 +33,6 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
-  // ✨ [수정됨] 퀴즈 생성 규칙을 더 엄격하게 변경한 시스템 프롬프트
   const systemMsg = {
     role: 'system',
     content: `
@@ -77,64 +57,80 @@ export default function Home() {
     `
   };
 
-  const startLoadingAnimation = () => {
+  // ✨ [수정됨] 스트리밍 데이터 처리를 위한 단일 API 호출 함수
+  const processStreamedResponse = async (messageHistory) => {
     setIsLoading(true);
-    const initialText = loadingMessages[0];
-    typeEffect(initialText);
-    const interval = setInterval(() => {
-      setLoadingMessageIndex(prev => {
-        const nextIndex = (prev + 1) % loadingMessages.length;
-        typeEffect(loadingMessages[nextIndex]);
-        return nextIndex;
-      });
-    }, 1000);
-    setLoadingInterval(interval);
-  };
 
-  const stopLoadingAnimation = () => {
-    if (loadingInterval) clearInterval(loadingInterval);
-    setLoadingInterval(null);
-    setIsLoading(false);
-    setTypedText('');
+    // 먼저 비어있는 assistant 메시지 추가
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messageHistory })
+      });
+
+      if (!res.ok) {
+        throw new Error(res.statusText);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.substring(6));
+            setMessages(prev => {
+              const lastMessage = prev[prev.length - 1];
+              const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data };
+              return [...prev.slice(0, -1), updatedLastMessage];
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("스트리밍 오류:", error);
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
+        return [...prev.slice(0, -1), updatedLastMessage];
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const sendMessage = async () => {
     if (!input || isLoading) return;
     
     const newMsg = { role: 'user', content: input };
-    setMessages(prev => [...prev, newMsg]);
+    const updatedMessages = [...messages, newMsg];
+    
+    setMessages(updatedMessages);
     setInput('');
-    startLoadingAnimation();
     
-    const updatedHistory = [systemMsg, ...messages, newMsg];
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: updatedHistory })
-    });
-    const data = await res.json();
-    
-    setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
-    stopLoadingAnimation();
+    processStreamedResponse([systemMsg, ...updatedMessages]);
   };
 
   const handleRequestQuiz = async () => {
     if (isLoading) return;
     const quizPrompt = "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.";
     
+    const newMsg = { role: 'user', content: quizPrompt };
+    const updatedMessages = [...messages, newMsg];
+    
+    // 퀴즈 요청 메시지는 화면에 표시하지 않음
     setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 퀴즈를 하나 내볼게. 잘 맞춰봐!"}]);
-    startLoadingAnimation();
     
-    const updatedHistory = [systemMsg, ...messages, { role: 'user', content: quizPrompt }];
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: updatedHistory })
-    });
-    const data = await res.json();
-    
-    setMessages(prev => [...prev, { role: 'assistant', content: data.text }]);
-    stopLoadingAnimation();
+    processStreamedResponse([systemMsg, ...updatedMessages]);
   };
 
   const renderedMessages = messages.map((m, i) => {
@@ -150,7 +146,7 @@ export default function Home() {
       <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: messageBoxStyle.alignSelf }}>
         <div style={messageBoxStyle}>
           <ReactMarkdown>{cleanContent(content)}</ReactMarkdown>
-          {m.role === 'assistant' && <button
+          {m.role === 'assistant' && !isLoading && <button
             onClick={() => speakText(content)}
             style={{
               marginTop: 5, fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
@@ -163,23 +159,12 @@ export default function Home() {
       </div>
     );
   });
-  
-  const loadingDisplay = (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-      <div style={{
-        backgroundColor: '#f7f7f8', padding: '10px 15px', borderRadius: '15px',
-        maxWidth: '80%', alignSelf: 'flex-start', whiteSpace: 'pre-wrap', fontSize: '1rem',
-        lineHeight: '1.6', boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
-      }}>
-        <p style={{ fontStyle: 'italic', minHeight: '1.5em', color: '#888' }}>{typedText}</p>
-      </div>
-    </div>
-  );
 
   return (
     <>
       <Head>
         <title>뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇</title>
+        {/* ... (기존 메타 태그들은 그대로 유지) ... */}
         <meta name="description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
         <meta property="og:title" content="뭐냐면 - 초등 역사 유적·사건 자료를 쉽게 풀어주는 AI 챗봇" />
         <meta property="og:description" content="초등학생을 위한 역사·유적·사건을 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
@@ -204,7 +189,6 @@ export default function Home() {
           overflowY: 'auto', borderRadius: '8px', backgroundColor: '#fff'
         }}>
           {renderedMessages}
-          {isLoading && loadingDisplay}
           <div ref={bottom} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
