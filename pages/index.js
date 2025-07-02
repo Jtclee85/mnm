@@ -40,7 +40,7 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
-  // ✨ [수정됨] 새로운 기능에 맞춰 규칙을 재구성한 시스템 프롬프트
+  // ✨ [수정됨] 3줄 요약 규칙 강화 및 마무리 질문 제거
   const systemMsg = {
     role: 'system',
     content: `
@@ -48,7 +48,6 @@ export default function Home() {
 - 설명은 초등학생 눈높이에서 친절하고 부드러운 말투를 사용합니다.
 - 답변을 제공할 때는, 핵심 내용을 중심으로 소제목(###)을 붙여 항목화하고, 소제목 바로 다음 줄에 공백 없이 본문 내용을 이어서 설명합니다.
 - 관련 없는 질문에는 "나는 역사에 대해서만 도와줄 수 있어."라고 대답합니다.
-- 대화의 끝 부분에는 '더 궁금한 게 있니? 아니면 이제 그만할까?'를 물어봅니다.
 - 답변의 마지막에는, "이런 점도 궁금하지 않니?" 라는 문구와 함께, 학생이 추가적으로 할 법한 심화 질문 2개를 > (인용 블록) 형식으로 제시합니다.
 - 설명의 마지막에는, 사용자가 더 깊이 탐색할 수 있도록 "[Google에서 '핵심주제' 더 찾아보기](https://www.google.com/search?q=핵심주제)" 형식의 링크를 항상 포함합니다.
 
@@ -59,7 +58,7 @@ export default function Home() {
    - 대화 내용을 바탕으로 객관식 퀴즈 1개를 출제하고, 사용자의 다음 답변을 채점한 후 해설을 제공합니다. (문제, 보기 4개, 정답, 해설 포함)
 
 2. '3줄요약' 요청 시:
-   - 지금까지의 대화 내용을 바탕으로, 학교 보고서에 사용할 수 있도록 핵심 내용만 간추려 **정확히 3줄짜리 요약본**을 개조식으로 생성합니다.
+   - 지금까지의 대화 내용을 바탕으로, 학교 보고서에 사용할 수 있도록 핵심 내용만 간추려 **각 줄이 15자 내외의 짧은 핵심 구절로 구성된, 총 3줄의 개조식 요약**을 생성합니다.
 
 3. '나 어땠어?' 요청 시:
    - 지금까지의 대화 내용, 질문의 수준, 퀴즈 결과(있을 경우)를 종합적으로 분석하여 사용자의 학습 태도와 이해도를 평가합니다.
@@ -248,7 +247,6 @@ export default function Home() {
               </button>
             )}
           </div>
-          {/* ✨ [수정됨] 새로운 기능 버튼들로 UI 변경 */}
           {showExtraFeatures && messages.length > 6 && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
                <button onClick={handleRequestQuiz} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>퀴즈 풀기</button>
