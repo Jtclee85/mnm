@@ -138,6 +138,7 @@ export default function Home() {
     stopLoadingAnimation();
   };
 
+ // ✨ [수정됨] GPT 응답에서 JSON만 정확히 추출하도록 개선된 퀴즈 요청 함수
   const handleRequestQuiz = async () => {
     const quizPrompt = "지금까지 대화한 내용을 바탕으로, 정해진 JSON 형식에 맞춰 객관식 퀴즈 3개를 만들어 줘.";
     setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게."}]);
@@ -150,17 +151,24 @@ export default function Home() {
       body: JSON.stringify({ messages: updatedHistory })
     });
     const data = await res.json();
+    stopLoadingAnimation();
 
     try {
-      const quizJson = JSON.parse(data.text);
+      // GPT 응답에서 JSON 배열 부분만 추출 (가장 먼저 나오는 [...] 를 찾음)
+      const jsonMatch = data.text.match(/\[\s*\{[\s\S]*?\}\s*\]/);
+      if (!jsonMatch) {
+        // 응답에서 JSON을 찾지 못한 경우
+        throw new Error("Invalid JSON format");
+      }
+
+      const quizJson = JSON.parse(jsonMatch[0]);
       setQuizData(quizJson);
       setIsQuizMode(true);
       setCurrentQuestionIndex(0);
       setMessages(prev => [...prev, { role: 'assistant', content: `${quizJson[0].question}\n${quizJson[0].choices.join('\n')}` }]);
     } catch (e) {
+      console.error("퀴즈 데이터 파싱 오류:", e);
       setMessages(prev => [...prev, { role: 'assistant', content: "앗, 퀴즈를 만드는 데 문제가 생겼어. 다시 시도해 줄래?" }]);
-    } finally {
-        stopLoadingAnimation();
     }
   };
   
