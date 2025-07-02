@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import bannerImage from '../public/제목 없는 디자인.png'; // 사용자가 업로드한 이미지 파일명
+import bannerImage from '../public/banner-background.png'; // 사용자가 업로드한 이미지 파일명
 
 const Banner = () => {
   return (
