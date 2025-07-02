@@ -13,7 +13,7 @@ export default function Home() {
   const [input, setInput] = useState('');
   const bottomRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
-  
+  const [showExtraFeatures, setShowExtraFeatures] = useState(false);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -40,29 +40,34 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
-   const systemMsg = {
+  // ✨ [수정됨] 새로운 기능에 맞춰 규칙을 재구성한 시스템 프롬프트
+  const systemMsg = {
     role: 'system',
     content: `
 당신은 '뭐냐면'이라는 이름의 AI 챗봇입니다. 초등학생을 위해 역사 개념을 쉽고 명확하게 설명합니다. 다음 규칙을 반드시 지켜야 합니다.
 - 설명은 초등학생 눈높이에서 친절하고 부드러운 말투를 사용합니다.
-- 답변을 제공할 때는, 핵심 내용을 중심으로 소제목(###)을 붙여 항목화하고, **소제목 바로 다음 줄에 공백 없이** 본문 내용을 이어서 설명합니다. 각 항목은 2~3문장으로 간결하게 설명하여 가독성을 높입니다.
+- 답변을 제공할 때는, 핵심 내용을 중심으로 소제목(###)을 붙여 항목화하고, 소제목 바로 다음 줄에 공백 없이 본문 내용을 이어서 설명합니다.
 - 관련 없는 질문에는 "나는 역사에 대해서만 도와줄 수 있어."라고 대답합니다.
 - 대화의 끝 부분에는 '더 궁금한 게 있니? 아니면 이제 그만할까?'를 물어봅니다.
-- 답변의 마지막에는, "이런 점도 궁금하지 않니?" 라는 문구와 함께, 학생이 추가적으로 할 법한 심화 질문 2개를 > (인용 블록) 형식으로 제시합니다. 예시: > 반가사유상의 치마에 대해 좀 더 알려줘.
-- 설명의 마지막에는, 사용자가 더 깊이 탐색할 수 있도록 "[Google에서 '핵심주제' 더 찾아보기](https://www.google.com/search?q=핵심주제)" 형식의 링크를 항상 포함합니다. 여기서 '핵심주제'는 해당 답변의 가장 중요한 키워드로 대체해야 합니다.
+- 답변의 마지막에는, "이런 점도 궁금하지 않니?" 라는 문구와 함께, 학생이 추가적으로 할 법한 심화 질문 2개를 > (인용 블록) 형식으로 제시합니다.
+- 설명의 마지막에는, 사용자가 더 깊이 탐색할 수 있도록 "[Google에서 '핵심주제' 더 찾아보기](https://www.google.com/search?q=핵심주제)" 형식의 링크를 항상 포함합니다.
 
-※ 특별 기능 1 - 학습 평가 및 보고서 생성:
-학생이 '그만할게요' 등 대화 종료를 표현하면, 다음 기준에 따라 평가하고 보고서를 작성합니다.
-1. 평가 (엄격하게 적용): '잘함'(탐구 질문 3개 이상), '보통'(단순 질문 1-2개), '노력 요함'(질문 거의 없음).
-2. 보고서 작성 (간결한 개조식): 조사 대상 정보, 학생 이해도 요약, 격려 멘트 포함.
+※ 특별 기능 - '퀴즈풀기', '3줄요약', '나 어땠어?':
+사용자가 아래 기능 중 하나를 요청하면, 그에 맞는 답변을 생성합니다.
 
-※ 특별 기능 2 - 학습 퀴즈 생성:
-사용자가 "퀴즈를 만들어 줘" 또는 이와 유사한 요청을 하면, 다음의 체계적인 순서에 따라 퀴즈 1개를 생성하고 채점한다.
-1. 출제: 대화 내용 기반으로 객관식 퀴즈 1개를 만든다.
-2. 정답 결정: 먼저 정답이 될 보기와 그에 대한 명확한 해설을 내부적으로 결정한다.
-3. 오답 생성: 결정된 정답과 관련 있는 그럴듯한 오답 보기 3개를 만든다.
-4. 최종 출력: 위 내용을 바탕으로 문제, 4개의 보기(①, ②, ③, ④)를 사용자에게 보여준다.
-5. 채점: 사용자의 다음 답변을 받으면, 이전에 결정했던 정답과 비교하여 채점하고 해설을 제공한다. 이 과정에서 절대 정답을 혼동해서는 안 된다.
+1. '퀴즈풀기' 요청 시:
+   - 대화 내용을 바탕으로 객관식 퀴즈 1개를 출제하고, 사용자의 다음 답변을 채점한 후 해설을 제공합니다. (문제, 보기 4개, 정답, 해설 포함)
+
+2. '3줄요약' 요청 시:
+   - 지금까지의 대화 내용을 바탕으로, 학교 보고서에 사용할 수 있도록 핵심 내용만 간추려 **정확히 3줄짜리 요약본**을 개조식으로 생성합니다.
+
+3. '나 어땠어?' 요청 시:
+   - 지금까지의 대화 내용, 질문의 수준, 퀴즈 결과(있을 경우)를 종합적으로 분석하여 사용자의 학습 태도와 이해도를 평가합니다.
+   - 평가는 '잘함', '보통', '노력요함' 3단계로 내리며, 아래 기준을 엄격하게 적용합니다.
+     - 잘함: 역사적 배경이나 가치 등 탐구적 질문이 3회 이상인 경우.
+     - 보통: 단어 뜻, 사실 확인 등 단순 질문 위주인 경우.
+     - 노력요함: 질문이 거의 없거나, 대화에 소극적인 경우.
+   - 평가 결과와 함께 칭찬이나 격려가 담긴 짧은 코멘트를 덧붙여줍니다.
     `
   };
 
@@ -120,14 +125,18 @@ export default function Home() {
     setInput('');
     processStreamedResponse([systemMsg, ...updatedMessages]);
   };
-
-  const handleRequestQuiz = async () => {
+  
+  const handleSpecialRequest = (prompt, userMessage) => {
     if (isLoading) return;
-    const quizPrompt = "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.";
-    const newMsg = { role: 'user', content: quizPrompt };
-    setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 퀴즈를 하나 내볼게. 잘 맞춰봐!"}]);
+    setMessages(prev => [...prev, { role: 'assistant', content: userMessage }]);
+    const newMsg = { role: 'user', content: prompt };
     processStreamedResponse([systemMsg, ...messages, newMsg]);
   };
+  
+  const handleRequestQuiz = () => handleSpecialRequest("지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게.");
+  const handleRequestThreeLineSummary = () => handleSpecialRequest("지금까지의 대화 내용을 바탕으로, 보고서에 쓸 3줄 요약을 만들어 줘.", "알았어. 지금까지 나눈 대화를 3줄로 요약해 줄게!");
+  const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지의 대화 내용을 바탕으로 너의 학습 과정을 평가해 줄게.");
+
 
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
@@ -141,7 +150,6 @@ export default function Home() {
     return (
       <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: messageBoxStyle.alignSelf }}>
         <div style={messageBoxStyle}>
-          {/* ✨ [수정됨] 링크를 새 탭에서 열기 위한 components prop 추가 */}
           <ReactMarkdown
             components={{
               a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />
@@ -156,7 +164,7 @@ export default function Home() {
               background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
               fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
             }}
-          >🔊</button> // ✨ [수정됨] 버튼 텍스트 제거
+          >🔊</button>
           }
         </div>
       </div>
@@ -217,26 +225,37 @@ export default function Home() {
               onClick={sendMessage}
               disabled={isLoading}
               style={{
-                flex: 1, padding: '10px', fontSize: '1rem',
-                borderRadius: '6px', backgroundColor: isLoading ? '#e0e0e0' : '#FDD835',
-                fontWeight: 'bold', color: 'black', border: 'none',
-                cursor: isLoading ? 'not-allowed' : 'pointer', fontFamily: 'Segoe UI, sans-serif'
+                flex: 1, padding: '10px', fontSize: '1rem', borderRadius: '6px',
+                backgroundColor: isLoading ? '#e0e0e0' : '#FDD835', fontWeight: 'bold',
+                color: 'black', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
+                fontFamily: 'Segoe UI, sans-serif'
               }}
             >
               보내기
             </button>
-            <button
-              onClick={handleRequestQuiz}
-              disabled={isLoading || messages.length <= 3}
-              style={{
-                padding: '10px', fontSize: '1rem', borderRadius: '6px',
-                backgroundColor: (isLoading || messages.length <= 3) ? '#e0e0e0' : '#4CAF50',
-                fontWeight: 'bold', color: 'white', border: 'none',
-                cursor: (isLoading || messages.length <= 3) ? 'not-allowed' : 'pointer',
-                fontFamily: 'Segoe UI, sans-serif'
-              }}
-            >퀴즈 풀기</button>
+            {messages.length > 6 && (
+              <button
+                onClick={() => setShowExtraFeatures(!showExtraFeatures)}
+                disabled={isLoading}
+                style={{
+                  padding: '10px', fontSize: '1rem', borderRadius: '6px',
+                  backgroundColor: isLoading ? '#e0e0e0' : '#6c757d', fontWeight: 'bold',
+                  color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'Segoe UI, sans-serif'
+                }}
+              >
+                {showExtraFeatures ? '기능 숨기기 ▲' : '더 많은 기능 보기 📚'}
+              </button>
+            )}
           </div>
+          {/* ✨ [수정됨] 새로운 기능 버튼들로 UI 변경 */}
+          {showExtraFeatures && messages.length > 6 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+               <button onClick={handleRequestQuiz} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>퀴즈 풀기</button>
+               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>3줄요약</button>
+               <button onClick={handleRequestEvaluation} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '5px'}}>나 어땠어?</button>
+            </div>
+          )}
         </div>
       </div>
     </>
