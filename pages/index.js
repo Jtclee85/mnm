@@ -11,23 +11,23 @@ export default function Home() {
     { role: 'assistant', content: '안녕하세요. 역사적 인물, 사건, 유적을 쉽게 풀어 설명해주는 [뭐냐면]입니다. 조사한 자료를 붙여넣기 해주시면 친절하고 쉽게 설명해드릴게요.' }
   ]);
   const [input, setInput] = useState('');
-  const bottomRef = useRef(null); // 채팅창 스크롤용
+  const bottomRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
   
-  // ✨ [1단계] 입력창(textarea)을 위한 ref 생성
-  const inputRef = useRef(null);
+  // ✨ [추가됨] '더 많은 기능' 메뉴 표시 여부 상태
+  const [showExtraFeatures, setShowExtraFeatures] = useState(false);
 
-  // ✨ [2단계] 페이지 로드 시, 그리고 답변 완료 시 포커스를 주는 useEffect 추가
   useEffect(() => {
-    // 답변이 완료되어 로딩이 끝났을 때 포커스
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  useEffect(() => {
     if (!isLoading) {
       inputRef.current?.focus();
     }
   }, [isLoading]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const inputRef = useRef(null);
 
   const speakText = (text) => {
     window.speechSynthesis.cancel();
@@ -43,13 +43,13 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
+  // ✨ [수정됨] 새로운 기능 규칙이 추가된 시스템 프롬프트
   const systemMsg = {
     role: 'system',
     content: `
 당신은 '뭐냐면'이라는 이름의 AI 챗봇입니다. 초등학생을 위해 역사 개념을 쉽고 명확하게 설명합니다. 다음 규칙을 반드시 지켜야 합니다.
 - 설명은 초등학생 눈높이에서 친절하고 부드러운 말투를 사용합니다.
 - 답변을 제공할 때는, 핵심 내용을 중심으로 소제목(###)을 붙여 항목화하고, 각 항목은 2~3문장으로 간결하게 설명하여 가독성을 높입니다.
-- 단락을 나눠 간결하게 설명하고, 어려운 한자어는 쉽게 풀이합니다.
 - 관련 없는 질문에는 "나는 역사에 대해서만 도와줄 수 있어."라고 대답합니다.
 - 대화의 끝에는 '더 궁금한 게 있니? 아니면 이제 그만할까?'를 물어봅니다.
 
@@ -65,6 +65,18 @@ export default function Home() {
 3. 오답 생성: 결정된 정답과 관련 있는 그럴듯한 오답 보기 3개를 만든다.
 4. 최종 출력: 위 내용을 바탕으로 문제, 4개의 보기(①, ②, ③, ④)를 사용자에게 보여준다.
 5. 채점: 사용자의 다음 답변을 받으면, 이전에 결정했던 정답과 비교하여 채점하고 해설을 제공한다. 이 과정에서 절대 정답을 혼동해서는 안 된다.
+
+※ 특별 기능 3 - 대화 내용 요약:
+사용자가 "지금까지 대화 내용 요약해 줘" 요청을 하면, 현재까지의 대화 전체를 바탕으로 핵심 주제와 주요 설명 내용을 3~4문장으로 간결하게 요약해서 보여준다.
+
+※ 특별 기능 4 - 보고서용 자료 만들기:
+사용자가 "보고서용 자료 만들어 줘" 요청을 하면, 지금까지의 대화 내용을 바탕으로 학교 과제 보고서에 사용하기 좋도록 다음 구조에 맞춰 개조식으로 정리하여 제공한다.
+- 주제: [핵심 주제]
+- 핵심 내용:
+  - [내용 1]
+  - [내용 2]
+  - [내용 3]
+- 보충 설명: [추가적으로 알게 된 사실이나 중요한 포인트]
     `
   };
 
@@ -79,9 +91,7 @@ export default function Home() {
         body: JSON.stringify({ messages: messageHistory })
       });
 
-      if (!res.ok) {
-        throw new Error(res.statusText);
-      }
+      if (!res.ok) { throw new Error(res.statusText); }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -118,27 +128,25 @@ export default function Home() {
 
   const sendMessage = async () => {
     if (!input || isLoading) return;
-    
     const newMsg = { role: 'user', content: input };
     const updatedMessages = [...messages, newMsg];
-    
     setMessages(updatedMessages);
     setInput('');
-    
     processStreamedResponse([systemMsg, ...updatedMessages]);
   };
-
-  const handleRequestQuiz = async () => {
+  
+  // ✨ [추가됨] 각 기능 버튼에 연결될 요청 함수들
+  const handleSpecialRequest = (prompt, userMessage) => {
     if (isLoading) return;
-    const quizPrompt = "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.";
-    
-    const newMsg = { role: 'user', content: quizPrompt };
-    const updatedMessages = [...messages, newMsg];
-    
-    setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 퀴즈를 하나 내볼게. 잘 맞춰봐!"}]);
-    
-    processStreamedResponse([systemMsg, ...updatedMessages]);
+    setMessages(prev => [...prev, { role: 'assistant', content: userMessage }]);
+    const newMsg = { role: 'user', content: prompt };
+    processStreamedResponse([systemMsg, ...messages, newMsg]);
   };
+  
+  const handleRequestQuiz = () => handleSpecialRequest("지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게.");
+  const handleRequestSummary = () => handleSpecialRequest("지금까지의 대화 내용을 초등학생이 이해하기 쉽게 3~4문장으로 요약해 줘.", "알았어. 지금까지 나눈 대화를 요약해 줄게!");
+  const handleRequestReport = () => handleSpecialRequest("지금까지의 대화 내용을 바탕으로, 학교에 제출할 보고서 형식에 맞게 개조식으로 요약해 줘.", "응. 지금까지 대화한 내용으로 보고서를 쓰기 좋게 정리해 줄게.");
+
 
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
@@ -156,7 +164,7 @@ export default function Home() {
           {m.role === 'assistant' && !isLoading && <button
             onClick={() => speakText(content)}
             style={{
-              marginTop: 5, fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
+              marginTop: 10, fontSize: '1rem', padding: '6px 14px', borderRadius: '4px',
               background: '#fffbe8', border: '1px solid #fdd835', color: '#333',
               fontFamily: 'Segoe UI, sans-serif', fontWeight: 'bold', cursor: 'pointer'
             }}
@@ -198,7 +206,6 @@ export default function Home() {
           <div ref={bottomRef} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
-          {/* ✨ [3단계] textarea에 ref 연결 */}
           <textarea
             ref={inputRef}
             style={{
@@ -217,31 +224,42 @@ export default function Home() {
             placeholder="메시지를 입력하거나 퀴즈의 정답을 입력하세요..."
             disabled={isLoading}
           />
+          {/* ✨ [수정됨] 버튼 영역 전체 구조 변경 */}
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={sendMessage}
               disabled={isLoading}
               style={{
-                flex: 1, padding: '10px', fontSize: '1rem',
-                borderRadius: '6px', backgroundColor: isLoading ? '#e0e0e0' : '#FDD835',
-                fontWeight: 'bold', color: 'black', border: 'none',
-                cursor: isLoading ? 'not-allowed' : 'pointer', fontFamily: 'Segoe UI, sans-serif'
+                flex: 1, padding: '10px', fontSize: '1rem', borderRadius: '6px',
+                backgroundColor: isLoading ? '#e0e0e0' : '#FDD835', fontWeight: 'bold',
+                color: 'black', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
+                fontFamily: 'Segoe UI, sans-serif'
               }}
             >
               보내기
             </button>
-            <button
-              onClick={handleRequestQuiz}
-              disabled={isLoading || messages.length <= 3}
-              style={{
-                padding: '10px', fontSize: '1rem', borderRadius: '6px',
-                backgroundColor: (isLoading || messages.length <= 3) ? '#e0e0e0' : '#4CAF50',
-                fontWeight: 'bold', color: 'white', border: 'none',
-                cursor: (isLoading || messages.length <= 3) ? 'not-allowed' : 'pointer',
-                fontFamily: 'Segoe UI, sans-serif'
-              }}
-            >퀴즈 풀기</button>
+            {messages.length > 6 && (
+              <button
+                onClick={() => setShowExtraFeatures(!showExtraFeatures)}
+                disabled={isLoading}
+                style={{
+                  padding: '10px', fontSize: '1rem', borderRadius: '6px',
+                  backgroundColor: isLoading ? '#e0e0e0' : '#6c757d', fontWeight: 'bold',
+                  color: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer',
+                  fontFamily: 'Segoe UI, sans-serif'
+                }}
+              >
+                {showExtraFeatures ? '기능 숨기기 ▲' : '더 많은 기능 보기 📚'}
+              </button>
+            )}
           </div>
+          {showExtraFeatures && messages.length > 6 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+               <button onClick={handleRequestSummary} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer'}}>대화 요약</button>
+               <button onClick={handleRequestQuiz} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer'}}>퀴즈 풀기</button>
+               <button onClick={handleRequestReport} disabled={isLoading} style={{padding: '8px', cursor: isLoading ? 'not-allowed' : 'pointer'}}>보고서 요약</button>
+            </div>
+          )}
         </div>
       </div>
     </>
