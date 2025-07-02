@@ -113,17 +113,18 @@ export default function Home() {
     stopLoadingAnimation();
   };
 
-  // ✨ [수정됨] 퀴즈 요청을 보내는 단순화된 함수
+// ✨ [수정됨] 단 하나의 퀴즈만 요청하도록 프롬프트를 강화한 함수
   const handleRequestQuiz = async () => {
     if (isLoading) return;
-    const quizPrompt = "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.";
     
-    // 퀴즈 요청 메시지는 화면에 표시하지 않고, AI에게만 전달
-    const newMsg = { role: 'user', content: quizPrompt };
-    setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게."}]);
+    // GPT가 다른 생각을 못 하도록, 매우 구체적이고 한정적인 프롬프트를 사용합니다.
+    const quizPrompt = "지금까지의 대화 내용을 바탕으로, 객관식 퀴즈를 **'단 한 문제만'** 출제해 줘. 그리고 나의 다음 답변이 정답인지 확인하고, 채점과 해설을 해줘.";
+    
+    setMessages(prev => [...prev, {role: 'assistant', content: "좋아! 퀴즈를 하나 내볼게. 잘 맞춰봐!"}]);
     startLoadingAnimation();
     
-    const updatedHistory = [systemMsg, ...messages, newMsg];
+    // API에 보낼 때는 전체 대화 기록을 포함하여 맥락을 유지합니다.
+    const updatedHistory = [systemMsg, ...messages, { role: 'user', content: quizPrompt }];
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
