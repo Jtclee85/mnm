@@ -24,6 +24,9 @@ const getKoreanNameWithPostposition = (name) => {
   return name + (hasJongseong ? '아' : '야');
 };
 
+// ✨ [수정됨] 누락되었던 12지신 이모지 배열을 다시 추가했습니다.
+const zodiacEmojis = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷'];
+
 
 export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_name');
@@ -38,6 +41,11 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showExtraFeatures, setShowExtraFeatures] = useState(false);
   const inputRef = useRef(null);
+  const [userEmoji, setUserEmoji] = useState('');
+
+  useEffect(() => {
+    setUserEmoji(zodiacEmojis[Math.floor(Math.random() * zodiacEmojis.length)]);
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -63,7 +71,6 @@ export default function Home() {
     window.speechSynthesis.speak(utterance);
   };
   
-  // ✨ [수정됨] 답변 규칙을 더 유연하게 변경
   const createSystemMessage = (name, source) => {
     const friendlyName = getKoreanNameWithPostposition(name);
     return {
@@ -77,7 +84,7 @@ ${source}
 [/원본 자료]
 
 **[꼭 지켜야 할 규칙]**
-- **가장 중요한 규칙: 답변은 사용자가 제공한 [원본 자료]를 최우선으로 하되, 아이들의 이해를 돕기 위해 필요한 경우 너의 일반 지식을 활용하여 배경지식이나 쉬운 예시를 덧붙여 설명할 수 있어. 하지만 [원본 자료]와 전혀 관련 없는 이야기는 하지 마.**
+- **가장 중요한 규칙: 모든 답변은 반드시 사용자가 제공한 [원본 자료] 내용에만 근거해야 해. [원본 자료]에 없는 내용은 절대 지어내거나 추측해서 말하면 안 돼.**
 - **말투:** 초등 저학년 학생이 이해할 수 있도록 쉬운 단어와 친절한 설명을 사용해야 해.
 - **답변 형식:** 어려운 소제목 대신, '👑 왕관 이야기', '⚔️ 칼 이야기'처럼 내용과 관련된 재미있는 이모티콘과 함께 짧은 제목을 붙여줘.
 - **질문 유도:** 설명이 끝나면, 아이들이 더 궁금해할 만한 질문을 "혹시 이런 것도 궁금해?" 하고 물어봐 줘.
@@ -137,7 +144,6 @@ ${source}
     if (!input || isLoading) return;
     const userInput = input.trim();
     
-    // 1단계: 이름 받기
     if (conversationPhase === 'asking_name') {
       const name = extractNameFromInput(userInput);
       if (!name) {
@@ -156,7 +162,6 @@ ${source}
       return;
     }
 
-    // 2단계: 원본 자료 받기 (단순 길이 검증)
     if (conversationPhase === 'asking_source') {
       if (userInput.length < 30) {
         setMessages(prev => [...prev, { role: 'user', content: userInput }, { role: 'assistant', content: '앗, 그건 설명할 자료가 아닌 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
@@ -174,7 +179,6 @@ ${source}
       return;
     }
     
-    // 3단계: 자유 대화
     if (conversationPhase === 'chatting') {
       const newMsg = { role: 'user', content: userInput };
       const updatedMessages = [...messages, newMsg];
@@ -196,7 +200,6 @@ ${source}
   const handleRequestQuiz = () => handleSpecialRequest("지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", "좋아! 그럼 지금까지 배운 내용으로 퀴즈를 내볼게.");
   const handleRequestThreeLineSummary = () => handleSpecialRequest("내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 15자 내외의 짧은 구절로 요약해 줘.", "알았어. 처음에 네가 알려준 자료를 딱 3가지로 요약해 줄게!");
   const handleRequestEvaluation = () => handleSpecialRequest("지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", "응. 지금까지 네가 얼마나 잘했는지 평가해 줄게!");
-
 
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
