@@ -92,17 +92,26 @@ export default function Home() {
 - 종합적 평어 및 격려 멘트
     `
   };
+  
+  // ✨ [수정됨] 메시지 전송 함수 (내부 호출 가능하도록 수정)
+  const sendMessage = async (content) => {
+    const messageContent = content || input;
+    if (!messageContent) return;
 
-  const sendMessage = async () => {
-    if (!input) return;
-    const newMsg = { role: 'user', content: input };
+    const newMsg = { role: 'user', content: messageContent };
     const updated = [systemMsg, ...messages, newMsg];
 
+    // 사용자가 입력한 내용만 화면에 즉시 반영
+    if(!content) {
+      setMessages(prev => [...prev, newMsg]);
+      setInput('');
+    }
+    
+    // 로딩 애니메이션 시작
     const initialText = loadingMessages[loadingMessageIndex % loadingMessages.length];
     setLoadingMessageIndex(prev => prev + 1);
     setTypedText('');
-    setMessages([...messages, newMsg, { role: 'assistant', content: '' }]);
-    setInput('');
+    setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
     typeEffect(initialText);
 
     const interval = setInterval(() => {
@@ -127,6 +136,14 @@ export default function Home() {
       { role: 'assistant', content: data.text }
     ]);
     setTypedText('');
+  };
+  
+  // ✨ [추가됨] 퀴즈 요청 함수
+  const handleRequestQuiz = () => {
+    const quizPrompt = "지금까지 대화한 내용을 바탕으로, 객관식 퀴즈 3개를 만들어 줘.";
+    // 화면에 표시하지 않고 바로 sendMessage 함수에 명령어를 전달
+    const currentMessages = [...messages, { role: 'user', content: quizPrompt }];
+    sendMessage(quizPrompt);
   };
 
   const renderedMessages = messages.map((m, i) => {
@@ -166,7 +183,7 @@ export default function Home() {
                   fontWeight: 'bold',
                   cursor: 'pointer'
                 }}
-              >🔊 </button>
+              >🔊 읽어주기</button>
             </>
           ) : (
             <p style={{ fontStyle: isTyping ? 'italic' : 'normal', minHeight: '1.5em' }}>{content}</p>
@@ -230,20 +247,40 @@ export default function Home() {
             }}
             placeholder="메시지를 입력하세요... (Shift + Enter로 줄바꿈)"
           />
-          <button
-            onClick={sendMessage}
-            style={{
-              padding: '10px',
-              fontSize: '1rem',
-              borderRadius: '6px',
-              backgroundColor: '#FDD835',
-              fontWeight: 'bold',
-              color: 'black',
-              border: 'none',
-              cursor: 'pointer',
-              fontFamily: 'Segoe UI, sans-serif'
-            }}
-          >보내기</button>
+          { /* ✨ [수정됨] 버튼들을 감싸는 div 추가 */ }
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => sendMessage()}
+              style={{
+                flex: 1, // 너비를 채움
+                padding: '10px',
+                fontSize: '1rem',
+                borderRadius: '6px',
+                backgroundColor: '#FDD835',
+                fontWeight: 'bold',
+                color: 'black',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'Segoe UI, sans-serif'
+              }}
+            >보내기</button>
+            { /* ✨ [추가됨] 퀴즈 풀기 버튼 */ }
+            <button
+              onClick={handleRequestQuiz}
+              disabled={messages.length <= 3} // 대화가 3개 이하면 비활성화
+              style={{
+                padding: '10px',
+                fontSize: '1rem',
+                borderRadius: '6px',
+                backgroundColor: messages.length <= 3 ? '#e0e0e0' : '#4CAF50',
+                fontWeight: 'bold',
+                color: 'white',
+                border: 'none',
+                cursor: messages.length <= 3 ? 'not-allowed' : 'pointer',
+                fontFamily: 'Segoe UI, sans-serif'
+              }}
+            >퀴즈 풀기</button>
+          </div>
         </div>
       </div>
     </>
