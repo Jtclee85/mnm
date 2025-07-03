@@ -73,7 +73,8 @@ export default function Home() {
   }, [isLoading]);
 
   const createSystemMessage = (name, source) => {
-    const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
+    const givenName = getGivenName(name);
+    const friendlyName = getKoreanNameWithPostposition(givenName);
     return {
       role: 'system',
       content: `
@@ -105,8 +106,11 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 개조식으로 끊어서 설명하는 게 좋아. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
-3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
+3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
+    - **'최고야!':** 역사적 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
+    - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
+    - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 역사를 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
 4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. **반드시 '~~함.', '~~였음.'과 같이 간결한 개조식으로 서술해야 해.** 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **다른 말 없이, 순수한 평가 내용만 <summary> 태그로 감싸서 출력해.**
       `
     };
@@ -151,10 +155,9 @@ ${source}
       setIsLoading(false);
     }
   };
-  
-  // ✨ [추가됨] 의도 분석을 위해 스트리밍 없이 전체 답변을 받아오는 함수
+
   const fetchFullResponse = async (messageHistory) => {
-    // 로딩 상태는 상위 함수에서 관리하므로 여기서는 제거
+    setIsLoading(true);
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -182,77 +185,58 @@ ${source}
     } catch (error) {
       console.error("전체 답변 요청 오류:", error);
       return "오류";
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // ✨ [수정됨] AI 기반 이름 검증 로직 추가
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
     const userMsgForDisplay = { role: 'user', content: userInput };
-    
-    // 1단계: 이름 받기
+    setMessages(prev => [...prev, userMsgForDisplay]);
+    setInput('');
+
     if (conversationPhase === 'asking_name') {
-      setMessages(prev => [...prev, userMsgForDisplay]);
-      setInput('');
-      const name = extractNameFromInput(userInput);
-      if (!name) {
-          setMessages(prev => [...prev, { role: 'assistant', content: '이름을 알려주지 않으면 다음으로 넘어갈 수 없어. 다시 한번 알려줄래?'}]);
-          return;
+      const nameClassificationPrompt = {
+        role: 'system',
+        content: `너는 사용자의 입력이 사람 이름인지 아닌지 분류하는 분류기야. 문장에서 이름만 추출해서 따옴표 없이 출력해 줘. 이름이 없거나 부적절하면 '없음'이라고만 답해.`
+      };
+      const extractedName = await fetchFullResponse([nameClassificationPrompt, { role: 'user', content: userInput }]);
+      
+      if (extractedName && !extractedName.includes('없음') && extractedName.length < 10) {
+        const finalName = extractNameFromInput(extractedName);
+        setUserName(finalName);
+        setTimeout(() => {
+          const friendlyName = getKoreanNameWithPostposition(getGivenName(finalName));
+          setMessages(prev => [...prev, { role: 'assistant', content: `만나서 반가워, ${friendlyName}! 이제 네가 조사한 역사 자료의 원본 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게.` }]);
+          setConversationPhase('asking_source');
+        }, 500);
+      } else {
+        setMessages(prev => [...prev, { role: 'assistant', content: '앗, 이름을 잘 모르겠어. 다시 한번 너의 이름을 알려줄래?'}]);
       }
-      setUserName(name);
-      setTimeout(() => {
-        const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
-        setMessages(prev => [...prev, { role: 'assistant', content: `만나서 반가워, ${friendlyName}! 이제 네가 조사한 역사 자료의 원본 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게.` }]);
-        setConversationPhase('asking_source');
-      }, 500);
       return;
     }
 
-    // ✨ [수정됨] AI 기반 주제 검증 로직 추가
-if (conversationPhase === 'asking_source') {
-  setMessages(prev => [...prev, userMsgForDisplay]);
-  setInput('');
-  setIsLoading(true);
-
-  const classificationSystemPrompt = {
-    role: 'system',
-    content: `
-너는 입력된 텍스트가 '역사' 관련인지 판별하는 AI 분류기야.
-- '역사적 인물, 역사적 사건, 문화유산, 유적지, 고대문명'에 해당하면 무조건 **"역사"**라고만 답해.
-- 그 외 모든 경우는 무조건 **"비역사"**라고만 답해.
-- **설명이나 부연, 기타 단어는 절대 붙이지 마.**
-- 반드시 한글로 "역사" 또는 "비역사" 중 하나만 한 줄로 답변해.
-`
-  };
-
-  const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
-  setIsLoading(false);
-
-  // "역사" 한 단어만 온 경우만 통과!
-  const result = intent.trim().split('\n')[0].replace(/[^가-힣]/g, '');
-
-  if (result === '역사') {
+    if (conversationPhase === 'asking_source') {
+      if (userInput.length < 30) {
+        setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료가 아닌 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
+        return;
+      }
       setSourceText(userInput);
-      const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
+      const userMsg = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
       const systemMsg = createSystemMessage(userName, userInput);
       setMessages(prev => [...prev, { role: 'assistant', content: "좋아, 자료를 잘 받았어! 이 내용은 말이야..."}]);
-      processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
+      processStreamedResponse([systemMsg, ...messages, userMsg]);
       setConversationPhase('chatting');
-  } else {
-      setMessages(prev => [...prev, { role: 'assistant', content: '앗, 이 내용은 역사와는 관련이 없는 것 같네! 내가 잘 설명할 수 있도록, 역사나 문화유산에 대한 자료를 다시 붙여넣어 줄래?'}]);
-  }
-  return;
-}
-
+      return;
+    }
     
-    // 3단계: 자유 대화
     if (conversationPhase === 'chatting') {
       const newMsg = { role: 'user', content: userInput };
-      const updatedMessages = [...messages, newMsg];
       const systemMsg = createSystemMessage(userName, sourceText);
-      setMessages(updatedMessages);
-      setInput('');
-      processStreamedResponse([systemMsg, ...updatedMessages]);
+      processStreamedResponse([systemMsg, ...messages, newMsg]);
     }
   };
   
@@ -269,7 +253,6 @@ if (conversationPhase === 'asking_source') {
   const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
-
 
   const handleCopy = async (text) => {
     const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
