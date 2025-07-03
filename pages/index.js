@@ -106,10 +106,7 @@ ${source}
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
 2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
-3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
-    - **'최고야!':** 역사적 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
-    - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
-    - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 역사를 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
+3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
 4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. **반드시 '~~함.', '~~였음.'과 같이 간결한 개조식으로 서술해야 해.** 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **다른 말 없이, 순수한 평가 내용만 <summary> 태그로 감싸서 출력해.**
       `
     };
@@ -155,9 +152,9 @@ ${source}
     }
   };
   
-  // ✨ [추가됨] 스트리밍 없이 전체 답변을 받아오는 함수 (의도 분석용)
+  // ✨ [추가됨] 의도 분석을 위해 스트리밍 없이 전체 답변을 받아오는 함수
   const fetchFullResponse = async (messageHistory) => {
-    setIsLoading(true);
+    // 로딩 상태는 상위 함수에서 관리하므로 여기서는 제거
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -185,8 +182,6 @@ ${source}
     } catch (error) {
       console.error("전체 답변 요청 오류:", error);
       return "오류";
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -217,29 +212,26 @@ ${source}
     if (conversationPhase === 'asking_source') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
+      setIsLoading(true);
       
       const classificationSystemPrompt = {
         role: 'system',
-        content: `너는 사용자의 입력 텍스트가 '역사' 관련 자료인지, '직접 질문'인지, 아니면 '일반 대화'인지 세 가지 유형으로 분류하는 분류기야. 다른 말은 절대 하면 안 되고, 반드시 '역사 자료', '직접 질문', '일반 대화' 세 가지 중 하나로만 답해야 해.`
+        content: `너는 사용자의 입력 텍스트가 '역사' 관련 자료인지 아닌지 분류하는 분류기야. 다른 말은 절대 하면 안 되고, 반드시 '역사' 또는 '비역사' 둘 중 하나로만 답해야 해.`
       };
       
       const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
       
-      switch (intent) {
-        case '역사 자료':
+      setIsLoading(false);
+
+      if (intent.includes('역사')) {
           setSourceText(userInput);
           const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
           const systemMsg = createSystemMessage(userName, userInput);
           setMessages(prev => [...prev, { role: 'assistant', content: "좋아, 자료를 잘 받았어! 이 내용은 말이야..."}]);
-          processStreamedResponse([systemMsg, ...messages, firstPrompt]);
+          processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
           setConversationPhase('chatting');
-          break;
-        case '직접 질문':
-          setMessages(prev => [...prev, { role: 'assistant', content: '좋은 질문이네! 그 내용에 대해 더 정확하게 설명해주려면, 먼저 백과사전이나 믿을 만한 곳에서 찾은 자료를 여기에 붙여넣어 줄래?' }]);
-          break;
-        default: // '일반 대화' 또는 기타
-          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 지금은 대화하는 대신 조사한 자료를 붙여넣어 줘야 해.' }]);
-          break;
+      } else {
+          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 이 내용은 역사와는 관련이 없는 것 같네! 내가 잘 설명할 수 있도록, 역사나 문화유산에 대한 자료를 다시 붙여넣어 줄래?'}]);
       }
       return;
     }
@@ -265,9 +257,10 @@ ${source}
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 핵심 내용을, 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 제목이나 다른 말 없이, 순수한 요약 내용만 <summary> 태그로 감싸서 출력해.", { type: 'summary' });
+  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
+
 
   const handleCopy = async (text) => {
     const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
