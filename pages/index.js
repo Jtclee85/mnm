@@ -90,6 +90,7 @@ ${source}
 - **답변 형식:** 어려운 소제목 대신, '~~이야기', '~~은 뭘까?'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
 - **질문 유도:** 설명이 끝나면, 아이들이 더 궁금해할 만한 질문을 "혹시 이런 것도 궁금해?" 하고 물어봐 줘.
 - **추가 정보:** 설명의 마지막에는, "[Google에서 '핵심주제' 더 찾아보기](https://www.google.com/search?q=핵심주제)" 링크를 달아서 더 찾아볼 수 있게 도와줘.
+- **응답 원칙:** 모든 답변은 아이들의 집중력을 고려하여, 항상 간결하고 핵심적인 내용 위주로 전달해 줘.
 
 **[답변 내용 및 문체, 단어에 대한 규칙]**
 - 학생들이 알기 쉽게 역사적 용어에 나오는 한자어를 쉽게 풀이해서 알려줍니다.
@@ -153,21 +154,57 @@ ${source}
       setIsLoading(false);
     }
   };
+  
+  // ✨ [추가됨] 스트리밍 없이 전체 답변을 받아오는 함수 (의도 분석용)
+  const fetchFullResponse = async (messageHistory) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messageHistory })
+      });
+      if (!res.ok) throw new Error(res.statusText);
+      
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            fullText += JSON.parse(line.substring(6));
+          }
+        }
+      }
+      return fullText;
+    } catch (error) {
+      console.error("전체 답변 요청 오류:", error);
+      return "오류";
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
+    const userMsgForDisplay = { role: 'user', content: userInput };
     
+    // 1단계: 이름 받기
     if (conversationPhase === 'asking_name') {
+      setMessages(prev => [...prev, userMsgForDisplay]);
+      setInput('');
       const name = extractNameFromInput(userInput);
       if (!name) {
-          setMessages(prev => [...prev, { role: 'user', content: userInput }, { role: 'assistant', content: '이름을 알려주지 않으면 다음으로 넘어갈 수 없어. 다시 한번 알려줄래?'}]);
-          setInput('');
+          setMessages(prev => [...prev, { role: 'assistant', content: '이름을 알려주지 않으면 다음으로 넘어갈 수 없어. 다시 한번 알려줄래?'}]);
           return;
       }
       setUserName(name);
-      setMessages(prev => [...prev, { role: 'user', content: userInput }]);
-      setInput('');
       setTimeout(() => {
         const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
         setMessages(prev => [...prev, { role: 'assistant', content: `만나서 반가워, ${friendlyName}! 이제 네가 조사한 역사 자료의 원본 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게.` }]);
@@ -176,25 +213,40 @@ ${source}
       return;
     }
 
+    // ✨ [수정됨] AI 기반 주제 검증 로직 추가
     if (conversationPhase === 'asking_source') {
-      if (userInput.length < 30) {
-        setMessages(prev => [...prev, { role: 'user', content: userInput }, { role: 'assistant', content: '앗, 그건 설명할 자료가 아닌 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
-        setInput('');
-        return;
-      }
-      setSourceText(userInput);
-      const userMsg = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
-      const updatedMessages = [...messages, userMsg];
-      setMessages(updatedMessages);
+      setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
-      const systemMsg = createSystemMessage(userName, userInput);
-      processStreamedResponse([systemMsg, userMsg]);
-      setConversationPhase('chatting');
+      
+      const classificationSystemPrompt = {
+        role: 'system',
+        content: `너는 사용자의 입력 텍스트가 '역사' 관련 자료인지, '직접 질문'인지, 아니면 '일반 대화'인지 세 가지 유형으로 분류하는 분류기야. 다른 말은 절대 하면 안 되고, 반드시 '역사 자료', '직접 질문', '일반 대화' 세 가지 중 하나로만 답해야 해.`
+      };
+      
+      const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
+      
+      switch (intent) {
+        case '역사 자료':
+          setSourceText(userInput);
+          const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
+          const systemMsg = createSystemMessage(userName, userInput);
+          setMessages(prev => [...prev, { role: 'assistant', content: "좋아, 자료를 잘 받았어! 이 내용은 말이야..."}]);
+          processStreamedResponse([systemMsg, ...messages, firstPrompt]);
+          setConversationPhase('chatting');
+          break;
+        case '직접 질문':
+          setMessages(prev => [...prev, { role: 'assistant', content: '좋은 질문이네! 그 내용에 대해 더 정확하게 설명해주려면, 먼저 백과사전이나 믿을 만한 곳에서 찾은 자료를 여기에 붙여넣어 줄래?' }]);
+          break;
+        default: // '일반 대화' 또는 기타
+          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 지금은 대화하는 대신 조사한 자료를 붙여넣어 줘야 해.' }]);
+          break;
+      }
       return;
     }
     
+    // 3단계: 자유 대화
     if (conversationPhase === 'chatting') {
-      const newMsg = { role: 'user', content: input };
+      const newMsg = { role: 'user', content: userInput };
       const updatedMessages = [...messages, newMsg];
       const systemMsg = createSystemMessage(userName, sourceText);
       setMessages(updatedMessages);
@@ -207,14 +259,13 @@ ${source}
     if (isLoading) return;
     const userActionMsg = { role: 'user', content: userAction };
     setMessages(prev => [...prev, userActionMsg]);
-    
     const newMsg = { role: 'user', content: prompt };
     const systemMsg = createSystemMessage(userName, sourceText);
     processStreamedResponse([systemMsg, ...messages, userActionMsg, newMsg], metadata);
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 25자 내외의 구절로 요약해 줘.", { type: 'summary' });
+  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 핵심 내용을, 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 제목이나 다른 말 없이, 순수한 요약 내용만 <summary> 태그로 감싸서 출력해.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
@@ -265,7 +316,6 @@ ${source}
                   <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
                 )}
                 {m.metadata?.type === 'evaluation' && (
-                  // ✨ [수정됨] 버튼 텍스트 변경
                   <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 내가 어땠는지 선생님께 알리기</button>
                 )}
               </div>
