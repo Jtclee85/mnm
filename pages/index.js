@@ -216,7 +216,7 @@ ${source}
       
       const classificationSystemPrompt = {
         role: 'system',
-        content: `너는 사용자의 입력 텍스트가 '역사' 관련 자료인지 아닌지 분류하는 분류기야. 다른 말은 절대 하면 안 되고, 반드시 '역사' 또는 '비역사' 둘 중 하나로만 답해야 해.`
+        content: `너는 사용자의 입력 텍스트가 '역사' 관련 자료인지 아닌지 분류하는 분류기야. 주제가 '인류의 역사, 문화유산, 역사적 인물, 역사적 사건'에 해당하면 오직 '역사'라고만 대답해야 해. 동물의 역사, 과학사, 특정 인물의 개인사 등은 '역사'가 아니야. 그 외 모든 주제는 '비역사'라고만 대답해야 해. 다른 설명은 절대 덧붙이지 마.`
       };
       
       const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
