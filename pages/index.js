@@ -72,7 +72,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] 교과평어 생성 규칙에 '개조식' 서술 추가
   const createSystemMessage = (name, source) => {
     const friendlyName = getKoreanNameWithPostposition(getGivenName(name));
     return {
@@ -105,9 +104,9 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 우선 제목으로 '조사 대상'의 이름이 들어가야 하고 그 다음 부터 3줄 시작이야. 개조식으로 작성해야 하고, 한 줄당 25자 미만의 간단한 요약글이어야 해. 항목을 나눌 수는 있지만 번호를 붙인다거나 하지는 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
 3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
-    - **'최고야!':** 역사적 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 했을 경우에만 이 평가를 내린다.
+    - **'최고야!':** 역사적 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
     - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
     - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 역사를 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
 4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. **반드시 '~~함.', '~~였음.'과 같이 간결한 개조식으로 서술해야 해.** 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **다른 말 없이, 순수한 평가 내용만 <summary> 태그로 감싸서 출력해.**
@@ -204,23 +203,20 @@ ${source}
     }
   };
   
-  // ✨ [수정됨] 사용자의 요청(버튼 텍스트)을 먼저 표시하도록 로직 변경
   const handleSpecialRequest = (userAction, prompt, metadata) => {
     if (isLoading) return;
-    // 1. 사용자의 액션을 먼저 화면에 표시
     const userActionMsg = { role: 'user', content: userAction };
     setMessages(prev => [...prev, userActionMsg]);
     
-    // 2. AI에게 보낼 실제 프롬프트 구성 및 API 호출
     const newMsg = { role: 'user', content: prompt };
     const systemMsg = createSystemMessage(userName, sourceText);
     processStreamedResponse([systemMsg, ...messages, userActionMsg, newMsg], metadata);
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
+  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징 3가지를 25자 내외의 구절로 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
-  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 보낼 교과평어 만들기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
+  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
   const handleCopy = async (text) => {
     const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
@@ -269,7 +265,8 @@ ${source}
                   <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
                 )}
                 {m.metadata?.type === 'evaluation' && (
-                  <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 선생님께 보낼 교과평어 만들기</button>
+                  // ✨ [수정됨] 버튼 텍스트 변경
+                  <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 내가 어땠는지 선생님께 알리기</button>
                 )}
               </div>
             )}
