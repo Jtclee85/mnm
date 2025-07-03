@@ -209,32 +209,41 @@ ${source}
     }
 
     // ✨ [수정됨] AI 기반 주제 검증 로직 추가
-    if (conversationPhase === 'asking_source') {
-      setMessages(prev => [...prev, userMsgForDisplay]);
-      setInput('');
-      setIsLoading(true);
-      
-      const classificationSystemPrompt = {
-        role: 'system',
-        content: `너는 사용자의 입력 텍스트가 '역사' 관련 자료인지 아닌지 분류하는 분류기야. 주제가 '인류의 역사, 문화유산, 역사적 인물, 역사적 사건'에 해당하면 오직 '역사'라고만 대답해야 해. 동물의 역사, 과학사, 특정 인물의 개인사 등은 '역사'가 아니야. 그 외 모든 주제는 '비역사'라고만 대답해야 해. 다른 설명은 절대 덧붙이지 마.`
-      };
-      
-      const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
-      
-      setIsLoading(false);
+if (conversationPhase === 'asking_source') {
+  setMessages(prev => [...prev, userMsgForDisplay]);
+  setInput('');
+  setIsLoading(true);
 
-      if (intent.includes('역사')) {
-          setSourceText(userInput);
-          const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
-          const systemMsg = createSystemMessage(userName, userInput);
-          setMessages(prev => [...prev, { role: 'assistant', content: "좋아, 자료를 잘 받았어! 이 내용은 말이야..."}]);
-          processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
-          setConversationPhase('chatting');
-      } else {
-          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 이 내용은 역사와는 관련이 없는 것 같네! 내가 잘 설명할 수 있도록, 역사나 문화유산에 대한 자료를 다시 붙여넣어 줄래?'}]);
-      }
-      return;
-    }
+  const classificationSystemPrompt = {
+    role: 'system',
+    content: `
+너는 입력된 텍스트가 '역사' 관련인지 판별하는 AI 분류기야.
+- '역사적 인물, 역사적 사건, 문화유산, 유적지, 고대문명'에 해당하면 무조건 **"역사"**라고만 답해.
+- 그 외 모든 경우는 무조건 **"비역사"**라고만 답해.
+- **설명이나 부연, 기타 단어는 절대 붙이지 마.**
+- 반드시 한글로 "역사" 또는 "비역사" 중 하나만 한 줄로 답변해.
+`
+  };
+
+  const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
+  setIsLoading(false);
+
+  // "역사" 한 단어만 온 경우만 통과!
+  const result = intent.trim().split('\n')[0].replace(/[^가-힣]/g, '');
+
+  if (result === '역사') {
+      setSourceText(userInput);
+      const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
+      const systemMsg = createSystemMessage(userName, userInput);
+      setMessages(prev => [...prev, { role: 'assistant', content: "좋아, 자료를 잘 받았어! 이 내용은 말이야..."}]);
+      processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
+      setConversationPhase('chatting');
+  } else {
+      setMessages(prev => [...prev, { role: 'assistant', content: '앗, 이 내용은 역사와는 관련이 없는 것 같네! 내가 잘 설명할 수 있도록, 역사나 문화유산에 대한 자료를 다시 붙여넣어 줄래?'}]);
+  }
+  return;
+}
+
     
     // 3단계: 자유 대화
     if (conversationPhase === 'chatting') {
