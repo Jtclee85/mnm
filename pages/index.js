@@ -4,19 +4,18 @@ import Head from 'next/head';
 import Banner from '../components/Banner';
 
 const cleanContent = (text) => {
-  if (!text) return '';
-  const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
-  const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
+  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
   }
-  return textWithoutRec;
+  return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
 };
 
 export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_topic');
   const [topic, setTopic] = useState('');
   const [sourceText, setSourceText] = useState('');
+
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '안녕? 나는 사회 조사학습을 도와주는 챗봇 [뭐냐면]이야. 오늘은 어떤 주제에 대해 조사해볼까?' }
   ]);
@@ -26,7 +25,6 @@ export default function Home() {
   const inputRef = useRef(null);
   const [userEmoji, setUserEmoji] = useState('👤');
   const [recommendedQuestions, setRecommendedQuestions] = useState([]);
-  const [lastRecMessageIndex, setLastRecMessageIndex] = useState(-1);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,9 +36,10 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  const createSystemMessage = (source) => ({
-    role: 'system',
-    content: `
+  const createSystemMessage = (source) => {
+    return {
+      role: 'system',
+      content: `
 너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 너는 지금 초등 저학년 학생과 대화하고 있어.
 너의 핵심 임무는 사용자가 제공한 아래의 [원본 자료]를 바탕으로, 사회과(역사, 지리, 일반사회 등) 개념을 쉽고 재미있게 설명해주는 것이야.
 
@@ -61,17 +60,19 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'전체 요약' 요청:** 지금까지의 대화 전체 내용을 [조사 주제] 중심으로 요약해 줘.
-3.  **'말풍선 3줄요약' 요청:** 특정 메시지 내용을 받으면, 그 내용을 3줄의 개조식으로 요약해.
-4.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
-5.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 '~~함.', '~~였음.'과 같이 간결한 개조식으로 작성해 줘.
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
+3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
+    - **'최고야!':** 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
+    - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
+    - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 내용을 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
+4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. **반드시 '~~함.', '~~였음.'과 같이 간결한 개조식으로 서술해야 해.** 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **다른 말 없이, 순수한 평가 내용만 <summary> 태그로 감싸서 출력해.**
       `
-  });
+    };
+  };
 
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
     setRecommendedQuestions([]);
-    setLastRecMessageIndex(-1);
     setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
     try {
       const res = await fetch('/api/chat', {
@@ -79,7 +80,7 @@ ${source}
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messageHistory })
       });
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) { throw new Error(res.statusText); }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       while (true) {
@@ -99,6 +100,7 @@ ${source}
         }
       }
     } catch (error) {
+      console.error("스트리밍 오류:", error);
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
@@ -106,21 +108,15 @@ ${source}
       });
     } finally {
       setMessages(prev => {
-        const lastIdx = prev.length - 1;
-        const lastMessage = prev[lastIdx];
-        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
-          const fullContent = lastMessage.content;
-          const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-          const questions = [];
-          let match;
-          while ((match = regex.exec(fullContent)) !== null) {
-            const questionText = match[1].replace(/\n/g, ' ').trim();
-            if (questionText) questions.push(questionText);
-          }
-          if (questions.length > 0) {
-            setRecommendedQuestions(questions);
-            setLastRecMessageIndex(lastIdx);
-          }
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage && lastMessage.role === 'assistant') {
+            const fullContent = lastMessage.content;
+            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
+            
+            if (questions.length > 0) {
+                setRecommendedQuestions(questions);
+            }
         }
         return prev;
       });
@@ -178,12 +174,9 @@ ${source}
       
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
-        
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
-        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
-
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
@@ -225,16 +218,10 @@ ${source}
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestFullSummary = () => handleSpecialRequest("📜 전체 요약", `지금까지 나눈 대화의 주제인 '${topic}'에 대해 전체 내용을 요약해 줘.`, { type: 'summary' });
+  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
-  const handleBubbleSummary = (contentToSummarize) => {
-    if (isLoading) return;
-    const prompt = `다음 내용을 3줄의 개조식으로 요약해줘: "${contentToSummarize}"`;
-    handleSpecialRequest("💬 이 말풍선 요약해줘", prompt, { type: 'summary' });
-  };
-  
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
     const newMsg = { role: 'user', content: question };
@@ -284,12 +271,8 @@ ${source}
             >
               {cleanContent(content)}
             </ReactMarkdown>
-            {/* ✨ [수정됨] 말풍선별 요약 버튼 추가 및 버튼 렌더링 로직 개선 */}
-            {m.role === 'assistant' && !isLoading && !m.content.includes('[추천질문]') && (
+            {m.role === 'assistant' && !isLoading && (
               <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {cleanContent(m.content).length >= 300 && !m.metadata?.type && (
-                     <button onClick={() => handleBubbleSummary(content)} className="btn btn-tertiary" style={{fontSize:'0.9rem'}}>💬 이 내용 3줄요약</button>
-                )}
                 {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
                   <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
                 )}
@@ -318,6 +301,7 @@ ${source}
 
       <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20 }}>
         <Banner />
+        
         <div style={{
           display: 'flex', flexDirection: 'column',
           border: '1px solid #ddd', padding: '20px', height: '60vh',
@@ -325,10 +309,9 @@ ${source}
         }}>
           {renderedMessages}
           {!isLoading && recommendedQuestions.length > 0 && (
-            <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '70px', maxWidth: '85%'}}>
+            <div style={{alignSelf: 'flex-start', marginTop: '15px', paddingLeft: '70px', maxWidth: '85%'}}>
               {recommendedQuestions.map((q, index) => (
-                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
-                  style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
+                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
                   {q}
                 </button>
               ))}
@@ -358,7 +341,8 @@ ${source}
             }
             disabled={isLoading}
           />
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+          {/* ✨ [수정됨] 버튼 구조 변경 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               onClick={sendMessage}
               disabled={isLoading}
@@ -366,14 +350,14 @@ ${source}
             >
               보내기 📨
             </button>
+            {conversationPhase === 'chatting' && messages.length > 2 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                 <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
+                 <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 3줄요약</button>
+                 <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
+              </div>
+            )}
           </div>
-          {conversationPhase === 'chatting' && messages.length > 2 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '0px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-              <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
-              <button onClick={handleRequestFullSummary} disabled={isLoading} className="btn btn-tertiary">📜 전체 요약</button>
-              <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
-            </div>
-          )}
         </div>
       </div>
     </>
