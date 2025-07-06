@@ -1,12 +1,12 @@
 import Image from 'next/image';
-import bannerImage from '../public/banner-background.png'; // 사용자가 업로드한 이미지 파일명
+import bannerImage from '../public/banner-background.png';
 
 const Banner = () => {
   return (
     <div style={{
       position: 'relative',
       width: '100%',
-      height: '200px', // 배너 높이, 필요에 따라 조절하세요
+      height: '200px',
       borderRadius: '12px',
       overflow: 'hidden',
       marginBottom: '1.5rem',
@@ -31,8 +31,9 @@ const Banner = () => {
         height: '100%'
       }}>
         <h1 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 'bold', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>뭐냐면</h1>
+        {/* ✨ [수정됨] 부제목 텍스트 변경 */}
         <p style={{ fontSize: '1.1rem', color: '#444', margin: '5px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>
-          역사 자료를 쉽고 재미있게 바꾸어주는 AI 친구
+          조사한 사회과 자료를 쉽고 재미있게 설명해주는 AI 친구
         </p>
       </div>
     </div>
