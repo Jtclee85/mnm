@@ -3,9 +3,19 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
+// ✨ [수정됨] 추천 질문 태그와 summary 태그를 모두 제거하는 로직으로 변경
 const cleanContent = (text) => {
-  // 추천 질문 태그를 제거하는 로직 추가
-  return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
+  if (!text) return '';
+  // 1. 추천 질문 관련 텍스트를 먼저 완전히 제거
+  const textWithoutRec = text.replace(/\[추천질문\](.*?)(\n|$)/g, '').trim();
+  
+  // 2. <summary> 태그 안의 내용만 추출, 없으면 전체 텍스트 반환
+  const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
+  if (summaryMatch) {
+    return summaryMatch[1].trim();
+  }
+  
+  return textWithoutRec;
 };
 
 export default function Home() {
@@ -105,13 +115,20 @@ ${source}
         return [...prev.slice(0, -1), updatedLastMessage];
       });
     } finally {
+      // ✨ [수정됨] 추천 질문을 파싱하는 정규식과 로직 강화
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
             const fullContent = lastMessage.content;
-            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/g;
-            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
-            
+            const questions = [];
+            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+            let match;
+            while ((match = regex.exec(fullContent)) !== null) {
+              const questionText = match[1].replace(/\n/g, ' ').trim();
+              if (questionText) {
+                questions.push(questionText);
+              }
+            }
             if (questions.length > 0) {
                 setRecommendedQuestions(questions);
             }
@@ -131,11 +148,9 @@ ${source}
         body: JSON.stringify({ messages: messageHistory })
       });
       if (!res.ok) throw new Error(res.statusText);
-      
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
-      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -156,7 +171,6 @@ ${source}
     }
   };
   
-  // ✨ [수정됨] 대화 시작 로직 전체 변경
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
@@ -224,7 +238,7 @@ ${source}
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
   const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
-  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
+  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
@@ -267,12 +281,7 @@ ${source}
         <div className="message-content-container">
           {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
           <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-            <ReactMarkdown
-              components={{
-                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                summary: ({children}) => <>{children}</>,
-              }}
-            >
+            <ReactMarkdown>
               {cleanContent(content)}
             </ReactMarkdown>
             {m.role === 'assistant' && !isLoading && (
@@ -314,7 +323,6 @@ ${source}
           {renderedMessages}
           {!isLoading && recommendedQuestions.length > 0 && (
             <div style={{alignSelf: 'flex-start', marginTop: '15px', paddingLeft: '70px', maxWidth: '85%'}}>
-              <p style={{fontSize: '0.9rem', color: '#666', marginBottom: '5px'}}>이런 점도 궁금하지 않니?</p>
               {recommendedQuestions.map((q, index) => (
                 <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
                   {q}
