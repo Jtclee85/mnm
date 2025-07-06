@@ -113,17 +113,11 @@ ${source}
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
             const fullContent = lastMessage.content;
-            const questions = [];
-            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-            let match;
-            while ((match = regex.exec(fullContent)) !== null) {
-              const questionText = match[1].replace(/\n/g, ' ').trim();
-              if (questionText) {
-                questions.push(questionText);
-              }
-            }
+            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
+            
             if (questions.length > 0) {
-                const newContent = fullContent.replace(regex, '').trim();
+                const newContent = fullContent.replace(questionRegex, '').trim();
                 const updatedLastMessage = { ...lastMessage, content: newContent };
                 setRecommendedQuestions(questions);
                 return [...prev.slice(0, -1), updatedLastMessage];
@@ -144,9 +138,11 @@ ${source}
         body: JSON.stringify({ messages: messageHistory })
       });
       if (!res.ok) throw new Error(res.statusText);
+      
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -185,12 +181,9 @@ ${source}
       
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
-        
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
-        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
-
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
@@ -198,18 +191,30 @@ ${source}
       return;
     }
 
+    // ✨ [수정됨] 이 블록 전체의 로직을 재검토하고 수정했습니다.
     if (conversationPhase === 'asking_source') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
-      if (userInput.length < 50) { 
-        setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료라기엔 너무 짧은 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
-        return;
+      
+      const classificationSystemPrompt = {
+        role: 'system',
+        content: `너는 사용자의 텍스트가 다루는 주제를 분석하는 분류기야. 주제가 '사회과(역사, 지리, 일반사회, 문화 등)'에 해당하면 오직 '사회과'라고만 대답해야 해. 그 외 모든 주제는 '비사회과'라고만 대답해야 해. 다른 설명은 절대 덧붙이지 마.`
+      };
+      setIsLoading(true);
+      const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
+      setIsLoading(false);
+      
+      if (intent.includes('사회과')) {
+          setSourceText(userInput);
+          // 여기서 사용자 메시지를 다시 추가하지 않습니다. (이미 위에서 추가됨)
+          const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
+          const systemMsg = createSystemMessage(userInput); // userInput을 source로 사용
+          setMessages(prev => [...prev, { role: 'assistant', content: "좋아, 자료를 잘 받았어! 이 내용은 말이야..."}]);
+          processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
+          setConversationPhase('chatting');
+      } else {
+          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 이 내용은 사회 과목과는 관련이 없는 것 같네! 사회나 역사에 대한 자료를 다시 붙여넣어 줄래?'}]);
       }
-      setSourceText(userInput);
-      const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
-      const systemMsg = createSystemMessage(userInput);
-      processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
-      setConversationPhase('chatting');
       return;
     }
     
@@ -232,6 +237,7 @@ ${source}
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
+  const handleRequestFullSummary = () => handleSpecialRequest("📜 전체 요약", `지금까지 나눈 대화의 주제인 '${topic}'에 대해 전체 내용을 요약해줘.`, { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
@@ -362,14 +368,14 @@ ${source}
             >
               보내기 📨
             </button>
+            {conversationPhase === 'chatting' && messages.length > 2 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                 <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
+                 <button onClick={handleRequestFullSummary} disabled={isLoading} className="btn btn-tertiary">📜 전체 요약</button>
+                 <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
+              </div>
+            )}
           </div>
-          {conversationPhase === 'chatting' && messages.length > 2 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-               <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
-               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 전체 요약</button>
-               <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
-            </div>
-          )}
         </div>
       </div>
     </>
