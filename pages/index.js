@@ -3,16 +3,12 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
-// ✨ [수정됨] ChatGPT의 해결책을 반영한 cleanContent 함수
 const cleanContent = (text) => {
-  if (!text) return '';
-  // 추천 질문과 summary 태그를 모두 제거하여 순수한 내용만 표시
-  const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
-  const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
+  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
   }
-  return textWithoutRec;
+  return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
 };
 
 export default function Home() {
@@ -26,7 +22,6 @@ export default function Home() {
   const [input, setInput] = useState('');
   const bottomRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showExtraFeatures, setShowExtraFeatures] = useState(false);
   const inputRef = useRef(null);
   const [userEmoji, setUserEmoji] = useState('👤');
   const [recommendedQuestions, setRecommendedQuestions] = useState([]);
@@ -112,20 +107,13 @@ ${source}
         return [...prev.slice(0, -1), updatedLastMessage];
       });
     } finally {
-      // ✨ [수정됨] ChatGPT의 해결책을 반영한 추천 질문 파싱 로직
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
+        if (lastMessage && lastMessage.role === 'assistant') {
             const fullContent = lastMessage.content;
-            const questions = [];
-            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-            let match;
-            while ((match = regex.exec(fullContent)) !== null) {
-              const questionText = match[1].replace(/\n/g, ' ').trim();
-              if (questionText) {
-                questions.push(questionText);
-              }
-            }
+            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
+            
             if (questions.length > 0) {
                 setRecommendedQuestions(questions);
             }
@@ -232,7 +220,7 @@ ${source}
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
   const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
-  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
+  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
@@ -353,7 +341,8 @@ ${source}
             }
             disabled={isLoading}
           />
-          <div style={{ display: 'flex', gap: '10px' }}>
+          {/* ✨ [수정됨] 버튼 구조 변경 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               onClick={sendMessage}
               disabled={isLoading}
@@ -362,22 +351,13 @@ ${source}
               보내기 📨
             </button>
             {conversationPhase === 'chatting' && messages.length > 2 && (
-              <button
-                onClick={() => setShowExtraFeatures(!showExtraFeatures)}
-                disabled={isLoading}
-                className="btn btn-secondary"
-              >
-                {showExtraFeatures ? '기능 숨기기 ▲' : '더 많은 기능 보기 📚'}
-              </button>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                 <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
+                 <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 3줄요약</button>
+                 <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
+              </div>
             )}
           </div>
-          {showExtraFeatures && conversationPhase === 'chatting' && messages.length > 2 && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-               <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
-               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 3줄요약</button>
-               <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
-            </div>
-          )}
         </div>
       </div>
     </>
