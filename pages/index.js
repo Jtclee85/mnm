@@ -37,6 +37,7 @@ export default function Home() {
     }
   }, [isLoading]);
 
+  // ✨ [수정됨] 추천 질문 생성 규칙 및 프롬프트 구조 개선
   const createSystemMessage = (source) => {
     return {
       role: 'system',
@@ -52,14 +53,10 @@ ${source}
 - **가장 중요한 규칙: 답변은 사용자가 제공한 [원본 자료]를 최우선으로 하되, 아이들의 이해를 돕기 위해 필요한 경우 너의 일반 지식을 활용하여 배경지식이나 쉬운 예시를 덧붙여 설명할 수 있어. 하지만 [원본 자료]와 전혀 관련 없는 이야기는 하지 마.**
 - **말투:** 초등 저학년 학생이 이해할 수 있도록 쉬운 단어와 친절한 설명을 사용해야 해.
 - **답변 형식:** 어려운 소제목 대신, '🗺️ 지도 이야기', '🏛️ 제도 이야기'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
-- **추천 질문 생성:** 설명이 끝난 후, 다음 규칙에 따라 세 가지 수준의 추천 질문을 생성해야 해. 각 질문은 사용자가 더 깊이 탐구하도록 유도해야 하며, 반드시 [추천질문] 태그로 감싸서 한 줄에 하나씩 제시해야 해.
+- **추천 질문 생성:** 설명이 끝난 후, 다음 규칙에 따라 세 가지 수준의 추천 질문을 생성해야 해. 각 질문은 사용자가 더 깊이 탐구하도록 유도해야 하며, **반드시 [추천질문] 태그로 감싸서, 답변의 맨 마지막에 한 줄에 하나씩 제시해야 해.** 이 외의 다른 안내 문구는 절대 붙이지 마.
     1.  **사실/개념 질문:** "그래서 OOO가 뭐야?" 와 같이 기본적인 내용을 묻는 질문.
     2.  **원인/분석 질문:** "왜 OOO는 그렇게 했을까?" 와 같이 이유나 과정을 묻는 질문.
     3.  **가치/평가 질문:** "OOO는 잘한 일일까?" 와 같이 생각이나 평가를 묻는 질문.
-    예시:
-    [추천질문]OOO란 무엇인가요?
-    [추천질문]OOO는 왜 만들어졌나요?
-    [추천질문]OOO의 가장 중요한 점은 무엇이라고 생각해?
 
 **[특별 기능 설명]**
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
@@ -75,9 +72,10 @@ ${source}
     };
   };
 
+  // ✨ [수정됨] 스트리밍 종료 후 추천 질문을 파싱하고 상태를 업데이트하는 로직으로 변경
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
-    setRecommendedQuestions([]); // 새 답변 생성 시 이전 추천 질문 초기화
+    setRecommendedQuestions([]);
     setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
     try {
       const res = await fetch('/api/chat', {
@@ -88,25 +86,14 @@ ${source}
       if (!res.ok) { throw new Error(res.statusText); }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        
-        for (const line of lines.slice(0, -1)) {
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+        for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = JSON.parse(line.substring(6));
-            
-            if(data.includes('[추천질문]')){
-              const questions = data.split('\n').filter(q => q.startsWith('[추천질문]')).map(q => q.replace('[추천질문]', '').trim());
-              setRecommendedQuestions(prev => [...new Set([...prev, ...questions])]);
-              continue;
-            }
-
             setMessages(prev => {
               const lastMessage = prev[prev.length - 1];
               const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data, metadata: lastMessage.metadata };
@@ -114,7 +101,6 @@ ${source}
             });
           }
         }
-        buffer = lines[lines.length - 1];
       }
     } catch (error) {
       console.error("스트리밍 오류:", error);
@@ -124,6 +110,22 @@ ${source}
         return [...prev.slice(0, -1), updatedLastMessage];
       });
     } finally {
+      setMessages(prev => {
+          const lastMessage = prev[prev.length - 1];
+          if(lastMessage && lastMessage.role === 'assistant') {
+              const fullContent = lastMessage.content;
+              const questionRegex = /\[추천질문\](.*?)\n?/g;
+              const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim());
+              
+              if(questions.length > 0){
+                  const newContent = fullContent.replace(questionRegex, '').trim();
+                  setRecommendedQuestions(questions);
+                  const updatedLastMessage = { ...lastMessage, content: newContent };
+                  return [...prev.slice(0, -1), updatedLastMessage];
+              }
+          }
+          return prev;
+      });
       setIsLoading(false);
     }
   };
@@ -234,8 +236,8 @@ ${source}
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
     const newMsg = { role: 'user', content: question };
-    const systemMsg = createSystemMessage(sourceText);
     setMessages(prev => [...prev, newMsg]);
+    const systemMsg = createSystemMessage(sourceText);
     processStreamedResponse([systemMsg, ...messages, newMsg]);
   };
 
@@ -317,11 +319,10 @@ ${source}
           overflowY: 'auto', borderRadius: '8px', backgroundColor: '#EAE7DC'
         }}>
           {renderedMessages}
-          {/* ✨ [수정됨] 추천 질문 버튼 렌더링 로직 추가 */}
           {!isLoading && recommendedQuestions.length > 0 && (
-            <div style={{alignSelf: 'flex-start', marginTop: '15px', paddingLeft: '50px'}}>
+            <div style={{alignSelf: 'flex-start', marginTop: '15px', paddingLeft: '70px', maxWidth: '85%'}}>
               {recommendedQuestions.map((q, index) => (
-                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '4px', cursor: 'pointer'}}>
+                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
                   {q}
                 </button>
               ))}
