@@ -4,10 +4,7 @@ import Head from 'next/head';
 import Banner from '../components/Banner';
 
 const cleanContent = (text) => {
-  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
-  if (summaryMatch) {
-    return summaryMatch[1].trim();
-  }
+  // 추천 질문 태그를 제거 (메시지창에는 안 나오게)
   return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
 };
 
@@ -37,7 +34,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] 200자 제한 규칙을 삭제하고 원래의 간결성 규칙으로 복원
   const createSystemMessage = (source) => {
     return {
       role: 'system',
@@ -53,7 +49,6 @@ ${source}
 - **가장 중요한 규칙: 답변은 사용자가 제공한 [원본 자료]를 최우선으로 하되, 아이들의 이해를 돕기 위해 필요한 경우 너의 일반 지식을 활용하여 배경지식이나 쉬운 예시를 덧붙여 설명할 수 있어. 하지만 [원본 자료]와 전혀 관련 없는 이야기는 하지 마.**
 - **말투:** 초등 저학년 학생이 이해할 수 있도록 쉬운 단어와 친절한 설명을 사용해야 해.
 - **답변 형식:** 어려운 소제목 대신, '🗺️ 지도 이야기', '🏛️ 제도 이야기'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
-- **응답 원칙:** 모든 답변은 아이들의 집중력을 고려하여, 항상 간결하고 핵심적인 내용 위주로 전달해 줘.
 - **추천 질문 생성:** 설명이 끝난 후, 다음 규칙에 따라 세 가지 수준의 추천 질문을 생성해야 해. 각 질문은 사용자가 더 깊이 탐구하도록 유도해야 하며, **반드시 [추천질문] 태그로 감싸서, 답변의 맨 마지막에 한 줄에 하나씩 제시해야 해.** 이 외의 다른 안내 문구는 절대 붙이지 마.
     1.  **사실/개념 질문:** "그래서 OOO가 뭐야?" 와 같이 기본적인 내용을 묻는 질문.
     2.  **원인/분석 질문:** "왜 OOO는 그렇게 했을까?" 와 같이 이유나 과정을 묻는 질문.
@@ -114,9 +109,14 @@ ${source}
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
             const fullContent = lastMessage.content;
-            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/g;
-            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
-            
+            const questions = [];
+            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+            let match;
+            while ((match = regex.exec(fullContent)) !== null) {
+              if (match[1] && match[1].trim().length > 1) {
+                questions.push(match[1].replace(/\n/g, '').trim());
+              }
+            }
             if (questions.length > 0) {
                 setRecommendedQuestions(questions);
             }
@@ -136,11 +136,9 @@ ${source}
         body: JSON.stringify({ messages: messageHistory })
       });
       if (!res.ok) throw new Error(res.statusText);
-      
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
-      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -179,12 +177,9 @@ ${source}
       
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
-        
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
-        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
-
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
