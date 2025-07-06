@@ -4,11 +4,8 @@ import Head from 'next/head';
 import Banner from '../components/Banner';
 
 const cleanContent = (text) => {
-  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
-  if (summaryMatch) {
-    return summaryMatch[1].trim();
-  }
-  return text.replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
+  // 추천 질문 태그를 제거하는 로직 추가
+  return text.replace(/\[추천질문\](.*?)\n?/g, '').trim();
 };
 
 export default function Home() {
@@ -29,7 +26,7 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, recommendedQuestions]); // 추천 질문이 생길 때도 스크롤
 
   useEffect(() => {
     if (!isLoading) {
@@ -37,7 +34,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] 추천 질문 생성 규칙 및 프롬프트 구조 개선
   const createSystemMessage = (source) => {
     return {
       role: 'system',
@@ -57,6 +53,10 @@ ${source}
     1.  **사실/개념 질문:** "그래서 OOO가 뭐야?" 와 같이 기본적인 내용을 묻는 질문.
     2.  **원인/분석 질문:** "왜 OOO는 그렇게 했을까?" 와 같이 이유나 과정을 묻는 질문.
     3.  **가치/평가 질문:** "OOO는 잘한 일일까?" 와 같이 생각이나 평가를 묻는 질문.
+    예시:
+    [추천질문]OOO란 무엇인가요?
+    [추천질문]OOO는 왜 만들어졌나요?
+    [추천질문]OOO의 가장 중요한 점은 무엇이라고 생각해?
 
 **[특별 기능 설명]**
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
@@ -72,7 +72,6 @@ ${source}
     };
   };
 
-  // ✨ [수정됨] 스트리밍 종료 후 추천 질문을 파싱하고 상태를 업데이트하는 로직으로 변경
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
     setRecommendedQuestions([]);
@@ -110,21 +109,19 @@ ${source}
         return [...prev.slice(0, -1), updatedLastMessage];
       });
     } finally {
+      // ✨ [수정됨] 스트리밍이 모두 끝난 후 추천 질문을 파싱
       setMessages(prev => {
-          const lastMessage = prev[prev.length - 1];
-          if(lastMessage && lastMessage.role === 'assistant') {
-              const fullContent = lastMessage.content;
-              const questionRegex = /\[추천질문\](.*?)\n?/g;
-              const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim());
-              
-              if(questions.length > 0){
-                  const newContent = fullContent.replace(questionRegex, '').trim();
-                  setRecommendedQuestions(questions);
-                  const updatedLastMessage = { ...lastMessage, content: newContent };
-                  return [...prev.slice(0, -1), updatedLastMessage];
-              }
-          }
-          return prev;
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage && lastMessage.role === 'assistant') {
+            const fullContent = lastMessage.content;
+            const questionRegex = /\[추천질문\](.*?)\n?/g;
+            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim());
+            
+            if (questions.length > 0) {
+                setRecommendedQuestions(questions);
+            }
+        }
+        return prev;
       });
       setIsLoading(false);
     }
@@ -139,11 +136,9 @@ ${source}
         body: JSON.stringify({ messages: messageHistory })
       });
       if (!res.ok) throw new Error(res.statusText);
-      
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
-      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -163,7 +158,7 @@ ${source}
       setIsLoading(false);
     }
   };
-  
+
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
@@ -182,12 +177,9 @@ ${source}
       
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
-        
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
-        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
-
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
@@ -198,7 +190,7 @@ ${source}
     if (conversationPhase === 'asking_source') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
-      if (userInput.length < 50) { 
+      if (userInput.length < 50) {
         setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료라기엔 너무 짧은 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
         return;
       }
@@ -236,11 +228,11 @@ ${source}
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
     const newMsg = { role: 'user', content: question };
-    setMessages(prev => [...prev, newMsg]);
     const systemMsg = createSystemMessage(sourceText);
+    setMessages(prev => [...prev, newMsg]);
     processStreamedResponse([systemMsg, ...messages, newMsg]);
   };
-
+  
   const handleCopy = async (text) => {
     const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
     const textToCopy = summaryMatch ? summaryMatch[1].trim() : text.trim();
