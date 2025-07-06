@@ -3,15 +3,46 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
-// ✨ [수정됨] 이 함수는 이제 ReactMarkdown 컴포넌트 내부에서만 사용됩니다.
-const cleanContentForDisplay = (text) => {
-  if (!text) return '';
+// ✨ [수정됨] 누락되었던 cleanContent 함수를 올바른 위치에 다시 추가했습니다.
+const cleanContent = (text) => {
   const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
   }
   return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
 };
+
+const extractNameFromInput = (text) => {
+  const patterns = ["내 이름은", "이라고 해", "이라고 합니다", "이라고 해요", "입니다", "이에요", "이야", "난", "나는"];
+  let name = text;
+  for (const pattern of patterns) {
+    name = name.replace(pattern, "");
+  }
+  return name.trim();
+};
+
+const getKoreanNameWithPostposition = (name) => {
+  if (!name) return '';
+  const lastChar = name.charCodeAt(name.length - 1);
+  if (lastChar < 0xAC00 || lastChar > 0xD7A3) {
+    return name;
+  }
+  const hasJongseong = (lastChar - 0xAC00) % 28 !== 0;
+  return name + (hasJongseong ? '아' : '야');
+};
+
+const commonSurnames = "김이박최정강조윤장임한오서신권황안송유홍전고문양손배조백허남심노하곽성차주우구신임나지엄원천방공현";
+
+const getGivenName = (name) => {
+    if (!name || typeof name !== 'string') return '';
+    if (name.length === 3 && commonSurnames.includes(name.charAt(0))) {
+        return name.substring(1);
+    }
+    return name;
+};
+
+const zodiacEmojis = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷'];
+
 
 export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_topic');
@@ -110,8 +141,6 @@ ${source}
         return [...prev.slice(0, -1), updatedLastMessage];
       });
     } finally {
-      setIsLoading(false);
-      // ✨ [수정됨] 스트리밍이 모두 끝난 후, 안정적으로 추천 질문을 파싱하고 상태를 업데이트하는 로직
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
@@ -120,15 +149,12 @@ ${source}
             const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
             
             if (questions.length > 0) {
-                // 원본 메시지에서 추천 질문 부분 제거
-                const newContent = fullContent.replace(questionRegex, '').trim();
-                const updatedLastMessage = { ...lastMessage, content: newContent };
                 setRecommendedQuestions(questions);
-                return [...prev.slice(0, -1), updatedLastMessage];
             }
         }
         return prev;
       });
+      setIsLoading(false);
     }
   };
 
