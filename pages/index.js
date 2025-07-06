@@ -5,7 +5,7 @@ import Banner from '../components/Banner';
 
 const cleanContent = (text) => {
   // 추천 질문 태그를 제거하는 로직 추가
-  return text.replace(/\[추천질문\](.*?)\n?/g, '').trim();
+  return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
 };
 
 export default function Home() {
@@ -26,7 +26,7 @@ export default function Home() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, recommendedQuestions]); // 추천 질문이 생길 때도 스크롤
+  }, [messages, recommendedQuestions]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -53,10 +53,6 @@ ${source}
     1.  **사실/개념 질문:** "그래서 OOO가 뭐야?" 와 같이 기본적인 내용을 묻는 질문.
     2.  **원인/분석 질문:** "왜 OOO는 그렇게 했을까?" 와 같이 이유나 과정을 묻는 질문.
     3.  **가치/평가 질문:** "OOO는 잘한 일일까?" 와 같이 생각이나 평가를 묻는 질문.
-    예시:
-    [추천질문]OOO란 무엇인가요?
-    [추천질문]OOO는 왜 만들어졌나요?
-    [추천질문]OOO의 가장 중요한 점은 무엇이라고 생각해?
 
 **[특별 기능 설명]**
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
@@ -109,13 +105,12 @@ ${source}
         return [...prev.slice(0, -1), updatedLastMessage];
       });
     } finally {
-      // ✨ [수정됨] 스트리밍이 모두 끝난 후 추천 질문을 파싱
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
             const fullContent = lastMessage.content;
-            const questionRegex = /\[추천질문\](.*?)\n?/g;
-            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim());
+            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/g;
+            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
             
             if (questions.length > 0) {
                 setRecommendedQuestions(questions);
@@ -136,9 +131,11 @@ ${source}
         body: JSON.stringify({ messages: messageHistory })
       });
       if (!res.ok) throw new Error(res.statusText);
+      
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -158,7 +155,8 @@ ${source}
       setIsLoading(false);
     }
   };
-
+  
+  // ✨ [수정됨] 대화 시작 로직 전체 변경
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
@@ -177,9 +175,12 @@ ${source}
       
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
+        
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
+        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
+
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
@@ -190,7 +191,7 @@ ${source}
     if (conversationPhase === 'asking_source') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
-      if (userInput.length < 50) {
+      if (userInput.length < 50) { 
         setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료라기엔 너무 짧은 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
         return;
       }
@@ -223,16 +224,16 @@ ${source}
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
   const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
-  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
+  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
     const newMsg = { role: 'user', content: question };
-    const systemMsg = createSystemMessage(sourceText);
     setMessages(prev => [...prev, newMsg]);
+    const systemMsg = createSystemMessage(sourceText);
     processStreamedResponse([systemMsg, ...messages, newMsg]);
   };
-  
+
   const handleCopy = async (text) => {
     const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
     const textToCopy = summaryMatch ? summaryMatch[1].trim() : text.trim();
@@ -313,6 +314,7 @@ ${source}
           {renderedMessages}
           {!isLoading && recommendedQuestions.length > 0 && (
             <div style={{alignSelf: 'flex-start', marginTop: '15px', paddingLeft: '70px', maxWidth: '85%'}}>
+              <p style={{fontSize: '0.9rem', color: '#666', marginBottom: '5px'}}>이런 점도 궁금하지 않니?</p>
               {recommendedQuestions.map((q, index) => (
                 <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
                   {q}
