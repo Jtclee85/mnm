@@ -36,7 +36,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] 이름 관련 로직이 필요 없으므로 시스템 프롬프트 단순화
   const createSystemMessage = (source) => {
     return {
       role: 'system',
@@ -142,13 +141,13 @@ ${source}
       setIsLoading(false);
     }
   };
-
+  
+  // ✨ [수정됨] 새로운 추천 방식으로 로직 변경
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
     const userMsgForDisplay = { role: 'user', content: userInput };
     
-    // ✨ [수정됨] 대화 시작 로직 전체 변경
     if (conversationPhase === 'asking_topic') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
@@ -160,30 +159,27 @@ ${source}
       };
       const extractedTopic = await fetchFullResponse([topicExtractionPrompt, { role: 'user', content: userInput }]);
       
+      setIsLoading(false);
+
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
         
-        // 이 부분은 실제로는 Google Search 결과를 바탕으로 AI가 판단해야 하지만,
-        // 현재 코드 구조상 가장 안정적인 방식으로 구현합니다.
-        let siteName = '우리역사넷';
-        let siteUrl = `https://contents.history.go.kr`;
-
-        const recommendation = `좋은 주제네! 그럼 [${siteName}](${siteUrl})으로 가서 '${extractedTopic}'을/를 직접 검색해보고, 알게 된 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
+        const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
         
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
+
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
-      setIsLoading(false);
       return;
     }
 
     if (conversationPhase === 'asking_source') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
-      if (userInput.length < 30) {
-        setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료가 아닌 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
+      if (userInput.length < 50) { // 자료가 너무 짧은 경우
+        setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료라기엔 너무 짧은 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
         return;
       }
       setSourceText(userInput);
@@ -196,11 +192,10 @@ ${source}
     
     if (conversationPhase === 'chatting') {
       const newMsg = { role: 'user', content: userInput };
-      const updatedMessages = [...messages, newMsg];
       const systemMsg = createSystemMessage(sourceText);
-      setMessages(updatedMessages);
+      setMessages(prev => [...prev, newMsg]);
       setInput('');
-      processStreamedResponse([systemMsg, ...updatedMessages]);
+      processStreamedResponse([systemMsg, ...messages, newMsg]);
     }
   };
   
@@ -238,7 +233,7 @@ ${source}
     const isNameVisible = i > 0;
 
     const profilePic = isUser ? (
-      <div className="profile-pic">{userEmoji}</div>
+      <div className="profile-pic">👤</div>
     ) : (
       <div className="profile-pic">
         <img src="/monyamyeon-logo.png" alt="뭐냐면 로고" />
@@ -316,8 +311,7 @@ ${source}
             }}
             placeholder={
               conversationPhase === 'asking_topic' ? "오늘은 어떤 주제에 대해 알아볼까?" :
-              conversationPhase === 'asking_source' ? "추천받은 사이트에서 찾은 내용을 여기에 붙여넣어 줘!" :
-              "이 내용에 대해 더 물어볼까?"
+              "추천받은 사이트에서 찾은 내용을 여기에 붙여넣어 줘!"
             }
             disabled={isLoading}
           />
