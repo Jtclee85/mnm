@@ -52,7 +52,6 @@ ${source}
 - **가장 중요한 규칙: 답변은 사용자가 제공한 [원본 자료]를 최우선으로 하되, 아이들의 이해를 돕기 위해 필요한 경우 너의 일반 지식을 활용하여 배경지식이나 쉬운 예시를 덧붙여 설명할 수 있어. 하지만 [원본 자료]와 전혀 관련 없는 이야기는 하지 마.**
 - **말투:** 초등 저학년 학생이 이해할 수 있도록 쉬운 단어와 친절한 설명을 사용해야 해.
 - **답변 형식:** 어려운 소제목 대신, '🗺️ 지도 이야기', '🏛️ 제도 이야기'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
-- **추가 정보:** 설명의 마지막에는, "[Google에서 '${topic}' 더 찾아보기](https://www.google.com/search?q=${topic})" 형식의 링크를 달아서 더 찾아볼 수 있게 도와줘.
 - **추천 질문 생성:** 설명이 끝난 후, 다음 규칙에 따라 세 가지 수준의 추천 질문을 생성해야 해. 각 질문은 사용자가 더 깊이 탐구하도록 유도해야 하며, 반드시 [추천질문] 태그로 감싸서 한 줄에 하나씩 제시해야 해.
     1.  **사실/개념 질문:** "그래서 OOO가 뭐야?" 와 같이 기본적인 내용을 묻는 질문.
     2.  **원인/분석 질문:** "왜 OOO는 그렇게 했을까?" 와 같이 이유나 과정을 묻는 질문.
@@ -78,7 +77,7 @@ ${source}
 
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
-    setRecommendedQuestions([]);
+    setRecommendedQuestions([]); // 새 답변 생성 시 이전 추천 질문 초기화
     setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
     try {
       const res = await fetch('/api/chat', {
@@ -104,7 +103,7 @@ ${source}
             
             if(data.includes('[추천질문]')){
               const questions = data.split('\n').filter(q => q.startsWith('[추천질문]')).map(q => q.replace('[추천질문]', '').trim());
-              setRecommendedQuestions(prev => [...prev, ...questions].filter((v,i,a)=>a.indexOf(v)===i));
+              setRecommendedQuestions(prev => [...new Set([...prev, ...questions])]);
               continue;
             }
 
@@ -182,7 +181,7 @@ ${source}
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
         
-        const recommendation = `좋은 주제네! 그럼 [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
+        const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
         
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
@@ -197,7 +196,7 @@ ${source}
     if (conversationPhase === 'asking_source') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
-      if (userInput.length < 50) {
+      if (userInput.length < 50) { 
         setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료라기엔 너무 짧은 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
         return;
       }
@@ -239,7 +238,7 @@ ${source}
     setMessages(prev => [...prev, newMsg]);
     processStreamedResponse([systemMsg, ...messages, newMsg]);
   };
-  
+
   const handleCopy = async (text) => {
     const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
     const textToCopy = summaryMatch ? summaryMatch[1].trim() : text.trim();
@@ -318,11 +317,11 @@ ${source}
           overflowY: 'auto', borderRadius: '8px', backgroundColor: '#EAE7DC'
         }}>
           {renderedMessages}
+          {/* ✨ [수정됨] 추천 질문 버튼 렌더링 로직 추가 */}
           {!isLoading && recommendedQuestions.length > 0 && (
-            <div style={{alignSelf: 'flex-start', marginTop: '10px'}}>
-              <p style={{fontSize: '0.9rem', color: '#666', marginBottom: '5px'}}>이런 점도 궁금하지 않니?</p>
+            <div style={{alignSelf: 'flex-start', marginTop: '15px', paddingLeft: '50px'}}>
               {recommendedQuestions.map((q, index) => (
-                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '5px'}}>
+                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '4px', cursor: 'pointer'}}>
                   {q}
                 </button>
               ))}
