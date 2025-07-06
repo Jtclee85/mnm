@@ -12,8 +12,7 @@ const cleanContent = (text) => {
 };
 
 export default function Home() {
-  // ✨ [수정됨] 새로운 대화 단계(Phase) 설정
-  const [conversationPhase, setConversationPhase] = useState('asking_topic'); // asking_topic -> asking_source -> chatting
+  const [conversationPhase, setConversationPhase] = useState('asking_topic');
   const [topic, setTopic] = useState('');
   const [sourceText, setSourceText] = useState('');
 
@@ -37,7 +36,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] 이름 관련 로직이 필요 없어져서 시스템 프롬프트 단순화
   const createSystemMessage = (source) => {
     return {
       role: 'system',
@@ -52,7 +50,7 @@ ${source}
 **[꼭 지켜야 할 규칙]**
 - **가장 중요한 규칙: 답변은 사용자가 제공한 [원본 자료]를 최우선으로 하되, 아이들의 이해를 돕기 위해 필요한 경우 너의 일반 지식을 활용하여 배경지식이나 쉬운 예시를 덧붙여 설명할 수 있어. 하지만 [원본 자료]와 전혀 관련 없는 이야기는 하지 마.**
 - **말투:** 초등 저학년 학생이 이해할 수 있도록 쉬운 단어와 친절한 설명을 사용해야 해.
-- **답변 형식:** 어려운 소제목 대신, '📜 OOO 이야기', '🏛️ OOO은 뭘까?'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
+- **답변 형식:** 어려운 소제목 대신, '🗺️ 지도 이야기', '🏛️ 제도 이야기'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
 - **질문 유도:** 설명이 끝나면, 아이들이 더 궁금해할 만한 질문을 "혹시 이런 것도 궁금해?" 하고 물어봐 줘.
 - **추가 정보:** 설명의 마지막에는, "[Google에서 '${topic}' 더 찾아보기](https://www.google.com/search?q=${topic})" 형식의 링크를 달아서 더 찾아볼 수 있게 도와줘.
 
@@ -62,9 +60,9 @@ ${source}
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
 2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
 3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
-    - **'최고야!':** 역사적 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
+    - **'최고야!':** 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
     - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
-    - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 역사를 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
+    - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 내용을 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
 4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. **반드시 '~~함.', '~~였음.'과 같이 간결한 개조식으로 서술해야 해.** 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **다른 말 없이, 순수한 평가 내용만 <summary> 태그로 감싸서 출력해.**
       `
     };
@@ -109,55 +107,97 @@ ${source}
       setIsLoading(false);
     }
   };
-  
-  // ✨ [수정됨] 새로운 대화 흐름을 관리하는 핵심 함수
+
+  const fetchFullResponse = async (messageHistory) => {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messageHistory })
+      });
+      if (!res.ok) throw new Error(res.statusText);
+      
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            fullText += JSON.parse(line.substring(6));
+          }
+        }
+      }
+      return fullText;
+    } catch (error) {
+      console.error("전체 답변 요청 오류:", error);
+      return "오류";
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ✨ [수정됨] AI 기반 주제어 추출 로직 추가
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
     const userMsgForDisplay = { role: 'user', content: userInput };
-
     setMessages(prev => [...prev, userMsgForDisplay]);
     setInput('');
-
-    // 1단계: 조사 주제 받기
+    
     if (conversationPhase === 'asking_topic') {
-      setTopic(userInput);
-      let siteName = '우리역사넷';
-      let searchUrl = `https://contents.history.go.kr/search/list.do?searchKeyword=${encodeURIComponent(userInput)}`;
-      
-      // 간단한 키워드로 추천 사이트 변경
-      if (userInput.includes('박물관') || userInput.includes('유물')) {
-        siteName = 'e뮤지엄';
-        searchUrl = `https://www.emuseum.go.kr/search?keyword=${encodeURIComponent(userInput)}`;
-      } else if (userInput.includes('문화재')) {
-        siteName = '문화재청 국가문화유산포털';
-        searchUrl = `https://www.heritage.go.kr/heri/unifiedSearch/search.do?pageNo=1&sort=&gbn=1&search_word=${encodeURIComponent(userInput)}`;
-      }
+      setIsLoading(true);
+      const topicExtractionPrompt = {
+        role: 'system',
+        content: `너는 사용자의 문장에서 핵심 주제어(고유명사, 인물, 사건 등)만 추출하는 AI야. 다른 말 없이, 핵심 주제어만 정확히 출력해. 만약 주제어가 없으면 '없음'이라고 답해.`
+      };
+      const extractedTopic = await fetchFullResponse([topicExtractionPrompt, { role: 'user', content: userInput }]);
+      setIsLoading(false);
 
-      const recommendation = `좋은 주제네! 그럼 [${siteName}에서 '${userInput}'에 대해 검색](${searchUrl})해보고, 알게 된 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
-      
-      setTimeout(() => {
+      if (extractedTopic && !extractedTopic.includes('없음')) {
+        setTopic(extractedTopic);
+        let siteName = '우리역사넷';
+        let searchUrl = `https://contents.history.go.kr/search/list.do?searchKeyword=${encodeURIComponent(extractedTopic)}`;
+        
+        const recommendation = `좋은 주제네! 그럼 [${siteName}에서 '${extractedTopic}'에 대해 검색](${searchUrl})해보고, 알게 된 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
+        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
-      }, 500);
+
+      } else {
+        setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
+      }
       return;
     }
 
-    // 2단계: 원본 자료 받기
     if (conversationPhase === 'asking_source') {
-      if (userInput.length < 30) {
-        setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료가 아닌 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
-        return;
+      // AI 주제 검증 로직은 이 단계에서 실행
+      const classificationSystemPrompt = {
+        role: 'system',
+        content: `너는 사용자의 텍스트가 다루는 주제를 분석하는 분류기야. 주제가 '사회과(역사, 지리, 일반사회, 문화 등)'에 해당하면 오직 '사회과'라고만 대답해야 해. 그 외 모든 주제는 '비사회과'라고만 대답해야 해. 다른 설명은 절대 덧붙이지 마.`
+      };
+      setIsLoading(true);
+      const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
+      setIsLoading(false);
+      
+      if (intent.includes('사회과')) {
+          setSourceText(userInput);
+          const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
+          const systemMsg = createSystemMessage(userInput);
+          setMessages(prev => [...prev, { role: 'assistant', content: "좋아, 자료를 잘 받았어! 이 내용은 말이야..."}]);
+          processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
+          setConversationPhase('chatting');
+      } else {
+          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 이 내용은 사회 과목과는 관련이 없는 것 같네! 사회나 역사에 대한 자료를 다시 붙여넣어 줄래?'}]);
       }
-      setSourceText(userInput);
-      const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
-      const systemMsg = createSystemMessage(userInput);
-      processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
-      setConversationPhase('chatting');
       return;
     }
     
-    // 3단계: 자유 대화
     if (conversationPhase === 'chatting') {
       const systemMsg = createSystemMessage(sourceText);
       processStreamedResponse([systemMsg, ...messages, userMsgForDisplay]);
@@ -177,7 +217,6 @@ ${source}
   const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
-
 
   const handleCopy = async (text) => {
     const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
