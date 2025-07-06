@@ -3,19 +3,12 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
-// ✨ [수정됨] 추천 질문 태그와 summary 태그를 모두 제거하는 로직으로 변경
 const cleanContent = (text) => {
-  if (!text) return '';
-  // 1. 추천 질문 관련 텍스트를 먼저 완전히 제거
-  const textWithoutRec = text.replace(/\[추천질문\](.*?)(\n|$)/g, '').trim();
-  
-  // 2. <summary> 태그 안의 내용만 추출, 없으면 전체 텍스트 반환
-  const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
+  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
   }
-  
-  return textWithoutRec;
+  return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
 };
 
 export default function Home() {
@@ -44,11 +37,12 @@ export default function Home() {
     }
   }, [isLoading]);
 
+  // ✨ [수정됨] 답변 길이 제한 규칙 추가
   const createSystemMessage = (source) => {
     return {
       role: 'system',
       content: `
-너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 너는 지금 초등 저학년 학생과 대화하고 있어.
+너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 너는 지금 초등 3~4학년 학생과 대화하고 있어.
 너의 핵심 임무는 사용자가 제공한 아래의 [원본 자료]를 바탕으로, 사회과(역사, 지리, 일반사회 등) 개념을 쉽고 재미있게 설명해주는 것이야.
 
 [원본 자료]
@@ -57,6 +51,7 @@ ${source}
 
 **[꼭 지켜야 할 규칙]**
 - **가장 중요한 규칙: 답변은 사용자가 제공한 [원본 자료]를 최우선으로 하되, 아이들의 이해를 돕기 위해 필요한 경우 너의 일반 지식을 활용하여 배경지식이나 쉬운 예시를 덧붙여 설명할 수 있어. 하지만 [원본 자료]와 전혀 관련 없는 이야기는 하지 마.**
+- **답변 길이: 모든 답변은 아이들의 집중력을 고려하여, 반드시 200자 미만의 간결한 설명으로 제공해야 해.**
 - **말투:** 초등 저학년 학생이 이해할 수 있도록 쉬운 단어와 친절한 설명을 사용해야 해.
 - **답변 형식:** 어려운 소제목 대신, '🗺️ 지도 이야기', '🏛️ 제도 이야기'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
 - **추천 질문 생성:** 설명이 끝난 후, 다음 규칙에 따라 세 가지 수준의 추천 질문을 생성해야 해. 각 질문은 사용자가 더 깊이 탐구하도록 유도해야 하며, **반드시 [추천질문] 태그로 감싸서, 답변의 맨 마지막에 한 줄에 하나씩 제시해야 해.** 이 외의 다른 안내 문구는 절대 붙이지 마.
@@ -115,20 +110,13 @@ ${source}
         return [...prev.slice(0, -1), updatedLastMessage];
       });
     } finally {
-      // ✨ [수정됨] 추천 질문을 파싱하는 정규식과 로직 강화
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant') {
             const fullContent = lastMessage.content;
-            const questions = [];
-            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-            let match;
-            while ((match = regex.exec(fullContent)) !== null) {
-              const questionText = match[1].replace(/\n/g, ' ').trim();
-              if (questionText) {
-                questions.push(questionText);
-              }
-            }
+            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/g;
+            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
+            
             if (questions.length > 0) {
                 setRecommendedQuestions(questions);
             }
@@ -148,9 +136,11 @@ ${source}
         body: JSON.stringify({ messages: messageHistory })
       });
       if (!res.ok) throw new Error(res.statusText);
+      
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -238,7 +228,7 @@ ${source}
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
   const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
-  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
+  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
@@ -281,7 +271,13 @@ ${source}
         <div className="message-content-container">
           {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
           <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-            <ReactMarkdown>
+             {/* ✨ [수정됨] 링크를 새 탭에서 열도록 components prop 추가 */}
+            <ReactMarkdown
+              components={{
+                a: ({ node, ...props }) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+                summary: ({children}) => <>{children}</>,
+              }}
+            >
               {cleanContent(content)}
             </ReactMarkdown>
             {m.role === 'assistant' && !isLoading && (
