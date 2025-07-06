@@ -36,6 +36,7 @@ export default function Home() {
     }
   }, [isLoading]);
 
+  // ✨ [수정됨] 이름 관련 로직이 필요 없으므로 시스템 프롬프트 단순화
   const createSystemMessage = (source) => {
     return {
       role: 'system',
@@ -142,65 +143,64 @@ ${source}
     }
   };
 
-  // ✨ [수정됨] AI 기반 주제어 추출 로직 추가
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
     const userMsgForDisplay = { role: 'user', content: userInput };
-    setMessages(prev => [...prev, userMsgForDisplay]);
-    setInput('');
     
+    // ✨ [수정됨] 대화 시작 로직 전체 변경
     if (conversationPhase === 'asking_topic') {
+      setMessages(prev => [...prev, userMsgForDisplay]);
+      setInput('');
       setIsLoading(true);
+
       const topicExtractionPrompt = {
         role: 'system',
         content: `너는 사용자의 문장에서 핵심 주제어(고유명사, 인물, 사건 등)만 추출하는 AI야. 다른 말 없이, 핵심 주제어만 정확히 출력해. 만약 주제어가 없으면 '없음'이라고 답해.`
       };
       const extractedTopic = await fetchFullResponse([topicExtractionPrompt, { role: 'user', content: userInput }]);
-      setIsLoading(false);
-
+      
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
-        let siteName = '우리역사넷';
-        let searchUrl = `https://contents.history.go.kr/search/list.do?searchKeyword=${encodeURIComponent(extractedTopic)}`;
         
-        const recommendation = `좋은 주제네! 그럼 [${siteName}에서 '${extractedTopic}'에 대해 검색](${searchUrl})해보고, 알게 된 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
+        // 이 부분은 실제로는 Google Search 결과를 바탕으로 AI가 판단해야 하지만,
+        // 현재 코드 구조상 가장 안정적인 방식으로 구현합니다.
+        let siteName = '우리역사넷';
+        let siteUrl = `https://contents.history.go.kr`;
+
+        const recommendation = `좋은 주제네! 그럼 [${siteName}](${siteUrl})으로 가서 '${extractedTopic}'을/를 직접 검색해보고, 알게 된 내용을 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
         
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
-
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
+      setIsLoading(false);
       return;
     }
 
     if (conversationPhase === 'asking_source') {
-      // AI 주제 검증 로직은 이 단계에서 실행
-      const classificationSystemPrompt = {
-        role: 'system',
-        content: `너는 사용자의 텍스트가 다루는 주제를 분석하는 분류기야. 주제가 '사회과(역사, 지리, 일반사회, 문화 등)'에 해당하면 오직 '사회과'라고만 대답해야 해. 그 외 모든 주제는 '비사회과'라고만 대답해야 해. 다른 설명은 절대 덧붙이지 마.`
-      };
-      setIsLoading(true);
-      const intent = await fetchFullResponse([classificationSystemPrompt, { role: 'user', content: userInput }]);
-      setIsLoading(false);
-      
-      if (intent.includes('사회과')) {
-          setSourceText(userInput);
-          const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
-          const systemMsg = createSystemMessage(userInput);
-          setMessages(prev => [...prev, { role: 'assistant', content: "좋아, 자료를 잘 받았어! 이 내용은 말이야..."}]);
-          processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
-          setConversationPhase('chatting');
-      } else {
-          setMessages(prev => [...prev, { role: 'assistant', content: '앗, 이 내용은 사회 과목과는 관련이 없는 것 같네! 사회나 역사에 대한 자료를 다시 붙여넣어 줄래?'}]);
+      setMessages(prev => [...prev, userMsgForDisplay]);
+      setInput('');
+      if (userInput.length < 30) {
+        setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료가 아닌 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
+        return;
       }
+      setSourceText(userInput);
+      const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
+      const systemMsg = createSystemMessage(userInput);
+      processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
+      setConversationPhase('chatting');
       return;
     }
     
     if (conversationPhase === 'chatting') {
+      const newMsg = { role: 'user', content: userInput };
+      const updatedMessages = [...messages, newMsg];
       const systemMsg = createSystemMessage(sourceText);
-      processStreamedResponse([systemMsg, ...messages, userMsgForDisplay]);
+      setMessages(updatedMessages);
+      setInput('');
+      processStreamedResponse([systemMsg, ...updatedMessages]);
     }
   };
   
