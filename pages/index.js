@@ -1,28 +1,16 @@
-네, 알겠습니다. '더 많은 기능 보기' 버튼을 없애고, 세 가지 추가 기능 버튼이 대화 시작 후 바로 보이도록 UI를 더 직관적으로 개선하겠습니다.
-
-### **주요 변경 사항**
-
-1.  **'더 많은 기능 보기' 버튼 삭제:** 해당 버튼과 관련된 `showExtraFeatures` 상태 변수 및 로직을 모두 제거했습니다.
-2.  **UI 구조 변경:** 이제 대화가 시작되고 메시지가 일정 수(2개) 이상 쌓이면, **[퀴즈 풀기], [3줄요약], [나 어땠어?]** 버튼이 '보내기' 버튼 아래에 항상 표시됩니다.
-
------
-
-### **최종 수정된 pages/index.js 전체 코드**
-
-아래 전체 코드로 교체하시면, 이제 추가 기능 버튼들이 항상 보이게 되어 더 편리하게 이용할 수 있습니다.
-
-```javascript
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
 const cleanContent = (text) => {
-  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
+  if (!text) return '';
+  const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
+  const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
   }
-  return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
+  return textWithoutRec;
 };
 
 export default function Home() {
@@ -123,13 +111,22 @@ ${source}
     } finally {
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant') {
+        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
             const fullContent = lastMessage.content;
-            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
-            
+            const questions = [];
+            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+            let match;
+            while ((match = regex.exec(fullContent)) !== null) {
+              const questionText = match[1].replace(/\n/g, ' ').trim();
+              if (questionText) {
+                questions.push(questionText);
+              }
+            }
             if (questions.length > 0) {
+                const newContent = fullContent.replace(regex, '').trim();
+                const updatedLastMessage = { ...lastMessage, content: newContent };
                 setRecommendedQuestions(questions);
+                return [...prev.slice(0, -1), updatedLastMessage];
             }
         }
         return prev;
@@ -188,9 +185,12 @@ ${source}
       
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
+        
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
+        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
+
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
@@ -232,7 +232,6 @@ ${source}
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
 
@@ -355,8 +354,7 @@ ${source}
             }
             disabled={isLoading}
           />
-          {/* ✨ [수정됨] 버튼 구조 변경 */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={sendMessage}
               disabled={isLoading}
@@ -364,17 +362,16 @@ ${source}
             >
               보내기 📨
             </button>
-            {conversationPhase === 'chatting' && messages.length > 2 && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-                 <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
-                 <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 3줄요약</button>
-                 <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
-              </div>
-            )}
           </div>
+          {conversationPhase === 'chatting' && messages.length > 2 && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+               <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
+               <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 전체 요약</button>
+               <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
+            </div>
+          )}
         </div>
       </div>
     </>
   );
 }
-```
