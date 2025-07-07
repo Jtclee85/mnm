@@ -61,7 +61,7 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 요약글로 생성해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 3줄 정도 길이의 요약글로 생성해 줘. 각 줄은 개조식으로 핵심내용만 짚어서 간단하게 설명해야 해. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
 3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
     - **'최고야!':** 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
     - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
@@ -265,6 +265,18 @@ ${source}
     return (
       <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
         {!isUser && profilePic}
+{/* 추천질문 버튼: 가장 최근 assistant에만 출력 */}
+{!isUser && !isLoading && recommendedQuestions.length > 0 && lastRecMessageIndex === i && (
+  <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
+    {recommendedQuestions.map((q, index) => (
+      <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
+        style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
+        {q}
+      </button>
+    ))}
+  </div>
+)}
+
         <div className="message-content-container">
           {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
           <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
