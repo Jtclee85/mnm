@@ -259,33 +259,28 @@ ${source}
       </div>
     );
 
-    return (
-      <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
-        {!isUser && profilePic}
-        <div className="message-content-container">
-          {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
-          <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-            <ReactMarkdown
-              components={{
-                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                summary: ({children}) => <>{children}</>,
-              }}
-            >
-              {cleanContent(content)}
-            </ReactMarkdown>
-            {/* 기타 버튼 */}
-            {m.role === 'assistant' && !isLoading && (
-              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
-                  <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
-                )}
-                {m.metadata?.type === 'evaluation' && (
-                  <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 내가 어땠는지 선생님께 알리기</button>
-                )}
-              </div>
-            )}
+return (
+  <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
+    {!isUser && profilePic}
+    <div className="message-content-container">
+      {isNameVisible && <p ...>{speakerName}</p>}
+      <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
+        <ReactMarkdown ...>{cleanContent(content)}</ReactMarkdown>
+        {/* 기타 버튼 */}
+        {m.role === 'assistant' && ...}
+        {/* ⭐ 추천질문 버튼: 말풍선 내부 하단에! */}
+        {!isUser && m.metadata?.recommendedQuestions && m.metadata.recommendedQuestions.length > 0 && (
+          <div style={{ marginTop: '16px', width: '100%' }}>
+            {m.metadata.recommendedQuestions.map((q, idx) => (
+              <button key={idx} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
+                style={{ margin: '4px 0', width: '100%', textAlign: 'left', justifyContent: 'flex-start' }}>
+                {q}
+              </button>
+            ))}
           </div>
-        </div>
+        )}
+      </div>
+    </div>
         {isUser && profilePic}
         {/* 각 assistant 답변별 추천질문 버튼(있을 때만) */}
         {!isUser && m.metadata?.recommendedQuestions && m.metadata.recommendedQuestions.length > 0 && (
