@@ -3,7 +3,8 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
-const cleanContent = (text) => {
+// 추천 질문과 summary 태그를 모두 제거하여 순수한 내용만 화면에 표시하는 함수
+const cleanContentForDisplay = (text) => {
   if (!text) return '';
   const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
   const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
@@ -12,38 +13,6 @@ const cleanContent = (text) => {
   }
   return textWithoutRec;
 };
-
-const extractNameFromInput = (text) => {
-  const patterns = ["내 이름은", "이라고 해", "이라고 합니다", "이라고 해요", "입니다", "이에요", "이야", "난", "나는"];
-  let name = text;
-  for (const pattern of patterns) {
-    name = name.replace(pattern, "");
-  }
-  return name.trim();
-};
-
-const getKoreanNameWithPostposition = (name) => {
-  if (!name) return '';
-  const lastChar = name.charCodeAt(name.length - 1);
-  if (lastChar < 0xAC00 || lastChar > 0xD7A3) {
-    return name;
-  }
-  const hasJongseong = (lastChar - 0xAC00) % 28 !== 0;
-  return name + (hasJongseong ? '아' : '야');
-};
-
-const commonSurnames = "김이박최정강조윤장임한오서신권황안송유홍전고문양손배조백허남심노하곽성차주우구신임나지엄원천방공현";
-
-const getGivenName = (name) => {
-    if (!name || typeof name !== 'string') return '';
-    if (name.length === 3 && commonSurnames.includes(name.charAt(0))) {
-        return name.substring(1);
-    }
-    return name;
-};
-
-const zodiacEmojis = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷'];
-
 
 export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_topic');
@@ -57,12 +26,10 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
   const [userEmoji, setUserEmoji] = useState('👤');
-  const [recommendedQuestions, setRecommendedQuestions] = useState([]);
-  const [lastRecMessageIndex, setLastRecMessageIndex] = useState(-1);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, recommendedQuestions]);
+  }, [messages]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -70,7 +37,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] 새로운 요약 기능 규칙 추가
   const createSystemMessage = (source) => ({
     role: 'system',
     content: `
@@ -91,8 +57,8 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘.
 
 1.  **'퀴즈풀기' 요청:** [원본 자료]와 대화 내용을 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'전체 요약' 요청:** 지금까지의 대화 전체 내용을 [조사 주제] 중심으로 요약해 줘.
-3.  **'말풍선 3줄요약' 요청:** 특정 메시지 내용을 받으면, 그 내용을 3줄의 개조식으로 요약해.
+2.  **'말풍선 3줄요약' 요청:** 특정 메시지 내용을 받으면, 그 내용을 3줄의 개조식으로 요약해. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
+3.  **'전체 요약' 요청:** 지금까지의 대화 전체 내용을 [조사 주제] 중심으로 요약해 줘.
 4.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
 5.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 '~~함.', '~~였음.'과 같이 간결한 개조식으로 작성해 줘.
       `
@@ -100,16 +66,20 @@ ${source}
 
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
-    setRecommendedQuestions([]);
-    setLastRecMessageIndex(-1);
-    setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
+    let messageIndex = -1;
+    setMessages(prev => {
+      const newMessages = [...prev, { role: 'assistant', content: '', metadata }];
+      messageIndex = newMessages.length - 1;
+      return newMessages;
+    });
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messageHistory })
       });
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) { throw new Error(res.statusText); }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       while (true) {
@@ -121,35 +91,36 @@ ${source}
           if (line.startsWith('data: ')) {
             const data = JSON.parse(line.substring(6));
             setMessages(prev => {
-              const lastMessage = prev[prev.length - 1];
-              const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data, metadata: lastMessage.metadata };
-              return [...prev.slice(0, -1), updatedLastMessage];
+              const newMessages = [...prev];
+              newMessages[messageIndex].content += data;
+              return newMessages;
             });
           }
         }
       }
     } catch (error) {
+      console.error("스트리밍 오류:", error);
       setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
-        return [...prev.slice(0, -1), updatedLastMessage];
+        const newMessages = [...prev];
+        newMessages[messageIndex].content = "앗, 답변을 가져오는 데 문제가 생겼어요.";
+        return newMessages;
       });
     } finally {
+      // ✨ [수정됨] 스트리밍 완료 후 추천 질문을 파싱하여 해당 메시지의 metadata에 저장
       setMessages(prev => {
-        const lastIdx = prev.length - 1;
-        const lastMessage = prev[lastIdx];
+        const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
+          const fullContent = lastMessage.content;
           const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
           const questions = [];
           let match;
-          while ((match = regex.exec(lastMessage.content)) !== null) {
+          while ((match = regex.exec(fullContent)) !== null) {
             const questionText = match[1].replace(/\n/g, ' ').trim();
             if (questionText) questions.push(questionText);
           }
           if (questions.length > 0) {
-            const newContent = lastMessage.content.replace(regex, '').trim();
-            const updatedLastMessage = { ...lastMessage, content: newContent, metadata: { ...lastMessage.metadata, recommendedQuestions: questions } };
-            setMessages(prev => [...prev.slice(0, -1), updatedLastMessage]);
+            const updatedLastMessage = { ...lastMessage, metadata: { ...lastMessage.metadata, recommendedQuestions: questions } };
+            return [...prev.slice(0, -1), updatedLastMessage];
           }
         }
         return prev;
@@ -252,10 +223,10 @@ ${source}
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
-  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
-  const handleBubbleSummary = (contentToSummarize) => handleSpecialRequest("💬 이 내용 3줄요약", `다음 내용을 3줄의 개조식으로 요약해줘: "${contentToSummarize}"`, { type: 'summary' });
   const handleRequestFullSummary = () => handleSpecialRequest("📜 전체 요약", `지금까지 나눈 대화의 주제인 '${topic}'에 대해 전체 내용을 요약해 줘.`, { type: 'summary' });
+  const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
+  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
+  const handleBubbleSummary = (contentToSummarize) => handleSpecialRequest("💬 이 내용 3줄요약", `다음 내용을 3줄의 개조식으로 요약해줘: "${contentToSummarize}"`, { type: 'summary' });
 
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
@@ -293,35 +264,39 @@ ${source}
     );
 
     return (
-      <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
-        {!isUser && profilePic}
-        <div className="message-content-container">
-          {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
-          <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-            <ReactMarkdown
-              components={{
-                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                summary: ({children}) => <>{children}</>,
-              }}
-            >
-              {cleanContent(content)}
-            </ReactMarkdown>
-            {m.role === 'assistant' && !isLoading && (
-              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {cleanContent(content).length >= 300 && !m.metadata?.type && (
+      <div key={i}>
+        <div className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
+          {!isUser && profilePic}
+          <div className="message-content-container">
+            {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
+            <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
+              <ReactMarkdown
+                components={{
+                  a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+                  summary: ({children}) => <>{children}</>,
+                }}
+              >
+                {cleanContent(content)}
+              </ReactMarkdown>
+              {m.role === 'assistant' && !isLoading && (
+                <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                   {cleanContent(m.content).length >= 300 && !m.metadata?.type && (
                      <button onClick={() => handleBubbleSummary(content)} className="btn btn-tertiary" style={{fontSize:'0.9rem'}}>💬 이 내용 3줄요약</button>
-                )}
-                {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
-                  <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
-                )}
-                {m.metadata?.type === 'evaluation' && (
-                  <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 내가 어땠는지 선생님께 알리기</button>
-                )}
-              </div>
-            )}
+                   )}
+                  {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
+                    <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
+                  )}
+                  {m.metadata?.type === 'evaluation' && (
+                    <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 내가 어땠는지 선생님께 알리기</button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-          {/* ✨ [수정됨] 추천 질문 버튼 렌더링 위치 및 로직 변경 */}
-          {!isUser && !isLoading && m.metadata?.recommendedQuestions?.length > 0 && (
+          {isUser && profilePic}
+        </div>
+        {/* ✨ [수정됨] 추천 질문 버튼 렌더링 로직 강화 */}
+        {!isUser && !isLoading && m.metadata?.recommendedQuestions?.length > 0 && (
             <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
               {m.metadata.recommendedQuestions.map((q, index) => (
                 <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
@@ -331,8 +306,6 @@ ${source}
               ))}
             </div>
           )}
-        </div>
-        {isUser && profilePic}
       </div>
     );
   });
@@ -380,7 +353,7 @@ ${source}
             }
             disabled={isLoading}
           />
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               onClick={sendMessage}
               disabled={isLoading}
@@ -388,14 +361,14 @@ ${source}
             >
               보내기 📨
             </button>
+            {conversationPhase === 'chatting' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                 <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
+                 <button onClick={handleRequestFullSummary} disabled={isLoading} className="btn btn-tertiary">📜 전체 요약</button>
+                 <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
+              </div>
+            )}
           </div>
-          {conversationPhase === 'chatting' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '0px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-              <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
-              <button onClick={handleRequestFullSummary} disabled={isLoading} className="btn btn-tertiary">📜 전체 요약</button>
-              <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
-            </div>
-          )}
         </div>
       </div>
     </>
