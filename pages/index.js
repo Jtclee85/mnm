@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
+// summary 태그를 추출(3줄요약 복사 등), 추천질문은 버튼화 위해 별도로 다룸
 const cleanContent = (text) => {
   const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
@@ -15,7 +16,6 @@ export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_topic');
   const [topic, setTopic] = useState('');
   const [sourceText, setSourceText] = useState('');
-
   const [messages, setMessages] = useState([
     { role: 'assistant', content: '안녕? 나는 사회 조사학습을 도와주는 챗봇 [뭐냐면]이야. 오늘은 어떤 주제에 대해 조사해볼까?' }
   ]);
@@ -23,13 +23,10 @@ export default function Home() {
   const bottomRef = useRef(null);
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
-  const [userEmoji, setUserEmoji] = useState('👤');
-  const [recommendedQuestions, setRecommendedQuestions] = useState([]);
-const [lastRecMessageIndex, setLastRecMessageIndex] = useState(-1);   // ★이 줄 추가
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, recommendedQuestions]);
+  }, [messages]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -37,10 +34,9 @@ const [lastRecMessageIndex, setLastRecMessageIndex] = useState(-1);   // ★이 
     }
   }, [isLoading]);
 
-  const createSystemMessage = (source) => {
-    return {
-      role: 'system',
-      content: `
+  const createSystemMessage = (source) => ({
+    role: 'system',
+    content: `
 너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 너는 지금 초등 저학년 학생과 대화하고 있어.
 너의 핵심 임무는 사용자가 제공한 아래의 [원본 자료]를 바탕으로, 사회과(역사, 지리, 일반사회 등) 개념을 쉽고 재미있게 설명해주는 것이야.
 
@@ -62,19 +58,17 @@ ${source}
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
 2.  3줄요약 요청: 조사 대상의 핵심 내용을 반드시 3줄, 각 줄마다 -로 시작하는 개조식 한 줄로 요약해줘. 자연스러운 문단이나 번호는 절대 사용하지 마. 반드시 <summary>와 </summary>로 감싸줘.
-
 3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
     - **'최고야!':** 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
     - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
     - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 내용을 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
 4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. **반드시 '~~함.', '~~였음.'과 같이 간결한 개조식으로 서술해야 해.** 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **다른 말 없이, 순수한 평가 내용만 <summary> 태그로 감싸서 출력해.**
-      `
-    };
-  };
+    `
+  });
 
+  // 핵심: assistant 메시지마다 추천질문 추출 후 metadata로 저장
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
-    setRecommendedQuestions([]);
     setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
     try {
       const res = await fetch('/api/chat', {
@@ -110,6 +104,7 @@ ${source}
       });
     } finally {
       setMessages(prev => {
+        // 마지막 assistant 메시지에서 추천질문 추출(여러개면 분리)
         const lastIdx = prev.length - 1;
         const lastMessage = prev[lastIdx];
         if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
@@ -120,15 +115,15 @@ ${source}
             const questionText = match[1].replace(/\n/g, ' ').trim();
             if (questionText) questions.push(questionText);
           }
-          if (questions.length > 0) {
-            setRecommendedQuestions(questions);
-            setLastRecMessageIndex(lastIdx);      // ★이 부분이 핵심입니다!
-          }
+          // 추천질문을 metadata로 저장
+          const updatedLastMessage = { ...lastMessage, metadata: { ...lastMessage.metadata, recommendedQuestions: questions } };
+          return [...prev.slice(0, -1), updatedLastMessage];
         }
         return prev;
       });
       setIsLoading(false);
-    }  };
+    }
+  };
 
   const fetchFullResponse = async (messageHistory) => {
     setIsLoading(true);
@@ -161,7 +156,7 @@ ${source}
       setIsLoading(false);
     }
   };
-  
+
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
@@ -213,7 +208,7 @@ ${source}
       processStreamedResponse([systemMsg, ...messages, newMsg]);
     }
   };
-  
+
   const handleSpecialRequest = (userAction, prompt, metadata) => {
     if (isLoading) return;
     const userActionMsg = { role: 'user', content: userAction };
@@ -222,7 +217,7 @@ ${source}
     const systemMsg = createSystemMessage(sourceText);
     processStreamedResponse([systemMsg, ...messages, userActionMsg, newMsg], metadata);
   };
-  
+
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
   const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
@@ -249,6 +244,7 @@ ${source}
     }
   };
 
+  // ⭐⭐ 핵심: 각 assistant 메시지 아래에서 추천질문 표시 ⭐⭐
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
     const isUser = m.role === 'user';
@@ -266,18 +262,6 @@ ${source}
     return (
       <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
         {!isUser && profilePic}
-{/* 추천질문 버튼: 가장 최근 assistant에만 출력 */}
-{!isUser && !isLoading && recommendedQuestions.length > 0 && lastRecMessageIndex === i && (
-  <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
-    {recommendedQuestions.map((q, index) => (
-      <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
-        style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
-        {q}
-      </button>
-    ))}
-  </div>
-)}
-
         <div className="message-content-container">
           {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
           <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
@@ -289,6 +273,7 @@ ${source}
             >
               {cleanContent(content)}
             </ReactMarkdown>
+            {/* 기타 버튼 */}
             {m.role === 'assistant' && !isLoading && (
               <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                 {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
@@ -302,6 +287,17 @@ ${source}
           </div>
         </div>
         {isUser && profilePic}
+        {/* 각 assistant 답변별 추천질문 버튼(있을 때만) */}
+        {!isUser && m.metadata?.recommendedQuestions && m.metadata.recommendedQuestions.length > 0 && (
+          <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
+            {m.metadata.recommendedQuestions.map((q, idx) => (
+              <button key={idx} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
+                style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   });
@@ -326,15 +322,6 @@ ${source}
           overflowY: 'auto', borderRadius: '8px', backgroundColor: '#EAE7DC'
         }}>
           {renderedMessages}
-          {!isLoading && recommendedQuestions.length > 0 && (
-            <div style={{alignSelf: 'flex-start', marginTop: '15px', paddingLeft: '70px', maxWidth: '85%'}}>
-              {recommendedQuestions.map((q, index) => (
-                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          )}
           <div ref={bottomRef} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
@@ -359,7 +346,7 @@ ${source}
             }
             disabled={isLoading}
           />
-          {/* ✨ [수정됨] 버튼 구조 변경 */}
+          {/* 버튼 구조 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <button
               onClick={sendMessage}
