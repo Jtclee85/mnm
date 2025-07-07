@@ -70,7 +70,60 @@ ${source}
     };
   };
 
-  // 전체 답변 가져오기
+  const processStreamedResponse = async (messageHistory, metadata = {}) => {
+    setIsLoading(true);
+    setRecommendedQuestions([]);
+    setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messageHistory })
+      });
+      if (!res.ok) { throw new Error(res.statusText); }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n\n');
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.substring(6));
+            setMessages(prev => {
+              const lastMessage = prev[prev.length - 1];
+              const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data, metadata: lastMessage.metadata };
+              return [...prev.slice(0, -1), updatedLastMessage];
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error("스트리밍 오류:", error);
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
+        return [...prev.slice(0, -1), updatedLastMessage];
+      });
+    } finally {
+      setMessages(prev => {
+        const lastMessage = prev[prev.length - 1];
+        if (lastMessage && lastMessage.role === 'assistant') {
+            const fullContent = lastMessage.content;
+            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
+            
+            if (questions.length > 0) {
+                setRecommendedQuestions(questions);
+            }
+        }
+        return prev;
+      });
+      setIsLoading(false);
+    }
+  };
+
   const fetchFullResponse = async (messageHistory) => {
     setIsLoading(true);
     try {
@@ -102,61 +155,7 @@ ${source}
       setIsLoading(false);
     }
   };
-
-  // 스트리밍 답변 및 추천질문 분리
-  const processStreamedResponse = async (messageHistory, metadata = {}) => {
-    setIsLoading(true);
-    setRecommendedQuestions([]);
-    setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messageHistory })
-      });
-      if (!res.ok) { throw new Error(res.statusText); }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.substring(6));
-            setMessages(prev => {
-              const lastMessage = prev[prev.length - 1];
-              const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data, metadata: lastMessage.metadata };
-              return [...prev.slice(0, -1), updatedLastMessage];
-            });
-          }
-        }
-      }
-    } catch (error) {
-      setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
-        return [...prev.slice(0, -1), updatedLastMessage];
-      });
-    } finally {
-      setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant') {
-            const fullContent = lastMessage.content;
-            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
-            if (questions.length > 0) {
-                setRecommendedQuestions(questions);
-            }
-        }
-        return prev;
-      });
-      setIsLoading(false);
-    }
-  };
-
-  // 메시지/기능 버튼 등
+  
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
@@ -208,7 +207,7 @@ ${source}
       processStreamedResponse([systemMsg, ...messages, newMsg]);
     }
   };
-
+  
   const handleSpecialRequest = (userAction, prompt, metadata) => {
     if (isLoading) return;
     const userActionMsg = { role: 'user', content: userAction };
@@ -217,6 +216,7 @@ ${source}
     const systemMsg = createSystemMessage(sourceText);
     processStreamedResponse([systemMsg, ...messages, userActionMsg, newMsg], metadata);
   };
+  
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
   const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
@@ -225,8 +225,8 @@ ${source}
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
     const newMsg = { role: 'user', content: question };
-    const systemMsg = createSystemMessage(sourceText);
     setMessages(prev => [...prev, newMsg]);
+    const systemMsg = createSystemMessage(sourceText);
     processStreamedResponse([systemMsg, ...messages, newMsg]);
   };
 
@@ -243,7 +243,6 @@ ${source}
     }
   };
 
-  // 메시지 렌더링
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
     const isUser = m.role === 'user';
@@ -289,4 +288,78 @@ ${source}
     );
   });
 
-  //
+  return (
+    <>
+      <Head>
+        <title>뭐냐면 - 사회과 AI 챗봇</title>
+        <meta name="description" content="초등학생을 위한 사회과 자료를 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
+        <meta property="og:title" content="뭐냐면 - 사회과 자료를 쉽게 풀어주는 AI 챗봇" />
+        <meta property="og:description" content="초등학생을 위한 사회과 자료를 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
+        <meta property="og:image" content="https://mnm-kappa.vercel.app/preview.png" />
+        <meta property="og:url" content="https://mnm-kappa.vercel.app" />
+      </Head>
+
+      <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20 }}>
+        <Banner />
+        
+        <div style={{
+          display: 'flex', flexDirection: 'column',
+          border: '1px solid #ddd', padding: '20px', height: '60vh',
+          overflowY: 'auto', borderRadius: '8px', backgroundColor: '#EAE7DC'
+        }}>
+          {renderedMessages}
+          {!isLoading && recommendedQuestions.length > 0 && (
+            <div style={{alignSelf: 'flex-start', marginTop: '15px', paddingLeft: '70px', maxWidth: '85%'}}>
+              {recommendedQuestions.map((q, index) => (
+                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary" style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
+          <textarea
+            ref={inputRef}
+            style={{
+              padding: 10, minHeight: '60px', maxHeight: '200px',
+              resize: 'vertical', overflowY: 'auto', fontSize: '1rem',
+              lineHeight: '1.5', marginBottom: '0.5rem', border: '1px solid #ccc', borderRadius: '8px'
+            }}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder={
+              conversationPhase === 'asking_topic' ? "오늘은 어떤 주제에 대해 알아볼까?" :
+              "추천받은 사이트에서 찾은 내용을 여기에 붙여넣어 줘!"
+            }
+            disabled={isLoading}
+          />
+          {/* ✨ [수정됨] 버튼 구조 변경 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button
+              onClick={sendMessage}
+              disabled={isLoading}
+              className="btn btn-primary"
+            >
+              보내기 📨
+            </button>
+            {conversationPhase === 'chatting' && messages.length > 2 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                 <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
+                 <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 3줄요약</button>
+                 <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
