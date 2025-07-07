@@ -224,21 +224,49 @@ ${source}
 
     if (conversationPhase === 'chatting') {
         const newMsg = { role: 'user', content: userInput };
-        setMessages(prev => [...prev, newMsg]);
         setInput('');
-        setIsLoading(true);
 
-        // [--- 변경된 부분 시작 ---]
-        // 1. 주제 관련성 판별 프롬프트 정의
+        // --- 3단계 관련성 판별 로직 ---
+
+        // 1단계: 키워드 기반 맥락 확인 (Heuristic)
+        let isContextuallyRelevant = false;
+        const lastMessage = messages[messages.length - 1];
+
+        if (lastMessage && lastMessage.role === 'assistant') {
+            const lastAssistantContent = cleanContent(lastMessage.content);
+            const userKeywords = userInput.replace(/[?.,!]/g, '')
+                                          .replace(/(은|는|이|가|에|의|께|서|랑|이랑|을|를|와|과|야|이야)\s/g, ' ')
+                                          .replace(/\s(뭐야|뭔데|알려줘|궁금해)/g, '')
+                                          .trim().split(' ');
+            
+            isContextuallyRelevant = userKeywords.some(keyword => keyword.length > 1 && lastAssistantContent.includes(keyword));
+        }
+
+        setMessages(prev => [...prev, newMsg]);
+
+        if (isContextuallyRelevant) {
+            const systemMsg = createSystemMessage(sourceText);
+            processStreamedResponse([systemMsg, ...messages, newMsg]);
+            return;
+        }
+
+        // 2단계: 핵심 정보(주제, 원본) 기반 AI 관련성 판별
+        setIsLoading(true);
+        const sourceSummary = sourceText.length > 300 ? sourceText.substring(0, 300) + "..." : sourceText;
+
         const relevanceCheckPrompt = {
             role: 'system',
-            content: `너는 사용자의 질문이 사회과 학습 주제(역사, 지리, 경제, 정치, 사회, 문화 등)와 관련이 있는지 판단하는 AI야. 사용자의 질문이 사회과 주제와 관련이 있다면 '관련있음'이라고만 답하고, 관련이 없다면 '관련없음'이라고만 답해. 다른 설명은 절대 추가하지 마.`
+            content: `너는 사용자의 질문이 현재 대화의 맥락과 관련 있는지 판단하는 AI야.
+- 현재 조사 주제: '${topic}'
+- 사용자가 제공한 원본 자료의 내용: "${sourceSummary}"
+- 대화의 핵심은 위의 '조사 주제'와 '원본 자료'에 대한 탐구야.
+
+사용자의 마지막 질문이 이 맥락과 관련이 있다면 '관련있음'이라고만 답하고, 관련이 없다면 '관련없음'이라고만 답해. 다른 설명은 절대 추가하지 마.`
         };
 
-        // 2. 관련성 판별 API 호출
         const isRelevantResponse = await fetchFullResponse([relevanceCheckPrompt, { role: 'user', content: userInput }]);
 
-        // 3. 판별 결과에 따른 분기 처리
+        // 3단계: 최종 판별 및 분기 처리
         if (isRelevantResponse.includes('관련없음')) {
             const irrelevantAnswer = {
                 role: 'assistant',
@@ -247,13 +275,9 @@ ${source}
             setMessages(prev => [...prev, irrelevantAnswer]);
             setIsLoading(false);
         } else {
-            // 관련 있는 질문이라면 기존 로직 수행
             const systemMsg = createSystemMessage(sourceText);
-            // processStreamedResponse를 호출할 때 로딩 상태를 다시 설정할 필요가 없으므로 false로 설정
-            setIsLoading(false);
             processStreamedResponse([systemMsg, ...messages, newMsg]);
         }
-        // [--- 변경된 부분 끝 ---]
     }
   };
 
