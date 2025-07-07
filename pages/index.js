@@ -3,12 +3,9 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
-// ✨ [수정됨] 추천 질문과 summary 태그를 모두 제거하는 안정적인 로직
 const cleanContent = (text) => {
   if (!text) return '';
-  // 1. 추천 질문 관련 텍스트를 먼저 완전히 제거
   const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
-  // 2. 그 다음, summary 태그 안의 내용만 추출
   const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
@@ -29,12 +26,10 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
   const [userEmoji, setUserEmoji] = useState('👤');
-  const [recommendedQuestions, setRecommendedQuestions] = useState([]);
-  const [lastRecMessageIndex, setLastRecMessageIndex] = useState(-1);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, recommendedQuestions]);
+  }, [messages]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -42,7 +37,6 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  // ✨ [수정됨] 3줄 요약 규칙을 '개조식'으로 명확화
   const createSystemMessage = (source) => ({
     role: 'system',
     content: `
@@ -63,24 +57,29 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘.
 
 1.  **'퀴즈풀기' 요청:** [원본 자료]와 대화 내용을 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 **반드시 각 줄이 '-'로 시작하는 3줄의 개조식으로 요약**해줘. 각 줄은 '~~함.', '~~임.'과 같이 끝나야 하고, 자연스러운 문단이 아닌 분리된 항목으로 명확히 보여야 해. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
-3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
-4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 '~~함.', '~~였음.'과 같이 간결한 개조식으로 작성해 줘.
+2.  **'전체 요약' 요청:** 지금까지의 대화 전체 내용을 [조사 주제] 중심으로 요약해 줘.
+3.  **'말풍선 3줄요약' 요청:** 특정 메시지 내용을 받으면, 그 내용을 3줄의 개조식으로 요약해.
+4.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
+5.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 '~~함.', '~~였음.'과 같이 간결한 개조식으로 작성해 줘.
       `
   });
 
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
-    setRecommendedQuestions([]);
-    setLastRecMessageIndex(-1);
-    setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
+    let messageIndex = -1;
+    setMessages(prev => {
+      const newMessages = [...prev, { role: 'assistant', content: '', metadata }];
+      messageIndex = newMessages.length - 1;
+      return newMessages;
+    });
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messageHistory })
       });
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) { throw new Error(res.statusText); }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       while (true) {
@@ -92,35 +91,35 @@ ${source}
           if (line.startsWith('data: ')) {
             const data = JSON.parse(line.substring(6));
             setMessages(prev => {
-              const lastMessage = prev[prev.length - 1];
-              const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data, metadata: lastMessage.metadata };
-              return [...prev.slice(0, -1), updatedLastMessage];
+              const newMessages = [...prev];
+              newMessages[messageIndex].content += data;
+              return newMessages;
             });
           }
         }
       }
     } catch (error) {
       setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
-        return [...prev.slice(0, -1), updatedLastMessage];
+        const newMessages = [...prev];
+        newMessages[messageIndex].content = "앗, 답변을 가져오는 데 문제가 생겼어요.";
+        return newMessages;
       });
     } finally {
       setMessages(prev => {
-        const lastIdx = prev.length - 1;
-        const lastMessage = prev[lastIdx];
+        const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
-          const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-          const questions = [];
-          let match;
-          while ((match = regex.exec(lastMessage.content)) !== null) {
-            const questionText = match[1].replace(/\n/g, ' ').trim();
-            if (questionText) questions.push(questionText);
-          }
-          if (questions.length > 0) {
-            setRecommendedQuestions(questions);
-            setLastRecMessageIndex(lastIdx);
-          }
+            const fullContent = lastMessage.content;
+            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+            const questions = [];
+            let match;
+            while ((match = regex.exec(fullContent)) !== null) {
+              const questionText = match[1].replace(/\n/g, ' ').trim();
+              if (questionText) questions.push(questionText);
+            }
+            if (questions.length > 0) {
+                const updatedLastMessage = { ...lastMessage, metadata: { ...lastMessage.metadata, recommendedQuestions: questions } };
+                return [...prev.slice(0, -1), updatedLastMessage];
+            }
         }
         return prev;
       });
@@ -137,9 +136,11 @@ ${source}
         body: JSON.stringify({ messages: messageHistory })
       });
       if (!res.ok) throw new Error(res.statusText);
+      
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -178,9 +179,12 @@ ${source}
       
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
+        
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
+        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
+
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
@@ -222,7 +226,7 @@ ${source}
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 개조식 문장으로 3줄 요약해 줘.", { type: 'summary' });
+  const handleRequestFullSummary = () => handleSpecialRequest("📜 전체 요약", `지금까지 나눈 대화의 주제인 '${topic}'에 대해 전체 내용을 요약해 줘.`, { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
   const handleBubbleSummary = (contentToSummarize) => handleSpecialRequest("💬 이 내용 3줄요약", `다음 내용을 3줄의 개조식으로 요약해줘: "${contentToSummarize}"`, { type: 'summary' });
@@ -294,15 +298,15 @@ ${source}
           </div>
           {isUser && profilePic}
         </div>
-        {!isUser && !isLoading && recommendedQuestions.length > 0 && lastRecMessageIndex === i && (
-          <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
-            {recommendedQuestions.map((q, index) => (
-              <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
-                style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
-                {q}
-              </button>
-            ))}
-          </div>
+        {!isUser && !isLoading && m.metadata?.recommendedQuestions?.length > 0 && (
+            <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
+              {m.metadata.recommendedQuestions.map((q, index) => (
+                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
+                  style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
+                  {q}
+                </button>
+              ))}
+            </div>
         )}
       </div>
     );
