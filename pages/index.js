@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
+// [본문 요약 파싱 및 추천질문 구문 파싱 유틸]
 const cleanContent = (text) => {
   if (!text) return '';
   const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
@@ -11,6 +12,27 @@ const cleanContent = (text) => {
     return summaryMatch[1].trim();
   }
   return textWithoutRec;
+};
+
+const parseRecommendedQuestions = (content) => {
+  // [추천질문] 태그 뒤의 줄을 각각 추출하여 배열로 만듦
+  // 여러 블록이 있을 수 있으므로 모두 추출
+  const regex = /\[추천질문\]([^\[\]]+)/g;
+  let match, questions = [];
+  while ((match = regex.exec(content)) !== null) {
+    // 줄바꿈 기준 분리, 앞뒤 공백 및 불필요한 줄 제거
+    const lines = match[1]
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(Boolean)
+      .filter(l => l.length > 1); // 너무 짧은건 제거(옵션)
+    questions.push(...lines);
+  }
+  // 혹시 ;, ·, • 등 기타 구분자 있는 경우도 추가 분리
+  if (questions.length === 1 && /[·•;|]/.test(questions[0])) {
+    return questions[0].split(/[·•;|]/).map(l => l.trim()).filter(Boolean);
+  }
+  return questions;
 };
 
 export default function Home() {
@@ -108,18 +130,11 @@ ${source}
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
-            const fullContent = lastMessage.content;
-            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-            const questions = [];
-            let match;
-            while ((match = regex.exec(fullContent)) !== null) {
-              const questionText = match[1].replace(/\n/g, ' ').trim();
-              if (questionText) questions.push(questionText);
-            }
-            if (questions.length > 0) {
-                const updatedLastMessage = { ...lastMessage, metadata: { ...lastMessage.metadata, recommendedQuestions: questions } };
-                return [...prev.slice(0, -1), updatedLastMessage];
-            }
+          const questions = parseRecommendedQuestions(lastMessage.content);
+          if (questions.length > 0) {
+            const updatedLastMessage = { ...lastMessage, metadata: { ...lastMessage.metadata, recommendedQuestions: questions } };
+            return [...prev.slice(0, -1), updatedLastMessage];
+          }
         }
         return prev;
       });
@@ -136,11 +151,11 @@ ${source}
         body: JSON.stringify({ messages: messageHistory })
       });
       if (!res.ok) throw new Error(res.statusText);
-      
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = "";
-      
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -160,12 +175,12 @@ ${source}
       setIsLoading(false);
     }
   };
-  
+
   const sendMessage = async () => {
     if (!input || isLoading) return;
     const userInput = input.trim();
     const userMsgForDisplay = { role: 'user', content: userInput };
-    
+
     if (conversationPhase === 'asking_topic') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
@@ -176,12 +191,12 @@ ${source}
         content: `너는 사용자의 문장에서 핵심 주제어(고유명사, 인물, 사건 등)만 추출하는 AI야. 다른 말 없이, 핵심 주제어만 정확히 출력해. 만약 주제어가 없으면 '없음'이라고 답해.`
       };
       const extractedTopic = await fetchFullResponse([topicExtractionPrompt, { role: 'user', content: userInput }]);
-      
+
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
-        
+
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
-        
+
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
 
@@ -195,7 +210,7 @@ ${source}
     if (conversationPhase === 'asking_source') {
       setMessages(prev => [...prev, userMsgForDisplay]);
       setInput('');
-      if (userInput.length < 50) { 
+      if (userInput.length < 50) {
         setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료라기엔 너무 짧은 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
         return;
       }
@@ -206,7 +221,7 @@ ${source}
       setConversationPhase('chatting');
       return;
     }
-    
+
     if (conversationPhase === 'chatting') {
       const newMsg = { role: 'user', content: userInput };
       const systemMsg = createSystemMessage(sourceText);
@@ -215,7 +230,7 @@ ${source}
       processStreamedResponse([systemMsg, ...messages, newMsg]);
     }
   };
-  
+
   const handleSpecialRequest = (userAction, prompt, metadata) => {
     if (isLoading) return;
     const userActionMsg = { role: 'user', content: userAction };
@@ -224,7 +239,7 @@ ${source}
     const systemMsg = createSystemMessage(sourceText);
     processStreamedResponse([systemMsg, ...messages, userActionMsg, newMsg], metadata);
   };
-  
+
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
   const handleRequestFullSummary = () => handleSpecialRequest("📜 전체 요약", `지금까지 나눈 대화의 주제인 '${topic}'에 대해 전체 내용을 요약해 줘.`, { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
@@ -234,8 +249,8 @@ ${source}
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
     const newMsg = { role: 'user', content: question };
-    setMessages(prev => [...prev, newMsg]);
     const systemMsg = createSystemMessage(sourceText);
+    setMessages(prev => [...prev, newMsg]);
     processStreamedResponse([systemMsg, ...messages, newMsg]);
   };
 
@@ -252,6 +267,41 @@ ${source}
     }
   };
 
+  // 전체 요약(3줄 개조식) 렌더링: summary 타입 메시지라면 자동 3줄로 쪼개서 불릿 출력
+  const renderSummaryBulletList = (content) => {
+    let pureText = content.replace(/<summary>([\s\S]*?)<\/summary>/g, "$1").trim();
+    // 마침표/줄바꿈/불릿 등으로 최대 3줄로 자름
+    let lines = pureText
+      .replace(/^[•·]/gm, '')   // 기존 불릿 제거
+      .split(/\r?\n|[•·]/g)
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    // . , ; 등으로 더 분리
+    if (lines.length < 3) {
+      lines = pureText
+        .split(/[.;\n]/g)
+        .map(l => l.trim())
+        .filter(Boolean);
+    }
+    // 3줄 이상 나오면 3줄만
+    lines = lines.slice(0, 3);
+
+    // 혹시 1줄만 너무 길면 30~40자씩 잘라서라도 3줄 만듦
+    if (lines.length === 1 && lines[0].length > 80) {
+      const s = lines[0];
+      lines = [s.slice(0, 40), s.slice(40, 80), s.slice(80)];
+      lines = lines.filter(Boolean);
+    }
+
+    // 불릿 붙여서 리턴
+    return (
+      <ul style={{paddingLeft: '1.2em', margin:0}}>
+        {lines.map((line, i) => <li key={i} style={{marginBottom:'0.2em'}}>{line}</li>)}
+      </ul>
+    );
+  };
+
   const renderedMessages = messages.map((m, i) => {
     const content = m.content;
     const isUser = m.role === 'user';
@@ -266,6 +316,9 @@ ${source}
       </div>
     );
 
+    // summary 타입이면 3줄 불릿화
+    const isSummary = m.metadata?.type === 'summary';
+
     return (
       <div key={i}>
         <div className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
@@ -273,14 +326,17 @@ ${source}
           <div className="message-content-container">
             {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
             <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-              <ReactMarkdown
-                components={{
-                  a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                  summary: ({children}) => <>{children}</>,
-                }}
-              >
-                {cleanContent(content)}
-              </ReactMarkdown>
+              {isSummary
+                ? renderSummaryBulletList(content)
+                : <ReactMarkdown
+                    components={{
+                      a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+                      summary: ({children}) => <>{children}</>,
+                    }}
+                  >
+                    {cleanContent(content)}
+                  </ReactMarkdown>
+              }
               {m.role === 'assistant' && !isLoading && (
                 <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                   {cleanContent(m.content).length >= 300 && !m.metadata?.type && (
@@ -298,15 +354,16 @@ ${source}
           </div>
           {isUser && profilePic}
         </div>
+        {/* 추천질문(버튼) */}
         {!isUser && !isLoading && m.metadata?.recommendedQuestions?.length > 0 && (
-            <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
-              {m.metadata.recommendedQuestions.map((q, index) => (
-                <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
-                  style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
-                  {q}
-                </button>
-              ))}
-            </div>
+          <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
+            {m.metadata.recommendedQuestions.map((q, index) => (
+              <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
+                style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
+                {q}
+              </button>
+            ))}
+          </div>
         )}
       </div>
     );
