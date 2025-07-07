@@ -3,18 +3,45 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
-// ✨ [수정됨] 추천 질문과 summary 태그를 모두 제거하는 안정적인 로직
 const cleanContent = (text) => {
-  if (!text) return '';
-  // 1. 추천 질문 관련 텍스트를 먼저 완전히 제거
-  const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
-  // 2. 그 다음, summary 태그 안의 내용만 추출
-  const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
+  const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
   }
-  return textWithoutRec;
+  return text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
 };
+
+const extractNameFromInput = (text) => {
+  const patterns = ["내 이름은", "이라고 해", "이라고 합니다", "이라고 해요", "입니다", "이에요", "이야", "난", "나는"];
+  let name = text;
+  for (const pattern of patterns) {
+    name = name.replace(pattern, "");
+  }
+  return name.trim();
+};
+
+const getKoreanNameWithPostposition = (name) => {
+  if (!name) return '';
+  const lastChar = name.charCodeAt(name.length - 1);
+  if (lastChar < 0xAC00 || lastChar > 0xD7A3) {
+    return name;
+  }
+  const hasJongseong = (lastChar - 0xAC00) % 28 !== 0;
+  return name + (hasJongseong ? '아' : '야');
+};
+
+const commonSurnames = "김이박최정강조윤장임한오서신권황안송유홍전고문양손배조백허남심노하곽성차주우구신임나지엄원천방공현";
+
+const getGivenName = (name) => {
+    if (!name || typeof name !== 'string') return '';
+    if (name.length === 3 && commonSurnames.includes(name.charAt(0))) {
+        return name.substring(1);
+    }
+    return name;
+};
+
+const zodiacEmojis = ['🐭', '🐮', '🐯', '🐰', '🐲', '🐍', '🐴', '🐑', '🐵', '🐔', '🐶', '🐷'];
+
 
 export default function Home() {
   const [conversationPhase, setConversationPhase] = useState('asking_topic');
@@ -42,9 +69,11 @@ export default function Home() {
     }
   }, [isLoading]);
 
-  const createSystemMessage = (source) => ({
-    role: 'system',
-    content: `
+  // ✨ [수정됨] 3줄 요약 규칙을 '개조식'으로 명확화
+  const createSystemMessage = (source) => {
+    return {
+      role: 'system',
+      content: `
 너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 너는 지금 초등 저학년 학생과 대화하고 있어.
 너의 핵심 임무는 사용자가 제공한 아래의 [원본 자료]를 바탕으로, 사회과(역사, 지리, 일반사회 등) 개념을 쉽고 재미있게 설명해주는 것이야.
 
@@ -65,19 +94,19 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 개조식 문장으로 요약해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 **각 줄이 '-'로 시작하는 3줄의 개조식으로 요약해 줘.** 각 줄은 '~~함.', '~~임.'과 같이 끝나야 하고, 자연스러운 문단이 아닌 분리된 항목으로 명확히 보여야 해. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
 3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
     - **'최고야!':** 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
     - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
     - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 내용을 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
 4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. **반드시 '~~함.', '~~였음.'과 같이 간결한 개조식으로 서술해야 해.** 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **다른 말 없이, 순수한 평가 내용만 <summary> 태그로 감싸서 출력해.**
       `
-  });
+    };
+  };
 
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
     setRecommendedQuestions([]);
-    setLastRecMessageIndex(-1);
     setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
     try {
       const res = await fetch('/api/chat', {
@@ -85,7 +114,7 @@ ${source}
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messageHistory })
       });
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) { throw new Error(res.statusText); }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       while (true) {
@@ -105,6 +134,7 @@ ${source}
         }
       }
     } catch (error) {
+      console.error("스트리밍 오류:", error);
       setMessages(prev => {
         const lastMessage = prev[prev.length - 1];
         const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
@@ -230,14 +260,9 @@ ${source}
   };
   
   const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestFullSummary = () => handleSpecialRequest("📜 전체 요약", `지금까지 나눈 대화의 주제인 '${topic}'에 대해 전체 내용을 요약해 줘.`, { type: 'summary' });
+  const handleRequestThreeLineSummary = () => handleSpecialRequest("📜 3줄요약", "내가 처음에 제공한 [원본 자료]의 가장 중요한 특징을 3줄 요약해 줘.", { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
-  const handleBubbleSummary = (contentToSummarize) => {
-    if (isLoading) return;
-    const prompt = `다음 내용을 3줄의 개조식으로 요약해줘: "${contentToSummarize}"`;
-    handleSpecialRequest("💬 이 내용 3줄요약", prompt, { type: 'summary' });
-  };
 
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
@@ -265,7 +290,6 @@ ${source}
     const isUser = m.role === 'user';
     const speakerName = isUser ? '나' : '뭐냐면';
     const isNameVisible = i > 0;
-    const isAssistant = m.role === 'assistant';
 
     const profilePic = isUser ? (
       <div className="profile-pic">👤</div>
@@ -276,37 +300,33 @@ ${source}
     );
 
     return (
-      <div key={i}>
-        <div className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
-          {!isUser && profilePic}
-          <div className="message-content-container">
-            {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
-            <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-              <ReactMarkdown
-                components={{
-                  a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                  summary: ({children}) => <>{children}</>,
-                }}
-              >
-                {cleanContent(content)}
-              </ReactMarkdown>
-              {isAssistant && !isLoading && (
-                <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                   {cleanContent(content).length >= 300 && !m.metadata?.type && (
-                     <button onClick={() => handleBubbleSummary(content)} className="btn btn-tertiary" style={{fontSize:'0.9rem'}}>💬 이 내용 3줄요약</button>
-                   )}
-                  {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
-                    <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
-                  )}
-                  {m.metadata?.type === 'evaluation' && (
-                    <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 내가 어땠는지 선생님께 알리기</button>
-                  )}
-                </div>
-              )}
-            </div>
+      <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
+        {!isUser && profilePic}
+        <div className="message-content-container">
+          {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
+          <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
+            <ReactMarkdown
+              components={{
+                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
+                summary: ({children}) => <>{children}</>,
+              }}
+            >
+              {cleanContent(content)}
+            </ReactMarkdown>
+            {m.role === 'assistant' && !isLoading && (
+              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
+                  <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
+                )}
+                {m.metadata?.type === 'evaluation' && (
+                  <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 내가 어땠는지 선생님께 알리기</button>
+                )}
+              </div>
+            )}
           </div>
-          {isUser && profilePic}
         </div>
+        {isUser && profilePic}
+        {/* 추천질문 버튼 */}
         {!isUser && !isLoading && recommendedQuestions.length > 0 && lastRecMessageIndex === i && (
           <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
             {recommendedQuestions.map((q, index) => (
@@ -375,7 +395,7 @@ ${source}
             {conversationPhase === 'chatting' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
                  <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
-                 <button onClick={handleRequestFullSummary} disabled={isLoading} className="btn btn-tertiary">📜 전체 요약</button>
+                 <button onClick={handleRequestThreeLineSummary} disabled={isLoading} className="btn btn-tertiary">📜 3줄요약</button>
                  <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
               </div>
             )}
