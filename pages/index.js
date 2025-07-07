@@ -223,11 +223,37 @@ ${source}
     }
 
     if (conversationPhase === 'chatting') {
-      const newMsg = { role: 'user', content: userInput };
-      const systemMsg = createSystemMessage(sourceText);
-      setMessages(prev => [...prev, newMsg]);
-      setInput('');
-      processStreamedResponse([systemMsg, ...messages, newMsg]);
+        const newMsg = { role: 'user', content: userInput };
+        setMessages(prev => [...prev, newMsg]);
+        setInput('');
+        setIsLoading(true);
+
+        // [--- 변경된 부분 시작 ---]
+        // 1. 주제 관련성 판별 프롬프트 정의
+        const relevanceCheckPrompt = {
+            role: 'system',
+            content: `너는 사용자의 질문이 사회과 학습 주제(역사, 지리, 경제, 정치, 사회, 문화 등)와 관련이 있는지 판단하는 AI야. 사용자의 질문이 사회과 주제와 관련이 있다면 '관련있음'이라고만 답하고, 관련이 없다면 '관련없음'이라고만 답해. 다른 설명은 절대 추가하지 마.`
+        };
+
+        // 2. 관련성 판별 API 호출
+        const isRelevantResponse = await fetchFullResponse([relevanceCheckPrompt, { role: 'user', content: userInput }]);
+
+        // 3. 판별 결과에 따른 분기 처리
+        if (isRelevantResponse.includes('관련없음')) {
+            const irrelevantAnswer = {
+                role: 'assistant',
+                content: '미안하지만 그건 지금 우리가 이야기하는 사회 주제랑은 조금 다른 이야기 같아. 조사하고 있는 주제에 대해 더 궁금한 점을 물어봐 줄래?'
+            };
+            setMessages(prev => [...prev, irrelevantAnswer]);
+            setIsLoading(false);
+        } else {
+            // 관련 있는 질문이라면 기존 로직 수행
+            const systemMsg = createSystemMessage(sourceText);
+            // processStreamedResponse를 호출할 때 로딩 상태를 다시 설정할 필요가 없으므로 false로 설정
+            setIsLoading(false);
+            processStreamedResponse([systemMsg, ...messages, newMsg]);
+        }
+        // [--- 변경된 부분 끝 ---]
     }
   };
 
