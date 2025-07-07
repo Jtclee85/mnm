@@ -25,6 +25,7 @@ export default function Home() {
   const inputRef = useRef(null);
   const [userEmoji, setUserEmoji] = useState('👤');
   const [recommendedQuestions, setRecommendedQuestions] = useState([]);
+const [lastRecMessageIndex, setLastRecMessageIndex] = useState(-1);   // ★이 줄 추가
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -108,21 +109,25 @@ ${source}
       });
     } finally {
       setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant') {
-            const fullContent = lastMessage.content;
-            const questionRegex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-            const questions = [...fullContent.matchAll(questionRegex)].map(match => match[1].trim()).filter(q => q.length > 0);
-            
-            if (questions.length > 0) {
-                setRecommendedQuestions(questions);
-            }
+        const lastIdx = prev.length - 1;
+        const lastMessage = prev[lastIdx];
+        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
+          const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+          const questions = [];
+          let match;
+          while ((match = regex.exec(lastMessage.content)) !== null) {
+            const questionText = match[1].replace(/\n/g, ' ').trim();
+            if (questionText) questions.push(questionText);
+          }
+          if (questions.length > 0) {
+            setRecommendedQuestions(questions);
+            setLastRecMessageIndex(lastIdx);      // ★이 부분이 핵심입니다!
+          }
         }
         return prev;
       });
       setIsLoading(false);
-    }
-  };
+    }  };
 
   const fetchFullResponse = async (messageHistory) => {
     setIsLoading(true);
