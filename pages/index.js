@@ -3,9 +3,12 @@ import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
 import Banner from '../components/Banner';
 
+// ✨ [수정됨] 추천 질문과 summary 태그를 모두 제거하는 안정적인 로직
 const cleanContent = (text) => {
   if (!text) return '';
+  // 1. 추천 질문 관련 텍스트를 먼저 완전히 제거
   const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
+  // 2. 그 다음, summary 태그 안의 내용만 추출
   const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
   if (summaryMatch) {
     return summaryMatch[1].trim();
@@ -26,10 +29,12 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef(null);
   const [userEmoji, setUserEmoji] = useState('👤');
+  const [recommendedQuestions, setRecommendedQuestions] = useState([]);
+  const [lastRecMessageIndex, setLastRecMessageIndex] = useState(-1);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, recommendedQuestions]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -60,29 +65,27 @@ ${source}
 사용자가 요청하면, 아래 규칙에 따라 행동해 줘. 모든 답변은 [원본 자료]와 대화 내용을 기반으로 해.
 
 1.  **'퀴즈풀기' 요청:** 지금까지 나눈 대화를 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'전체 요약' 요청:** 지금까지의 대화 전체 내용을 [조사 주제] 중심으로 요약해 줘.
-3.  **'말풍선 3줄요약' 요청:** 특정 메시지 내용을 받으면, 그 내용을 3줄의 개조식으로 요약해.
-4.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
-5.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 '~~함.', '~~였음.'과 같이 간결한 개조식으로 작성해 줘.
+2.  **'3줄요약' 요청:** 대화 초반에 제시된 '조사 대상' 자체의 핵심 내용을 하나의 문단으로 자연스럽게 이어지는 3줄 정도 길이의 개조식 문장으로 요약해 줘. 절대로 번호를 붙이거나 항목을 나누지 마. **순수한 요약 내용은 반드시 <summary>와 </summary> 태그로 감싸야 해.**
+3.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 평가한다. 평가 기준을 절대 너그럽게 해석하지 말고, 아래 조건에 따라 엄격하게 판단해야 해.
+    - **'최고야!':** 배경, 가치, 인과관계, 다른 사건과의 비교 등 깊이 있는 탐구 질문을 2회 이상 했을 경우에만 이 평가를 내린다.
+    - **'잘했어!':** 단어의 뜻이나 사실 관계 확인 등 단순한 질문을 주로 했지만, 꾸준히 대화에 참여했을 경우 이 평가를 내린다.
+    - **'좀 더 관심을 가져보자!':** 질문이 거의 없거나 대화 참여가 저조했을 경우, 이 평가를 내리고 "다음에는 '왜 이런 일이 일어났을까?' 또는 '그래서 어떻게 됐을까?' 하고 물어보면 내용을 더 깊이 이해할 수 있을 거야!" 와 같이 구체적인 조언을 해준다.
+4.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 2~3문장으로 작성해 줘. **반드시 '~~함.', '~~였음.'과 같이 간결한 개조식으로 서술해야 해.** 학생의 장점이 잘 드러나도록 긍정적으로 서술해. **다른 말 없이, 순수한 평가 내용만 <summary> 태그로 감싸서 출력해.**
       `
   });
 
   const processStreamedResponse = async (messageHistory, metadata = {}) => {
     setIsLoading(true);
-    let messageIndex = -1;
-    setMessages(prev => {
-      const newMessages = [...prev, { role: 'assistant', content: '', metadata }];
-      messageIndex = newMessages.length - 1;
-      return newMessages;
-    });
-
+    setRecommendedQuestions([]);
+    setLastRecMessageIndex(-1);
+    setMessages(prev => [...prev, { role: 'assistant', content: '', metadata }]);
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messageHistory })
       });
-      if (!res.ok) { throw new Error(res.statusText); }
+      if (!res.ok) throw new Error(res.statusText);
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       while (true) {
@@ -94,32 +97,35 @@ ${source}
           if (line.startsWith('data: ')) {
             const data = JSON.parse(line.substring(6));
             setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[messageIndex].content += data;
-              return newMessages;
+              const lastMessage = prev[prev.length - 1];
+              const updatedLastMessage = { ...lastMessage, content: lastMessage.content + data, metadata: lastMessage.metadata };
+              return [...prev.slice(0, -1), updatedLastMessage];
             });
           }
         }
       }
     } catch (error) {
       setMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[messageIndex].content = "앗, 답변을 가져오는 데 문제가 생겼어요.";
-        return newMessages;
+        const lastMessage = prev[prev.length - 1];
+        const updatedLastMessage = { ...lastMessage, content: "앗, 답변을 가져오는 데 문제가 생겼어요." };
+        return [...prev.slice(0, -1), updatedLastMessage];
       });
     } finally {
-      // ✨ [수정됨] 추천 질문 파싱 로직을 각 메시지 객체에 저장하도록 변경
       setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant') {
-            const fullContent = lastMessage.content;
-            const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
-            const questions = [...fullContent.matchAll(regex)].map(match => match[1].trim()).filter(q => q.length > 0);
-            
-            if (questions.length > 0) {
-                const updatedLastMessage = { ...lastMessage, metadata: { ...lastMessage.metadata, recommendedQuestions: questions } };
-                return [...prev.slice(0, -1), updatedLastMessage];
-            }
+        const lastIdx = prev.length - 1;
+        const lastMessage = prev[lastIdx];
+        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
+          const regex = /\[추천질문\](.*?)(?=\[추천질문\]|$)/gs;
+          const questions = [];
+          let match;
+          while ((match = regex.exec(lastMessage.content)) !== null) {
+            const questionText = match[1].replace(/\n/g, ' ').trim();
+            if (questionText) questions.push(questionText);
+          }
+          if (questions.length > 0) {
+            setRecommendedQuestions(questions);
+            setLastRecMessageIndex(lastIdx);
+          }
         }
         return prev;
       });
@@ -177,9 +183,12 @@ ${source}
       
       if (extractedTopic && !extractedTopic.includes('없음')) {
         setTopic(extractedTopic);
+        
         const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
+        
         setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
         setConversationPhase('asking_source');
+
       } else {
         setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
       }
@@ -224,7 +233,11 @@ ${source}
   const handleRequestFullSummary = () => handleSpecialRequest("📜 전체 요약", `지금까지 나눈 대화의 주제인 '${topic}'에 대해 전체 내용을 요약해 줘.`, { type: 'summary' });
   const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
   const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
-  const handleBubbleSummary = (contentToSummarize) => handleSpecialRequest("💬 이 내용 3줄요약", `다음 내용을 3줄의 개조식으로 요약해줘: "${contentToSummarize}"`, { type: 'summary' });
+  const handleBubbleSummary = (contentToSummarize) => {
+    if (isLoading) return;
+    const prompt = `다음 내용을 3줄의 개조식으로 요약해줘: "${contentToSummarize}"`;
+    handleSpecialRequest("💬 이 내용 3줄요약", prompt, { type: 'summary' });
+  };
 
   const handleRecommendedQuestionClick = (question) => {
     if (isLoading) return;
@@ -252,6 +265,7 @@ ${source}
     const isUser = m.role === 'user';
     const speakerName = isUser ? '나' : '뭐냐면';
     const isNameVisible = i > 0;
+    const isAssistant = m.role === 'assistant';
 
     const profilePic = isUser ? (
       <div className="profile-pic">👤</div>
@@ -276,11 +290,11 @@ ${source}
               >
                 {cleanContent(content)}
               </ReactMarkdown>
-              {m.role === 'assistant' && !isLoading && (
+              {isAssistant && !isLoading && (
                 <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {cleanContent(m.content).length >= 300 && !m.metadata?.type && (
-                       <button onClick={() => handleBubbleSummary(content)} className="btn btn-tertiary" style={{fontSize:'0.9rem'}}>💬 이 내용 3줄요약</button>
-                  )}
+                   {cleanContent(content).length >= 300 && !m.metadata?.type && (
+                     <button onClick={() => handleBubbleSummary(content)} className="btn btn-tertiary" style={{fontSize:'0.9rem'}}>💬 이 내용 3줄요약</button>
+                   )}
                   {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
                     <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
                   )}
@@ -293,10 +307,9 @@ ${source}
           </div>
           {isUser && profilePic}
         </div>
-        {/* ✨ [수정됨] 추천 질문 버튼 렌더링 로직 강화 */}
-        {!isLoading && m.metadata?.recommendedQuestions?.length > 0 && (
+        {!isUser && !isLoading && recommendedQuestions.length > 0 && lastRecMessageIndex === i && (
           <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
-            {m.metadata.recommendedQuestions.map((q, index) => (
+            {recommendedQuestions.map((q, index) => (
               <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
                 style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
                 {q}
