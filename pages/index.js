@@ -372,10 +372,10 @@ ${source}
   return (
     <>
       <Head>
-        <title>뭐냐면 - 사회과 AI 챗봇</title>
-        <meta name="description" content="초등학생을 위한 사회과 자료를 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
-        <meta property="og:title" content="뭐냐면 - 사회과 자료를 쉽게 풀어주는 AI 챗봇" />
-        <meta property="og:description" content="초등학생을 위한 사회과 자료를 친절하게 쉽게 설명해주는 AI 챗봇, 뭐냐면!" />
+        <title>뭐냐면 - 조사학습 AI 챗봇</title>
+        <meta name="description" content="처음 만나는 조사학습 AI 챗봇, 뭐냐면!" />
+        <meta property="og:title" content="뭐냐면 - 사회 조사자료를 쉽고 재미있게 알려주는 AI 챗봇" />
+        <meta property="og:description" content="사회 조사자료를 쉽고 재미있게 알려주주는 AI 챗봇, 뭐냐면!" />
         <meta property="og:image" content="https://mnm-kappa.vercel.app/preview.png" />
         <meta property="og:url" content="https://mnm-kappa.vercel.app" />
       </Head>
