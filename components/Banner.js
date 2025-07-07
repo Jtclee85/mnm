@@ -33,7 +33,7 @@ const Banner = () => {
         <h1 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 'bold', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>뭐냐면</h1>
         {/* ✨ [수정됨] 부제목 텍스트 변경 */}
         <p style={{ fontSize: '1.1rem', color: '#444', margin: '5px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>
-          조사한 사회과 자료를 쉽고 재미있게 설명해주는 AI 친구
+          조사한 자료를 쉽고 재미있게 설명해주는 AI 친구
         </p>
       </div>
     </div>
