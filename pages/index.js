@@ -259,7 +259,7 @@ ${source}
       </div>
     );
 
-    return (
+return (
   <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
     {!isUser && profilePic}
     <div className="message-content-container">
@@ -281,20 +281,10 @@ ${source}
         )}
       </div>
     </div>
-        {isUser && profilePic}
-        {/* 각 assistant 답변별 추천질문 버튼(있을 때만) */}
-        {!isUser && m.metadata?.recommendedQuestions && m.metadata.recommendedQuestions.length > 0 && (
-          <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
-            {m.metadata.recommendedQuestions.map((q, idx) => (
-              <button key={idx} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
-                style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
+    {isUser && profilePic}
+  </div>
+);
+
   });
 
   return (
