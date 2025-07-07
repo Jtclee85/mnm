@@ -259,7 +259,7 @@ ${source}
       </div>
     );
 
-return (
+    return (
   <div key={i} className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
     {!isUser && profilePic}
     <div className="message-content-container">
