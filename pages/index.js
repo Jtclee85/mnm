@@ -223,14 +223,27 @@ ${source}
     }
 
     if (conversationPhase === 'chatting') {
-        const newMsg = { role: 'user', content: userInput };
-        setInput('');
+    const newMsg = { role: 'user', content: userInput };
+    // 사용자의 메시지를 먼저 화면에 추가하고 입력창을 비웁니다.
+    setMessages(prev => [...prev, newMsg]);
+    setInput('');
 
-        // --- 3단계 관련성 판별 로직 ---
+    // --- ⭐ 해결 로직 시작 ---
+    // 마지막 어시스턴트 메시지가 '퀴즈'였는지 확인합니다.
+    const lastAssistantMessage = messages[messages.length - 1];
+    if (lastAssistantMessage?.role === 'assistant' && lastAssistantMessage?.metadata?.type === 'quiz') {
+        // 퀴즈에 대한 답변이므로, 관련성 검사를 건너뛰고 바로 AI에게 채점을 요청합니다.
+        const systemMsg = createSystemMessage(sourceText);
+        // 이전 메시지 기록에 방금 입력한 사용자 메시지(newMsg)를 포함하여 보냅니다.
+        processStreamedResponse([systemMsg, ...messages, newMsg]); 
+        return; // 관련성 검사 로직을 실행하지 않고 함수를 종료합니다.
+    }
+    // --- ⭐ 해결 로직 끝 ---
 
-        // 1단계: 키워드 기반 맥락 확인 (Heuristic)
-        let isContextuallyRelevant = false;
-        const lastMessage = messages[messages.length - 1];
+    // --- 3단계 관련성 판별 로직 (퀴즈가 아닐 때만 실행됩니다) ---
+    
+    // 1단계: 키워드 기반 맥락 확인 (Heuristic)
+    let isContextuallyRelevant = false;
 
         if (lastMessage && lastMessage.role === 'assistant') {
             const lastAssistantContent = cleanContent(lastMessage.content);
