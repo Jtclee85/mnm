@@ -206,7 +206,7 @@ ${source}
         setConversationPhase('asking_source');
 
       } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 어떤 주제인지 잘 모르겠어. 다시 한번 알려줄래?'}]);
+        setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 조사하기에 적절한 주제가 아닌 거 같아. 다시 한번 알려줄래?'}]);
       }
       setIsLoading(false);
       return;
