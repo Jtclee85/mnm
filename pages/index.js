@@ -222,56 +222,43 @@ ${source}
       return;
     }
 
-    if (conversationPhase === 'chatting') {
-    const newMsg = { role: 'user', content: userInput };
-    // 사용자의 메시지를 먼저 화면에 추가하고 입력창을 비웁니다.
-    setMessages(prev => [...prev, newMsg]);
-    setInput('');
-
-    // --- ⭐ 해결 로직 시작 ---
-    // 마지막 어시스턴트 메시지가 '퀴즈'였는지 확인합니다.
-    const lastAssistantMessage = messages[messages.length - 1];
-    if (lastAssistantMessage?.role === 'assistant' && lastAssistantMessage?.metadata?.type === 'quiz') {
-        // 퀴즈에 대한 답변이므로, 관련성 검사를 건너뛰고 바로 AI에게 채점을 요청합니다.
-        const systemMsg = createSystemMessage(sourceText);
-        // 이전 메시지 기록에 방금 입력한 사용자 메시지(newMsg)를 포함하여 보냅니다.
-        processStreamedResponse([systemMsg, ...messages, newMsg]); 
-        return; // 관련성 검사 로직을 실행하지 않고 함수를 종료합니다.
-    }
-    // --- ⭐ 해결 로직 끝 ---
-
-    // --- 3단계 관련성 판별 로직 (퀴즈가 아닐 때만 실행됩니다) ---
-    
-    // 1단계: 키워드 기반 맥락 확인 (Heuristic)
-    let isContextuallyRelevant = false;
-
-        if (lastMessage && lastMessage.role === 'assistant') {
-            const lastAssistantContent = cleanContent(lastMessage.content);
-            const userKeywords = userInput.replace(/[?.,!]/g, '')
-                                          .replace(/(은|는|이|가|에|의|께|서|랑|이랑|을|를|와|과|야|이야)\s/g, ' ')
-                                          .replace(/\s(뭐야|뭔데|알려줘|궁금해)/g, '')
-                                          .trim().split(' ');
-            
-            isContextuallyRelevant = userKeywords.some(keyword => keyword.length > 1 && lastAssistantContent.includes(keyword));
-        }
-
+        if (conversationPhase === 'chatting') {
+        const newMsg = { role: 'user', content: userInput };
         setMessages(prev => [...prev, newMsg]);
+        setInput('');
+        setIsLoading(true); // AI가 응답 준비를 시작했음을 사용자에게 알립니다.
 
-        if (isContextuallyRelevant) {
+        // --- 1단계: 퀴즈 답변 상황인지 확인 (가장 먼저 처리) ---
+        const lastAssistantMessage = messages[messages.length - 1];
+        if (lastAssistantMessage?.role === 'assistant' && lastAssistantMessage?.metadata?.type === 'quiz') {
             const systemMsg = createSystemMessage(sourceText);
-            processStreamedResponse([systemMsg, ...messages, newMsg]);
+            // 퀴즈 답변이므로 관련성 검사 없이 바로 AI에게 채점을 요청합니다.
+            await processStreamedResponse([systemMsg, ...messages, newMsg]);
             return;
         }
 
-        // 2단계: 핵심 정보(주제, 원본) 기반 AI 관련성 판별
-        setIsLoading(true);
-        const sourceSummary = sourceText.length > 300 ? sourceText.substring(0, 300) + "..." : sourceText;
+        // --- 2단계: 간단한 키워드로 관련성 확인 ---
+        const lastMessageContent = lastAssistantMessage?.content || '';
+        const userKeywords = userInput.replace(/[?.,!]/g, '').replace(/(은|는|이|가|에|의|께|서|랑|이랑|을|를|와|과|야|이야)\s/g, ' ').replace(/\s(뭐야|뭔데|알려줘|궁금해)/g, '').trim().split(' ');
+        
+        // 이전 챗봇 답변에 사용자 질문의 키워드가 하나라도 있으면 관련성이 높다고 판단합니다.
+        const isHeuristicallyRelevant = userKeywords.some(keyword => lastMessageContent.includes(keyword));
 
+        if (isHeuristicallyRelevant) {
+            // 관련성이 높다고 판단되면, AI에게 바로 답변 생성을 요청합니다.
+            const systemMsg = createSystemMessage(sourceText);
+            await processStreamedResponse([systemMsg, ...messages, newMsg]);
+            return;
+        }
+
+        // --- 3단계: AI에게 넓은 맥락의 관련성 확인 (최종 단계) ---
+        const sourceSummary = sourceText.length > 300 ? sourceText.substring(0, 300) + "..." : sourceText;
         const relevanceCheckPrompt = {
             role: 'system',
             content: `너는 사용자의 질문이 현재 대화의 맥락과 관련 있는지 판단하는 AI야.
 - 현재 조사 주제: '${topic}'
 - 사용자가 제공한 원본 자료의 내용: "${sourceSummary}"
+
 대화의 핵심은 위의 '조사 주제'와 '원본 자료'야. 
 하지만 사용자의 질문이 원본 자료에 직접 언급되지 않았더라도, **조사 주제와 같은 카테고리(예: 한국사, 불교 문화)에 속하는 개념, 인물, 다른 유물, 장소 등에 대한 질문이라면 '관련있음'으로 판단해야 해.**
 예를 들어, '불상'에 대해 이야기하고 있을 때 다른 유명한 '절(조계사 등)'에 대해 묻거나 '불교'의 다른 개념에 대해 묻는 것은 관련 있는 질문이야.
@@ -279,20 +266,22 @@ ${source}
 사용자의 마지막 질문이 이처럼 넓은 맥락에서 관련이 있다면 '관련있음'이라고만 답하고, 전혀 관련 없는 주제(예: 게임, 연예인)라면 '관련없음'이라고만 답해. 다른 설명은 절대 추가하지 마.`
         };
 
-        const isRelevantResponse = await fetchFullResponse([relevanceCheckPrompt, { role: 'user', content: userInput }]);
+        const isRelevantResponse = await fetchFullResponse([relevanceCheckPrompt, newMsg]);
 
-        // 3단계: 최종 판별 및 분기 처리
         if (isRelevantResponse.includes('관련없음')) {
             const irrelevantAnswer = {
                 role: 'assistant',
                 content: '미안하지만 그건 지금 우리가 이야기하는 사회 주제랑은 조금 다른 이야기 같아. 조사하고 있는 주제에 대해 더 궁금한 점을 물어봐 줄래?'
             };
+            // setMessages를 한 번 더 호출하는 대신, 기존 메시지 배열을 직접 수정하여 상태를 업데이트합니다.
             setMessages(prev => [...prev, irrelevantAnswer]);
             setIsLoading(false);
         } else {
+            // AI가 관련있다고 판단했으므로, 답변 생성을 요청합니다.
             const systemMsg = createSystemMessage(sourceText);
-            processStreamedResponse([systemMsg, ...messages, newMsg]);
+            await processStreamedResponse([systemMsg, ...messages, newMsg]);
         }
+        return; // 모든 처리가 끝났으므로 함수를 종료합니다.
     }
   };
 
