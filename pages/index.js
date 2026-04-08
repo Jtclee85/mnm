@@ -14,23 +14,71 @@ const extractTagBlock = (text, tag) => {
   return match ? match[1].trim() : '';
 };
 
-const extractMultiTagBlocks = (text, tag) => {
-  if (!text) return [];
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'gi');
-  const results = [];
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    results.push(match[1].trim());
-  }
-  return results;
-};
-
 const splitLines = (text) => {
   if (!text) return [];
   return text
-    .split(/\r?\n|•|·|-/g)
+    .split(/\r?\n|•|·/g)
     .map((line) => line.trim())
     .filter(Boolean);
+};
+
+const parseQuizBlock = (quizText) => {
+  if (!quizText) return null;
+
+  const lines = quizText
+    .split(/\r?\n/g)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  let question = '';
+  let answer = '';
+  let explanation = '';
+  let options = [];
+  let type = 'mcq';
+
+  let inOptions = false;
+
+  for (const line of lines) {
+    if (/^문제\s*:/i.test(line)) {
+      question = line.replace(/^문제\s*:/i, '').trim();
+      continue;
+    }
+    if (/^선택지\s*:/i.test(line)) {
+      inOptions = true;
+      continue;
+    }
+    if (/^정답\s*:/i.test(line)) {
+      inOptions = false;
+      answer = line.replace(/^정답\s*:/i, '').trim();
+      continue;
+    }
+    if (/^해설\s*:/i.test(line)) {
+      inOptions = false;
+      explanation = line.replace(/^해설\s*:/i, '').trim();
+      continue;
+    }
+
+    if (inOptions) {
+      const opt = line.replace(/^[0-9]+\.\s*/, '').trim();
+      if (opt) options.push(opt);
+    }
+  }
+
+  if (options.length === 2 && options.includes('O') && options.includes('X')) {
+    type = 'ox';
+  }
+
+  if (!question && lines.length > 0) {
+    question = lines[0];
+  }
+
+  return {
+    type,
+    question,
+    options,
+    answer,
+    explanation
+  };
 };
 
 const parseSectionedResponse = (rawText) => {
@@ -152,9 +200,26 @@ ${sourceText}
 
 특수 요청이 있을 때는 아래처럼 추가 태그를 사용하라.
 
-1. 사용자가 "퀴즈풀기"를 요청하면:
+1. 사용자가 "퀴즈풀기"를 요청하면 반드시 아래 형식으로만 출력하라.
 <quiz>
-객관식 또는 OX 퀴즈 1개와 정답 확인용 설명
+문제: 질문 내용
+선택지:
+1. 보기1
+2. 보기2
+3. 보기3
+4. 보기4
+정답: 2
+해설: 왜 2번이 정답인지 쉬운 말로 설명
+</quiz>
+
+OX 퀴즈로 만들 때는 아래 형식으로 출력하라.
+<quiz>
+문제: 질문 내용
+선택지:
+1. O
+2. X
+정답: 1
+해설: 왜 O가 정답인지 쉬운 말로 설명
 </quiz>
 
 2. 사용자가 "전체 요약"을 요청하면:
@@ -248,6 +313,109 @@ function ChatBubble({ role, content }) {
   );
 }
 
+function QuizCard({ quizData, onReset }) {
+  const [selected, setSelected] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
+
+  if (!quizData) {
+    return <p style={styles.emptyText}>퀴즈가 아직 없습니다.</p>;
+  }
+
+  const correctIndex = Math.max(0, Number(quizData.answer) - 1);
+  const isCorrect = selected === correctIndex;
+
+  return (
+    <div>
+      <div style={styles.quizQuestion}>{quizData.question || '문제가 없습니다.'}</div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+        {(quizData.options || []).map((option, idx) => {
+          const isSelected = selected === idx;
+          const isAnswer = submitted && idx === correctIndex;
+          const isWrongSelected = submitted && isSelected && idx !== correctIndex;
+
+          let background = '#ffffff';
+          let border = '#cbd5e1';
+          let color = '#1f2937';
+
+          if (!submitted && isSelected) {
+            background = '#eff6ff';
+            border = '#60a5fa';
+            color = '#1d4ed8';
+          }
+          if (isAnswer) {
+            background = '#ecfdf5';
+            border = '#22c55e';
+            color = '#166534';
+          }
+          if (isWrongSelected) {
+            background = '#fef2f2';
+            border = '#ef4444';
+            color = '#991b1b';
+          }
+
+          return (
+            <button
+              key={`${option}-${idx}`}
+              type="button"
+              disabled={submitted}
+              onClick={() => setSelected(idx)}
+              style={{
+                ...styles.quizOptionButton,
+                background,
+                borderColor: border,
+                color,
+                cursor: submitted ? 'default' : 'pointer'
+              }}
+            >
+              <span style={{ fontWeight: 800, marginRight: 8 }}>{idx + 1}.</span>
+              {option}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+        {!submitted ? (
+          <button
+            type="button"
+            style={styles.primaryButton}
+            disabled={selected === null}
+            onClick={() => setSubmitted(true)}
+          >
+            정답 확인
+          </button>
+        ) : (
+          <button type="button" style={styles.secondaryButton} onClick={onReset}>
+            새 퀴즈 만들기
+          </button>
+        )}
+      </div>
+
+      {submitted && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: 14,
+            borderRadius: 12,
+            background: isCorrect ? '#ecfdf5' : '#fef2f2',
+            border: `1px solid ${isCorrect ? '#22c55e' : '#ef4444'}`,
+            color: isCorrect ? '#166534' : '#991b1b'
+          }}
+        >
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>
+            {isCorrect ? '정답이야! 잘했어 👏' : '아쉽지만 다시 보자!'}
+          </div>
+          <div style={{ lineHeight: 1.7 }}>
+            정답은 <strong>{correctIndex + 1}번</strong>이야.
+            {quizData.explanation ? ` ${quizData.explanation}` : ''}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** =========================
  *  메인
  *  ========================= */
@@ -273,6 +441,8 @@ export default function Home() {
     evaluation: ''
   });
 
+  const [quizKey, setQuizKey] = useState(0);
+
   const [conversation, setConversation] = useState([
     {
       role: 'assistant',
@@ -284,13 +454,26 @@ export default function Home() {
   const chatBottomRef = useRef(null);
   const chatInputRef = useRef(null);
 
+  const scrollChatToBottom = (smooth = true) => {
+    requestAnimationFrame(() => {
+      chatBottomRef.current?.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'auto',
+        block: 'end'
+      });
+    });
+  };
+
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollChatToBottom(true);
   }, [conversation]);
 
   useEffect(() => {
-    if (!isChatLoading) {
-      chatInputRef.current?.focus();
+    if (!isChatLoading && chatInputRef.current) {
+      try {
+        chatInputRef.current.focus({ preventScroll: true });
+      } catch {
+        chatInputRef.current.focus();
+      }
     }
   }, [isChatLoading]);
 
@@ -380,6 +563,8 @@ export default function Home() {
               '좋아! 자료를 분석해서 아래에 정리했어. 궁금한 점이 있으면 아래 대화창에서 이어서 물어봐도 돼.'
           }
         ]);
+
+        scrollChatToBottom(true);
       },
       onError: () => {
         alert('자료 분석 중 오류가 발생했습니다.');
@@ -394,35 +579,40 @@ export default function Home() {
     if (!userText || isChatLoading) return;
 
     const userMessage = { role: 'user', content: userText };
+    const assistantPlaceholder = { role: 'assistant', content: '' };
     const systemMsg = buildBaseSystem();
 
-    setConversation((prev) => [...prev, userMessage, { role: 'assistant', content: '' }]);
+    const historyForRequest = [...conversation, userMessage];
+
     setChatInput('');
     setIsChatLoading(true);
 
-    let targetIndex = -1;
-    setConversation((prev) => {
-      const updated = [...prev, userMessage, { role: 'assistant', content: '' }];
-      targetIndex = updated.length - 1;
-      return updated;
-    });
+    // 핵심 수정 1: 한 번만 추가
+    setConversation((prev) => [...prev, userMessage, assistantPlaceholder]);
 
-    await requestStream([systemMsg, ...conversation, userMessage], {
+    scrollChatToBottom(false);
+
+    await requestStream([systemMsg, ...historyForRequest], {
       onChunk: (data) => {
         setConversation((prev) => {
           const updated = [...prev];
-          if (updated[targetIndex]) {
-            updated[targetIndex].content += data;
+          const lastIdx = updated.length - 1;
+          if (updated[lastIdx] && updated[lastIdx].role === 'assistant') {
+            updated[lastIdx].content += data;
           }
           return updated;
         });
+        scrollChatToBottom(false);
       },
-      onDone: () => {},
+      onDone: () => {
+        scrollChatToBottom(true);
+      },
       onError: () => {
         setConversation((prev) => {
           const updated = [...prev];
-          if (updated[targetIndex]) {
-            updated[targetIndex].content = '앗, 답변을 가져오는 중 문제가 생겼어요.';
+          const lastIdx = updated.length - 1;
+          if (updated[lastIdx] && updated[lastIdx].role === 'assistant') {
+            updated[lastIdx].content = '앗, 답변을 가져오는 중 문제가 생겼어요.';
           }
           return updated;
         });
@@ -452,6 +642,7 @@ export default function Home() {
           ...prev,
           quiz: parsed.quiz || '퀴즈를 만들지 못했어요.'
         }));
+        setQuizKey((prev) => prev + 1);
       },
       onError: () => {
         alert('퀴즈 생성 중 오류가 발생했습니다.');
@@ -575,6 +766,8 @@ export default function Home() {
     ].join('\n');
   };
 
+  const parsedQuiz = parseQuizBlock(analysisResult.quiz);
+
   return (
     <>
       <Head>
@@ -659,7 +852,7 @@ export default function Home() {
                     style={styles.textarea}
                     value={sourceText}
                     onChange={(e) => setSourceText(e.target.value)}
-                    placeholder="박물관 안내문, 전시 설명, 인터넷 조사자료를 여기에 붙여넣어 주세요."
+                    placeholder="박물관 안내문, 전시 설명문, 조사자료를 여기에 붙여넣어 주세요."
                   />
                 </div>
 
@@ -789,9 +982,11 @@ export default function Home() {
 
               {analysisResult.quiz ? (
                 <SectionCard title="퀴즈" icon="🎯">
-                  <div style={styles.markdownBody}>
-                    <ReactMarkdown>{analysisResult.quiz}</ReactMarkdown>
-                  </div>
+                  <QuizCard
+                    key={quizKey}
+                    quizData={parsedQuiz}
+                    onReset={handleQuiz}
+                  />
                 </SectionCard>
               ) : null}
 
@@ -1121,5 +1316,20 @@ const styles = {
     paddingLeft: 20,
     color: '#374151',
     lineHeight: 1.9
+  },
+  quizQuestion: {
+    fontSize: 17,
+    fontWeight: 800,
+    color: '#111827',
+    lineHeight: 1.7
+  },
+  quizOptionButton: {
+    width: '100%',
+    textAlign: 'left',
+    border: '1px solid #cbd5e1',
+    borderRadius: 12,
+    padding: '12px 14px',
+    fontSize: 15,
+    transition: 'all 0.2s ease'
   }
 };
