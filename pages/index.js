@@ -35,7 +35,6 @@ const parseQuizBlock = (quizText) => {
   let explanation = '';
   let options = [];
   let type = 'mcq';
-
   let inOptions = false;
 
   for (const line of lines) {
@@ -57,7 +56,6 @@ const parseQuizBlock = (quizText) => {
       explanation = line.replace(/^해설\s*:/i, '').trim();
       continue;
     }
-
     if (inOptions) {
       const opt = line.replace(/^[0-9]+\.\s*/, '').trim();
       if (opt) options.push(opt);
@@ -88,6 +86,12 @@ const parseSectionedResponse = (rawText) => {
   const vocabulary = extractTagBlock(rawText, 'vocabulary');
   const questions = extractTagBlock(rawText, 'questions');
   const searches = extractTagBlock(rawText, 'searches');
+  const reteach = extractTagBlock(rawText, 'reteach');
+  const further = extractTagBlock(rawText, 'further');
+  const presentationTitle = extractTagBlock(rawText, 'presentation_title');
+  const presentationScript = extractTagBlock(rawText, 'presentation_script');
+  const presentationOrder = extractTagBlock(rawText, 'presentation_order');
+  const expectedQuestions = extractTagBlock(rawText, 'expected_questions');
   const teacher = extractTagBlock(rawText, 'teacher');
   const quiz = extractTagBlock(rawText, 'quiz');
   const evaluation = extractTagBlock(rawText, 'evaluation');
@@ -99,6 +103,12 @@ const parseSectionedResponse = (rawText) => {
     vocabularyLines: splitLines(vocabulary),
     questionLines: splitLines(questions),
     searchLines: splitLines(searches),
+    reteachLines: splitLines(reteach),
+    furtherLines: splitLines(further),
+    presentationTitle,
+    presentationScriptLines: splitLines(presentationScript),
+    presentationOrderLines: splitLines(presentationOrder),
+    expectedQuestionLines: splitLines(expectedQuestions),
     teacher,
     quiz,
     evaluation
@@ -161,12 +171,23 @@ ${sourceText}
 5. 사실과 다른 내용을 지어내지 마라.
 6. 결과는 반드시 아래 태그 형식으로 출력하라. 태그 바깥에는 아무 말도 쓰지 마라.
 
-[학습 모드별 강조]
-- 이해 모드: 쉬운 설명, 핵심 개념, 어려운 낱말 풀이를 가장 충실하게 작성
-- 탐구 모드: 탐구 질문과 추천 검색어를 더 풍부하게 작성
-- 발표 준비 모드: 발표하기 좋은 문장, 핵심 요약, 발표에 쓸 표현을 더 분명하게 작성
+[이해 모드 출력 강조]
+- 쉬운 설명을 가장 자세히 작성
+- 어려운 낱말 풀이를 충실히 작성
+- 학생이 자기 말로 다시 말해볼 수 있게 핵심을 단순화
 
-[출력 형식]
+[탐구 모드 출력 강조]
+- 핵심 개념을 구조적으로 제시
+- 탐구 질문을 더 좋게 만들기
+- 추천 검색어와 더 조사할 거리 제시
+
+[발표 준비 모드 출력 강조]
+- 발표 제목 제안
+- 발표용 3문장 요약
+- 발표 순서
+- 예상 질문과 답변 거리 제시
+
+[기본 출력 형식]
 <easy>
 원본 자료를 쉬운 말로 4~8문장 정도로 설명
 </easy>
@@ -197,6 +218,36 @@ ${sourceText}
 기본 검색어, 심화 검색어, 비교 검색어가 섞이도록 작성
 한 줄에 1개씩
 </searches>
+
+<reteach>
+학생이 자기 말로 다시 말해볼 수 있도록 짧은 문장 2~3개
+한 줄에 1개씩
+</reteach>
+
+<further>
+이 주제와 이어서 조사하면 좋은 거리 2~4개
+한 줄에 1개씩
+</further>
+
+<presentation_title>
+발표 제목 1개
+</presentation_title>
+
+<presentation_script>
+발표용 3문장
+한 줄에 1개씩
+</presentation_script>
+
+<presentation_order>
+발표 순서 3단계
+예: 처음 - 가운데 - 마무리
+한 줄에 1개씩
+</presentation_order>
+
+<expected_questions>
+친구들이 물어볼 만한 예상 질문 2~3개
+한 줄에 1개씩
+</expected_questions>
 
 특수 요청이 있을 때는 아래처럼 추가 태그를 사용하라.
 
@@ -416,6 +467,32 @@ function QuizCard({ quizData, onReset }) {
   );
 }
 
+function ModeBadge({ learningMode }) {
+  const config = {
+    understand: { label: '이해 모드', color: '#1d4ed8', bg: '#dbeafe' },
+    inquiry: { label: '탐구 모드', color: '#047857', bg: '#d1fae5' },
+    presentation: { label: '발표 준비 모드', color: '#7c3aed', bg: '#ede9fe' }
+  };
+
+  const item = config[learningMode] || config.understand;
+
+  return (
+    <div
+      style={{
+        display: 'inline-block',
+        padding: '8px 14px',
+        borderRadius: 999,
+        fontSize: 14,
+        fontWeight: 800,
+        color: item.color,
+        background: item.bg
+      }}
+    >
+      현재 결과 화면: {item.label}
+    </div>
+  );
+}
+
 /** =========================
  *  메인
  *  ========================= */
@@ -436,6 +513,12 @@ export default function Home() {
     vocabularyLines: [],
     questionLines: [],
     searchLines: [],
+    reteachLines: [],
+    furtherLines: [],
+    presentationTitle: '',
+    presentationScriptLines: [],
+    presentationOrderLines: [],
+    expectedQuestionLines: [],
     teacher: '',
     quiz: '',
     evaluation: ''
@@ -450,6 +533,7 @@ export default function Home() {
         '안녕? 나는 조사자료를 쉽게 바꿔 주는 사회과 학습 도우미 [뭐냐면]이야. 먼저 조사 주제와 자료를 넣고, "자료 분석 시작" 버튼을 눌러 줘!'
     }
   ]);
+
   const [chatInput, setChatInput] = useState('');
   const chatBottomRef = useRef(null);
   const chatInputRef = useRef(null);
@@ -543,7 +627,7 @@ export default function Home() {
     const systemMsg = buildBaseSystem();
     const userMsg = {
       role: 'user',
-      content: '원본 자료를 분석해서 쉬운 설명, 핵심 개념, 어려운 낱말, 탐구 질문, 추천 검색어를 만들어 줘.'
+      content: '원본 자료를 분석해서 모드에 맞는 학습 결과를 만들어 줘.'
     };
 
     await requestStream([systemMsg, userMsg], {
@@ -560,7 +644,7 @@ export default function Home() {
           {
             role: 'assistant',
             content:
-              '좋아! 자료를 분석해서 아래에 정리했어. 궁금한 점이 있으면 아래 대화창에서 이어서 물어봐도 돼.'
+              '좋아! 지금 선택한 모드에 맞게 결과를 정리했어. 아래 카드들을 보면서 공부해 보자.'
           }
         ]);
 
@@ -581,15 +665,11 @@ export default function Home() {
     const userMessage = { role: 'user', content: userText };
     const assistantPlaceholder = { role: 'assistant', content: '' };
     const systemMsg = buildBaseSystem();
-
     const historyForRequest = [...conversation, userMessage];
 
     setChatInput('');
     setIsChatLoading(true);
-
-    // 핵심 수정 1: 한 번만 추가
     setConversation((prev) => [...prev, userMessage, assistantPlaceholder]);
-
     scrollChatToBottom(false);
 
     await requestStream([systemMsg, ...historyForRequest], {
@@ -671,9 +751,7 @@ export default function Home() {
         setAnalysisResult((prev) => ({
           ...prev,
           summaryLines:
-            parsed.summaryLines.length > 0
-              ? parsed.summaryLines
-              : prev.summaryLines
+            parsed.summaryLines.length > 0 ? parsed.summaryLines : prev.summaryLines
         }));
       },
       onError: () => {
@@ -745,6 +823,7 @@ export default function Home() {
   const buildExportText = () => {
     return [
       `조사 주제: ${topic}`,
+      `모드: ${modeMap[learningMode]}`,
       '',
       '[쉬운 설명]',
       analysisResult.easy || '',
@@ -762,11 +841,131 @@ export default function Home() {
       ...(analysisResult.questionLines || []),
       '',
       '[추천 검색어]',
-      ...(analysisResult.searchLines || [])
+      ...(analysisResult.searchLines || []),
+      '',
+      '[발표 제목]',
+      analysisResult.presentationTitle || '',
+      '',
+      '[발표용 3문장]',
+      ...(analysisResult.presentationScriptLines || [])
     ].join('\n');
   };
 
   const parsedQuiz = parseQuizBlock(analysisResult.quiz);
+
+  const renderModeResultCards = () => {
+    if (learningMode === 'understand') {
+      return (
+        <>
+          <SectionCard
+            title="쉬운 설명"
+            icon="🧒"
+            actions={
+              analysisResult.easy ? (
+                <button
+                  style={styles.smallButton}
+                  onClick={async () => {
+                    try {
+                      await copyText(analysisResult.easy);
+                      alert('쉬운 설명을 복사했어요.');
+                    } catch {
+                      alert('복사에 실패했어요.');
+                    }
+                  }}
+                >
+                  복사
+                </button>
+              ) : null
+            }
+          >
+            {analysisResult.easy ? (
+              <div style={styles.markdownBody}>
+                <ReactMarkdown>{analysisResult.easy}</ReactMarkdown>
+              </div>
+            ) : (
+              <p style={styles.emptyText}>자료를 분석하면 여기에 쉬운 설명이 나타납니다.</p>
+            )}
+          </SectionCard>
+
+          <SectionCard title="어려운 낱말 풀이" icon="📚">
+            <BulletList items={analysisResult.vocabularyLines} />
+          </SectionCard>
+
+          <SectionCard title="핵심 내용 3줄" icon="📝">
+            <BulletList items={analysisResult.summaryLines} />
+          </SectionCard>
+
+          <SectionCard title="내가 다시 말해보기" icon="🗣️">
+            <BulletList items={analysisResult.reteachLines} />
+          </SectionCard>
+        </>
+      );
+    }
+
+    if (learningMode === 'inquiry') {
+      return (
+        <>
+          <SectionCard title="핵심 개념" icon="🧠">
+            <BulletList items={analysisResult.keywordLines} />
+          </SectionCard>
+
+          <SectionCard title="탐구 질문" icon="❓">
+            <BulletList items={analysisResult.questionLines} />
+            {analysisResult.questionLines?.length > 0 && (
+              <div style={styles.buttonWrap}>
+                {analysisResult.questionLines.map((q, idx) => (
+                  <button
+                    key={`${q}-${idx}`}
+                    style={styles.questionButton}
+                    onClick={() => handleFollowUpChat(q)}
+                    disabled={isChatLoading}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard title="추천 검색어" icon="🔎">
+            <BulletList items={analysisResult.searchLines} />
+          </SectionCard>
+
+          <SectionCard title="더 조사할 거리" icon="🧭">
+            <BulletList items={analysisResult.furtherLines} />
+          </SectionCard>
+        </>
+      );
+    }
+
+    if (learningMode === 'presentation') {
+      return (
+        <>
+          <SectionCard title="발표 제목" icon="🏷️">
+            {analysisResult.presentationTitle ? (
+              <div style={styles.bigTitleBox}>{analysisResult.presentationTitle}</div>
+            ) : (
+              <p style={styles.emptyText}>자료를 분석하면 여기에 발표 제목이 나타납니다.</p>
+            )}
+          </SectionCard>
+
+          <SectionCard title="발표용 3문장" icon="🎤">
+            <BulletList items={analysisResult.presentationScriptLines} />
+          </SectionCard>
+
+          <SectionCard title="발표 순서" icon="📍">
+            <BulletList items={analysisResult.presentationOrderLines} />
+          </SectionCard>
+
+          <SectionCard title="예상 질문" icon="🙋">
+            <BulletList items={analysisResult.expectedQuestionLines} />
+          </SectionCard>
+        </>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <>
@@ -776,19 +975,6 @@ export default function Home() {
           name="description"
           content="전시물, 안내문, 조사자료를 초등학생 눈높이에 맞게 쉽게 바꾸고 탐구를 확장하는 AI 웹앱"
         />
-        <meta
-          property="og:title"
-          content="뭐냐면 - 조사자료 난이도 조절 웹앱"
-        />
-        <meta
-          property="og:description"
-          content="사회과 조사학습과 박물관 학습을 위한 쉬운 설명, 핵심 개념, 탐구 질문, 추천 검색어 생성"
-        />
-        <meta
-          property="og:image"
-          content="https://mnm-kappa.vercel.app/preview.png"
-        />
-        <meta property="og:url" content="https://mnm-kappa.vercel.app" />
       </Head>
 
       <div style={styles.page}>
@@ -803,6 +989,10 @@ export default function Home() {
               <br />
               학생이 이해할 수 있는 말로 다시 바꿔 주는 웹앱
             </p>
+          </div>
+
+          <div style={{ textAlign: 'center', marginBottom: 18 }}>
+            <ModeBadge learningMode={learningMode} />
           </div>
 
           <div style={styles.grid}>
@@ -871,7 +1061,7 @@ export default function Home() {
                       try {
                         await copyText(buildExportText());
                         alert('결과를 복사했어요.');
-                      } catch (e) {
+                      } catch {
                         alert('복사에 실패했어요.');
                       }
                     }}
@@ -881,71 +1071,7 @@ export default function Home() {
                 </div>
               </SectionCard>
 
-              <SectionCard
-                title="쉬운 설명"
-                icon="🧒"
-                actions={
-                  analysisResult.easy ? (
-                    <button
-                      style={styles.smallButton}
-                      onClick={async () => {
-                        try {
-                          await copyText(analysisResult.easy);
-                          alert('쉬운 설명을 복사했어요.');
-                        } catch (e) {
-                          alert('복사에 실패했어요.');
-                        }
-                      }}
-                    >
-                      복사
-                    </button>
-                  ) : null
-                }
-              >
-                {analysisResult.easy ? (
-                  <div style={styles.markdownBody}>
-                    <ReactMarkdown>{analysisResult.easy}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <p style={styles.emptyText}>
-                    자료를 분석하면 여기에 쉬운 설명이 나타납니다.
-                  </p>
-                )}
-              </SectionCard>
-
-              <SectionCard title="핵심 내용 3줄" icon="📝">
-                <BulletList items={analysisResult.summaryLines} />
-              </SectionCard>
-
-              <SectionCard title="핵심 개념" icon="🧠">
-                <BulletList items={analysisResult.keywordLines} />
-              </SectionCard>
-
-              <SectionCard title="어려운 낱말 풀이" icon="📚">
-                <BulletList items={analysisResult.vocabularyLines} />
-              </SectionCard>
-
-              <SectionCard title="탐구 질문" icon="❓">
-                <BulletList items={analysisResult.questionLines} />
-                {analysisResult.questionLines?.length > 0 && (
-                  <div style={styles.buttonWrap}>
-                    {analysisResult.questionLines.map((q, idx) => (
-                      <button
-                        key={`${q}-${idx}`}
-                        style={styles.questionButton}
-                        onClick={() => handleFollowUpChat(q)}
-                        disabled={isChatLoading}
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </SectionCard>
-
-              <SectionCard title="추천 검색어" icon="🔎">
-                <BulletList items={analysisResult.searchLines} />
-              </SectionCard>
+              {renderModeResultCards()}
 
               <SectionCard title="학습 확장 도구" icon="🚀">
                 <div style={styles.toolGrid}>
@@ -1009,7 +1135,7 @@ export default function Home() {
                         try {
                           await copyText(analysisResult.teacher);
                           alert('교과평어를 복사했어요.');
-                        } catch (e) {
+                        } catch {
                           alert('복사에 실패했어요.');
                         }
                       }}
@@ -1063,14 +1189,28 @@ export default function Home() {
                 </div>
               </SectionCard>
 
-              <SectionCard title="활용 안내" icon="📌">
-                <ul style={styles.guideList}>
-                  <li>박물관 안내판, 전시 설명문, 조사자료를 붙여넣어 보세요.</li>
-                  <li>먼저 쉬운 설명을 읽고, 핵심 개념과 낱말 풀이를 확인하세요.</li>
-                  <li>탐구 질문 버튼을 눌러 후속 질문을 이어갈 수 있어요.</li>
-                  <li>추천 검색어를 이용해 조사 범위를 넓혀 보세요.</li>
-                  <li>교과평어 만들기 기능은 교사 참고용으로 활용할 수 있어요.</li>
-                </ul>
+              <SectionCard title="모드별 안내" icon="📌">
+                {learningMode === 'understand' && (
+                  <ul style={styles.guideList}>
+                    <li>어려운 설명을 먼저 쉽게 이해할 때 쓰는 모드예요.</li>
+                    <li>쉬운 설명, 낱말 풀이, 핵심 내용 중심으로 정리해 줘요.</li>
+                    <li>처음 자료를 읽을 때 가장 먼저 사용하면 좋아요.</li>
+                  </ul>
+                )}
+                {learningMode === 'inquiry' && (
+                  <ul style={styles.guideList}>
+                    <li>이해한 내용을 바탕으로 더 조사할 때 쓰는 모드예요.</li>
+                    <li>질문, 검색어, 더 조사할 거리 중심으로 보여줘요.</li>
+                    <li>탐구 주제 확장에 가장 잘 맞아요.</li>
+                  </ul>
+                )}
+                {learningMode === 'presentation' && (
+                  <ul style={styles.guideList}>
+                    <li>조사한 내용을 친구들 앞에서 발표할 때 쓰는 모드예요.</li>
+                    <li>발표 제목, 발표용 3문장, 발표 순서를 중심으로 정리해 줘요.</li>
+                    <li>발표문 초안 만들기에 좋아요.</li>
+                  </ul>
+                )}
               </SectionCard>
             </div>
           </div>
@@ -1331,5 +1471,15 @@ const styles = {
     padding: '12px 14px',
     fontSize: 15,
     transition: 'all 0.2s ease'
+  },
+  bigTitleBox: {
+    fontSize: 20,
+    fontWeight: 900,
+    color: '#5b21b6',
+    background: '#f5f3ff',
+    border: '1px solid #ddd6fe',
+    borderRadius: 14,
+    padding: '16px 18px',
+    lineHeight: 1.6
   }
 };
