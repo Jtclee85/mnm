@@ -294,30 +294,32 @@ OX 퀴즈로 만들 때는 아래 형식으로 출력하라.
  *  컴포넌트
  *  ========================= */
 
-function SectionCard({ title, icon, children, actions }) {
+function SectionCard({ title, icon, children, actions, isMobile }) {
   return (
-    <div style={styles.sectionCard}>
-      <div style={styles.sectionHeader}>
-        <div style={styles.sectionTitle}>
+    <div style={{ ...styles.sectionCard, ...(isMobile ? styles.sectionCardMobile : {}) }}>
+      <div style={{ ...styles.sectionHeader, ...(isMobile ? styles.sectionHeaderMobile : {}) }}>
+        <div style={{ ...styles.sectionTitle, ...(isMobile ? styles.sectionTitleMobile : {}) }}>
           <span style={{ marginRight: 8 }}>{icon}</span>
           {title}
         </div>
         {actions ? <div>{actions}</div> : null}
       </div>
-      <div style={styles.sectionBody}>{children}</div>
+      <div style={{ ...styles.sectionBody, ...(isMobile ? styles.sectionBodyMobile : {}) }}>
+        {children}
+      </div>
     </div>
   );
 }
 
-function BulletList({ items }) {
+function BulletList({ items, isMobile }) {
   if (!items || items.length === 0) {
-    return <p style={styles.emptyText}>아직 생성된 내용이 없습니다.</p>;
+    return <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>아직 생성된 내용이 없습니다.</p>;
   }
 
   return (
-    <ul style={styles.bulletList}>
+    <ul style={{ ...styles.bulletList, ...(isMobile ? styles.bulletListMobile : {}) }}>
       {items.map((item, idx) => (
-        <li key={`${item}-${idx}`} style={styles.bulletItem}>
+        <li key={`${item}-${idx}`} style={{ ...styles.bulletItem, ...(isMobile ? styles.bulletItemMobile : {}) }}>
           {item}
         </li>
       ))}
@@ -325,26 +327,27 @@ function BulletList({ items }) {
   );
 }
 
-function ChatBubble({ role, content }) {
+function ChatBubble({ role, content, isMobile }) {
   const isUser = role === 'user';
   return (
     <div
       style={{
         display: 'flex',
         justifyContent: isUser ? 'flex-end' : 'flex-start',
-        marginBottom: 10
+        marginBottom: isMobile ? 8 : 10
       }}
     >
       <div
         style={{
-          maxWidth: '85%',
+          maxWidth: isMobile ? '92%' : '85%',
           background: isUser ? '#2563eb' : '#ffffff',
           color: isUser ? '#ffffff' : '#1f2937',
           border: `1px solid ${isUser ? '#2563eb' : '#d1d5db'}`,
           borderRadius: 16,
-          padding: '12px 14px',
+          padding: isMobile ? '10px 12px' : '12px 14px',
           whiteSpace: 'pre-wrap',
           lineHeight: 1.6,
+          fontSize: isMobile ? 14 : 15,
           boxShadow: isUser
             ? '0 6px 18px rgba(37,99,235,0.16)'
             : '0 6px 18px rgba(0,0,0,0.06)'
@@ -364,12 +367,12 @@ function ChatBubble({ role, content }) {
   );
 }
 
-function QuizCard({ quizData, onReset }) {
+function QuizCard({ quizData, onReset, isMobile }) {
   const [selected, setSelected] = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
   if (!quizData) {
-    return <p style={styles.emptyText}>퀴즈가 아직 없습니다.</p>;
+    return <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>퀴즈가 아직 없습니다.</p>;
   }
 
   const correctIndex = Math.max(0, Number(quizData.answer) - 1);
@@ -377,7 +380,9 @@ function QuizCard({ quizData, onReset }) {
 
   return (
     <div>
-      <div style={styles.quizQuestion}>{quizData.question || '문제가 없습니다.'}</div>
+      <div style={{ ...styles.quizQuestion, ...(isMobile ? styles.quizQuestionMobile : {}) }}>
+        {quizData.question || '문제가 없습니다.'}
+      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
         {(quizData.options || []).map((option, idx) => {
@@ -413,6 +418,7 @@ function QuizCard({ quizData, onReset }) {
               onClick={() => setSelected(idx)}
               style={{
                 ...styles.quizOptionButton,
+                ...(isMobile ? styles.quizOptionButtonMobile : {}),
                 background,
                 borderColor: border,
                 color,
@@ -430,14 +436,18 @@ function QuizCard({ quizData, onReset }) {
         {!submitted ? (
           <button
             type="button"
-            style={styles.primaryButton}
+            style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
             disabled={selected === null}
             onClick={() => setSubmitted(true)}
           >
             정답 확인
           </button>
         ) : (
-          <button type="button" style={styles.secondaryButton} onClick={onReset}>
+          <button
+            type="button"
+            style={{ ...styles.secondaryButton, ...(isMobile ? styles.secondaryButtonMobile : {}) }}
+            onClick={onReset}
+          >
             새 퀴즈 만들기
           </button>
         )}
@@ -447,11 +457,12 @@ function QuizCard({ quizData, onReset }) {
         <div
           style={{
             marginTop: 16,
-            padding: 14,
+            padding: isMobile ? 12 : 14,
             borderRadius: 12,
             background: isCorrect ? '#ecfdf5' : '#fef2f2',
             border: `1px solid ${isCorrect ? '#22c55e' : '#ef4444'}`,
-            color: isCorrect ? '#166534' : '#991b1b'
+            color: isCorrect ? '#166534' : '#991b1b',
+            fontSize: isMobile ? 14 : 15
           }}
         >
           <div style={{ fontWeight: 800, marginBottom: 6 }}>
@@ -505,6 +516,7 @@ export default function Home() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const [analysisResult, setAnalysisResult] = useState({
     easy: '',
@@ -537,6 +549,16 @@ export default function Home() {
   const [chatInput, setChatInput] = useState('');
   const chatBottomRef = useRef(null);
   const chatInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 900);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const scrollChatToBottom = (smooth = true) => {
     requestAnimationFrame(() => {
@@ -860,10 +882,11 @@ export default function Home() {
           <SectionCard
             title="쉬운 설명"
             icon="🧒"
+            isMobile={isMobile}
             actions={
               analysisResult.easy ? (
                 <button
-                  style={styles.smallButton}
+                  style={{ ...styles.smallButton, ...(isMobile ? styles.smallButtonMobile : {}) }}
                   onClick={async () => {
                     try {
                       await copyText(analysisResult.easy);
@@ -879,24 +902,26 @@ export default function Home() {
             }
           >
             {analysisResult.easy ? (
-              <div style={styles.markdownBody}>
+              <div style={{ ...styles.markdownBody, ...(isMobile ? styles.markdownBodyMobile : {}) }}>
                 <ReactMarkdown>{analysisResult.easy}</ReactMarkdown>
               </div>
             ) : (
-              <p style={styles.emptyText}>자료를 분석하면 여기에 쉬운 설명이 나타납니다.</p>
+              <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>
+                자료를 분석하면 여기에 쉬운 설명이 나타납니다.
+              </p>
             )}
           </SectionCard>
 
-          <SectionCard title="어려운 낱말 풀이" icon="📚">
-            <BulletList items={analysisResult.vocabularyLines} />
+          <SectionCard title="어려운 낱말 풀이" icon="📚" isMobile={isMobile}>
+            <BulletList items={analysisResult.vocabularyLines} isMobile={isMobile} />
           </SectionCard>
 
-          <SectionCard title="핵심 내용 3줄" icon="📝">
-            <BulletList items={analysisResult.summaryLines} />
+          <SectionCard title="핵심 내용 3줄" icon="📝" isMobile={isMobile}>
+            <BulletList items={analysisResult.summaryLines} isMobile={isMobile} />
           </SectionCard>
 
-          <SectionCard title="내가 다시 말해보기" icon="🗣️">
-            <BulletList items={analysisResult.reteachLines} />
+          <SectionCard title="내가 다시 말해보기" icon="🗣️" isMobile={isMobile}>
+            <BulletList items={analysisResult.reteachLines} isMobile={isMobile} />
           </SectionCard>
         </>
       );
@@ -905,18 +930,18 @@ export default function Home() {
     if (learningMode === 'inquiry') {
       return (
         <>
-          <SectionCard title="핵심 개념" icon="🧠">
-            <BulletList items={analysisResult.keywordLines} />
+          <SectionCard title="핵심 개념" icon="🧠" isMobile={isMobile}>
+            <BulletList items={analysisResult.keywordLines} isMobile={isMobile} />
           </SectionCard>
 
-          <SectionCard title="탐구 질문" icon="❓">
-            <BulletList items={analysisResult.questionLines} />
+          <SectionCard title="탐구 질문" icon="❓" isMobile={isMobile}>
+            <BulletList items={analysisResult.questionLines} isMobile={isMobile} />
             {analysisResult.questionLines?.length > 0 && (
-              <div style={styles.buttonWrap}>
+              <div style={{ ...styles.buttonWrap, ...(isMobile ? styles.buttonWrapMobile : {}) }}>
                 {analysisResult.questionLines.map((q, idx) => (
                   <button
                     key={`${q}-${idx}`}
-                    style={styles.questionButton}
+                    style={{ ...styles.questionButton, ...(isMobile ? styles.questionButtonMobile : {}) }}
                     onClick={() => handleFollowUpChat(q)}
                     disabled={isChatLoading}
                   >
@@ -927,12 +952,12 @@ export default function Home() {
             )}
           </SectionCard>
 
-          <SectionCard title="추천 검색어" icon="🔎">
-            <BulletList items={analysisResult.searchLines} />
+          <SectionCard title="추천 검색어" icon="🔎" isMobile={isMobile}>
+            <BulletList items={analysisResult.searchLines} isMobile={isMobile} />
           </SectionCard>
 
-          <SectionCard title="더 조사할 거리" icon="🧭">
-            <BulletList items={analysisResult.furtherLines} />
+          <SectionCard title="더 조사할 거리" icon="🧭" isMobile={isMobile}>
+            <BulletList items={analysisResult.furtherLines} isMobile={isMobile} />
           </SectionCard>
         </>
       );
@@ -941,24 +966,28 @@ export default function Home() {
     if (learningMode === 'presentation') {
       return (
         <>
-          <SectionCard title="발표 제목" icon="🏷️">
+          <SectionCard title="발표 제목" icon="🏷️" isMobile={isMobile}>
             {analysisResult.presentationTitle ? (
-              <div style={styles.bigTitleBox}>{analysisResult.presentationTitle}</div>
+              <div style={{ ...styles.bigTitleBox, ...(isMobile ? styles.bigTitleBoxMobile : {}) }}>
+                {analysisResult.presentationTitle}
+              </div>
             ) : (
-              <p style={styles.emptyText}>자료를 분석하면 여기에 발표 제목이 나타납니다.</p>
+              <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>
+                자료를 분석하면 여기에 발표 제목이 나타납니다.
+              </p>
             )}
           </SectionCard>
 
-          <SectionCard title="발표용 3문장" icon="🎤">
-            <BulletList items={analysisResult.presentationScriptLines} />
+          <SectionCard title="발표용 3문장" icon="🎤" isMobile={isMobile}>
+            <BulletList items={analysisResult.presentationScriptLines} isMobile={isMobile} />
           </SectionCard>
 
-          <SectionCard title="발표 순서" icon="📍">
-            <BulletList items={analysisResult.presentationOrderLines} />
+          <SectionCard title="발표 순서" icon="📍" isMobile={isMobile}>
+            <BulletList items={analysisResult.presentationOrderLines} isMobile={isMobile} />
           </SectionCard>
 
-          <SectionCard title="예상 질문" icon="🙋">
-            <BulletList items={analysisResult.expectedQuestionLines} />
+          <SectionCard title="예상 질문" icon="🙋" isMobile={isMobile}>
+            <BulletList items={analysisResult.expectedQuestionLines} isMobile={isMobile} />
           </SectionCard>
         </>
       );
@@ -975,44 +1004,63 @@ export default function Home() {
           name="description"
           content="전시물, 안내문, 조사자료를 초등학생 눈높이에 맞게 쉽게 바꾸고 탐구를 확장하는 AI 웹앱"
         />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </Head>
 
-      <div style={styles.page}>
+      <div style={{ ...styles.page, ...(isMobile ? styles.pageMobile : {}) }}>
         <div style={styles.container}>
           <Banner />
 
-          <div style={styles.hero}>
-            <div style={styles.heroBadge}>사회과 조사학습 AI 코스웨어</div>
-            <h1 style={styles.heroTitle}>뭐냐면</h1>
-            <p style={styles.heroSubtitle}>
+          <div style={{ ...styles.hero, ...(isMobile ? styles.heroMobile : {}) }}>
+            <div style={{ ...styles.heroBadge, ...(isMobile ? styles.heroBadgeMobile : {}) }}>
+              사회과 조사학습 AI 코스웨어
+            </div>
+            <h1 style={{ ...styles.heroTitle, ...(isMobile ? styles.heroTitleMobile : {}) }}>
+              뭐냐면
+            </h1>
+            <p style={{ ...styles.heroSubtitle, ...(isMobile ? styles.heroSubtitleMobile : {}) }}>
               어려운 전시 설명, 안내문, 조사자료를
               <br />
               학생이 이해할 수 있는 말로 다시 바꿔 주는 웹앱
             </p>
           </div>
 
-          <div style={{ textAlign: 'center', marginBottom: 18 }}>
+          <div style={{ textAlign: 'center', marginBottom: isMobile ? 14 : 18 }}>
             <ModeBadge learningMode={learningMode} />
           </div>
 
-          <div style={styles.grid}>
-            <div style={styles.leftColumn}>
-              <SectionCard title="기본 설정" icon="🛠️">
+          <div
+            style={{
+              ...styles.grid,
+              ...(isMobile ? styles.gridMobile : {})
+            }}
+          >
+            <div style={{ ...styles.leftColumn, ...(isMobile ? styles.leftColumnMobile : {}) }}>
+              <SectionCard title="기본 설정" icon="🛠️" isMobile={isMobile}>
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>조사 주제</label>
+                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>
+                    조사 주제
+                  </label>
                   <input
-                    style={styles.input}
+                    style={{ ...styles.input, ...(isMobile ? styles.inputMobile : {}) }}
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
                     placeholder="예: 세종대왕, 불국사, 독도, 신석기 시대"
                   />
                 </div>
 
-                <div style={styles.formRow}>
+                <div
+                  style={{
+                    ...styles.formRow,
+                    ...(isMobile ? styles.formRowMobile : {})
+                  }}
+                >
                   <div style={styles.formGroup}>
-                    <label style={styles.label}>학습 수준</label>
+                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>
+                      학습 수준
+                    </label>
                     <select
-                      style={styles.select}
+                      style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
                       value={gradeLevel}
                       onChange={(e) => setGradeLevel(e.target.value)}
                     >
@@ -1023,9 +1071,11 @@ export default function Home() {
                   </div>
 
                   <div style={styles.formGroup}>
-                    <label style={styles.label}>학습 모드</label>
+                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>
+                      학습 모드
+                    </label>
                     <select
-                      style={styles.select}
+                      style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
                       value={learningMode}
                       onChange={(e) => setLearningMode(e.target.value)}
                     >
@@ -1037,18 +1087,25 @@ export default function Home() {
                 </div>
 
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>조사자료 입력</label>
+                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>
+                    조사자료 입력
+                  </label>
                   <textarea
-                    style={styles.textarea}
+                    style={{ ...styles.textarea, ...(isMobile ? styles.textareaMobile : {}) }}
                     value={sourceText}
                     onChange={(e) => setSourceText(e.target.value)}
                     placeholder="박물관 안내문, 전시 설명문, 조사자료를 여기에 붙여넣어 주세요."
                   />
                 </div>
 
-                <div style={styles.primaryButtonRow}>
+                <div
+                  style={{
+                    ...styles.primaryButtonRow,
+                    ...(isMobile ? styles.primaryButtonRowMobile : {})
+                  }}
+                >
                   <button
-                    style={styles.primaryButton}
+                    style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
                     onClick={handleAnalyze}
                     disabled={isAnalyzing}
                   >
@@ -1056,7 +1113,7 @@ export default function Home() {
                   </button>
 
                   <button
-                    style={styles.secondaryButton}
+                    style={{ ...styles.secondaryButton, ...(isMobile ? styles.secondaryButtonMobile : {}) }}
                     onClick={async () => {
                       try {
                         await copyText(buildExportText());
@@ -1073,31 +1130,36 @@ export default function Home() {
 
               {renderModeResultCards()}
 
-              <SectionCard title="학습 확장 도구" icon="🚀">
-                <div style={styles.toolGrid}>
+              <SectionCard title="학습 확장 도구" icon="🚀" isMobile={isMobile}>
+                <div
+                  style={{
+                    ...styles.toolGrid,
+                    ...(isMobile ? styles.toolGridMobile : {})
+                  }}
+                >
                   <button
-                    style={styles.toolButton}
+                    style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }}
                     onClick={handleQuiz}
                     disabled={isAnalyzing}
                   >
                     💡 퀴즈 만들기
                   </button>
                   <button
-                    style={styles.toolButton}
+                    style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }}
                     onClick={handleFullSummary}
                     disabled={isAnalyzing}
                   >
                     📜 전체 요약
                   </button>
                   <button
-                    style={styles.toolButton}
+                    style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }}
                     onClick={handleEvaluation}
                     disabled={isAnalyzing}
                   >
                     💯 나 어땠어?
                   </button>
                   <button
-                    style={styles.toolButton}
+                    style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }}
                     onClick={handleTeacherComment}
                     disabled={isAnalyzing}
                   >
@@ -1107,18 +1169,19 @@ export default function Home() {
               </SectionCard>
 
               {analysisResult.quiz ? (
-                <SectionCard title="퀴즈" icon="🎯">
+                <SectionCard title="퀴즈" icon="🎯" isMobile={isMobile}>
                   <QuizCard
                     key={quizKey}
                     quizData={parsedQuiz}
                     onReset={handleQuiz}
+                    isMobile={isMobile}
                   />
                 </SectionCard>
               ) : null}
 
               {analysisResult.evaluation ? (
-                <SectionCard title="학습 평가" icon="🌟">
-                  <div style={styles.markdownBody}>
+                <SectionCard title="학습 평가" icon="🌟" isMobile={isMobile}>
+                  <div style={{ ...styles.markdownBody, ...(isMobile ? styles.markdownBodyMobile : {}) }}>
                     <ReactMarkdown>{analysisResult.evaluation}</ReactMarkdown>
                   </div>
                 </SectionCard>
@@ -1128,9 +1191,10 @@ export default function Home() {
                 <SectionCard
                   title="교과평어 예시"
                   icon="🧾"
+                  isMobile={isMobile}
                   actions={
                     <button
-                      style={styles.smallButton}
+                      style={{ ...styles.smallButton, ...(isMobile ? styles.smallButtonMobile : {}) }}
                       onClick={async () => {
                         try {
                           await copyText(analysisResult.teacher);
@@ -1144,21 +1208,22 @@ export default function Home() {
                     </button>
                   }
                 >
-                  <div style={styles.markdownBody}>
+                  <div style={{ ...styles.markdownBody, ...(isMobile ? styles.markdownBodyMobile : {}) }}>
                     <ReactMarkdown>{analysisResult.teacher}</ReactMarkdown>
                   </div>
                 </SectionCard>
               ) : null}
             </div>
 
-            <div style={styles.rightColumn}>
-              <SectionCard title="후속 질문 대화창" icon="💬">
-                <div style={styles.chatBox}>
+            <div style={{ ...styles.rightColumn, ...(isMobile ? styles.rightColumnMobile : {}) }}>
+              <SectionCard title="후속 질문 대화창" icon="💬" isMobile={isMobile}>
+                <div style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
                   {conversation.map((msg, idx) => (
                     <ChatBubble
                       key={`${msg.role}-${idx}-${msg.content.slice(0, 10)}`}
                       role={msg.role}
                       content={msg.content}
+                      isMobile={isMobile}
                     />
                   ))}
                   <div ref={chatBottomRef} />
@@ -1167,7 +1232,7 @@ export default function Home() {
                 <div style={styles.chatInputArea}>
                   <textarea
                     ref={chatInputRef}
-                    style={styles.chatTextarea}
+                    style={{ ...styles.chatTextarea, ...(isMobile ? styles.chatTextareaMobile : {}) }}
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder="분석 결과를 보고 더 궁금한 점을 물어보세요."
@@ -1180,7 +1245,7 @@ export default function Home() {
                     disabled={isChatLoading}
                   />
                   <button
-                    style={styles.primaryButton}
+                    style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
                     onClick={() => handleFollowUpChat()}
                     disabled={isChatLoading}
                   >
@@ -1189,23 +1254,23 @@ export default function Home() {
                 </div>
               </SectionCard>
 
-              <SectionCard title="모드별 안내" icon="📌">
+              <SectionCard title="모드별 안내" icon="📌" isMobile={isMobile}>
                 {learningMode === 'understand' && (
-                  <ul style={styles.guideList}>
+                  <ul style={{ ...styles.guideList, ...(isMobile ? styles.guideListMobile : {}) }}>
                     <li>어려운 설명을 먼저 쉽게 이해할 때 쓰는 모드예요.</li>
                     <li>쉬운 설명, 낱말 풀이, 핵심 내용 중심으로 정리해 줘요.</li>
                     <li>처음 자료를 읽을 때 가장 먼저 사용하면 좋아요.</li>
                   </ul>
                 )}
                 {learningMode === 'inquiry' && (
-                  <ul style={styles.guideList}>
+                  <ul style={{ ...styles.guideList, ...(isMobile ? styles.guideListMobile : {}) }}>
                     <li>이해한 내용을 바탕으로 더 조사할 때 쓰는 모드예요.</li>
                     <li>질문, 검색어, 더 조사할 거리 중심으로 보여줘요.</li>
                     <li>탐구 주제 확장에 가장 잘 맞아요.</li>
                   </ul>
                 )}
                 {learningMode === 'presentation' && (
-                  <ul style={styles.guideList}>
+                  <ul style={{ ...styles.guideList, ...(isMobile ? styles.guideListMobile : {}) }}>
                     <li>조사한 내용을 친구들 앞에서 발표할 때 쓰는 모드예요.</li>
                     <li>발표 제목, 발표용 3문장, 발표 순서를 중심으로 정리해 줘요.</li>
                     <li>발표문 초안 만들기에 좋아요.</li>
@@ -1231,6 +1296,9 @@ const styles = {
       'linear-gradient(180deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%)',
     padding: '24px 16px 48px'
   },
+  pageMobile: {
+    padding: '16px 10px 32px'
+  },
   container: {
     maxWidth: 1280,
     margin: '0 auto'
@@ -1238,6 +1306,9 @@ const styles = {
   hero: {
     textAlign: 'center',
     margin: '8px 0 24px'
+  },
+  heroMobile: {
+    margin: '4px 0 16px'
   },
   heroBadge: {
     display: 'inline-block',
@@ -1249,11 +1320,20 @@ const styles = {
     fontWeight: 700,
     marginBottom: 12
   },
+  heroBadgeMobile: {
+    fontSize: 12,
+    padding: '6px 10px',
+    marginBottom: 10
+  },
   heroTitle: {
     fontSize: 'clamp(2rem, 5vw, 3.5rem)',
     margin: '0 0 8px',
     color: '#111827',
     fontWeight: 900
+  },
+  heroTitleMobile: {
+    fontSize: '2rem',
+    margin: '0 0 6px'
   },
   heroSubtitle: {
     margin: 0,
@@ -1261,20 +1341,34 @@ const styles = {
     lineHeight: 1.7,
     fontSize: 'clamp(1rem, 2vw, 1.15rem)'
   },
+  heroSubtitleMobile: {
+    fontSize: 14,
+    lineHeight: 1.6
+  },
   grid: {
     display: 'grid',
     gridTemplateColumns: '1.4fr 0.9fr',
     gap: 20
+  },
+  gridMobile: {
+    gridTemplateColumns: '1fr',
+    gap: 14
   },
   leftColumn: {
     display: 'flex',
     flexDirection: 'column',
     gap: 18
   },
+  leftColumnMobile: {
+    gap: 14
+  },
   rightColumn: {
     display: 'flex',
     flexDirection: 'column',
     gap: 18
+  },
+  rightColumnMobile: {
+    gap: 14
   },
   sectionCard: {
     background: '#ffffff',
@@ -1282,6 +1376,9 @@ const styles = {
     borderRadius: 20,
     boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)',
     overflow: 'hidden'
+  },
+  sectionCardMobile: {
+    borderRadius: 16
   },
   sectionHeader: {
     display: 'flex',
@@ -1291,13 +1388,22 @@ const styles = {
     borderBottom: '1px solid #eef2f7',
     background: '#fcfcff'
   },
+  sectionHeaderMobile: {
+    padding: '13px 14px'
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 800,
     color: '#111827'
   },
+  sectionTitleMobile: {
+    fontSize: 16
+  },
   sectionBody: {
     padding: 18
+  },
+  sectionBodyMobile: {
+    padding: 14
   },
   formGroup: {
     display: 'flex',
@@ -1310,10 +1416,17 @@ const styles = {
     gridTemplateColumns: '1fr 1fr',
     gap: 12
   },
+  formRowMobile: {
+    gridTemplateColumns: '1fr',
+    gap: 0
+  },
   label: {
     fontWeight: 700,
     color: '#374151',
     fontSize: 14
+  },
+  labelMobile: {
+    fontSize: 13
   },
   input: {
     width: '100%',
@@ -1321,7 +1434,12 @@ const styles = {
     borderRadius: 12,
     padding: '12px 14px',
     fontSize: 15,
-    outline: 'none'
+    outline: 'none',
+    boxSizing: 'border-box'
+  },
+  inputMobile: {
+    fontSize: 16,
+    padding: '12px'
   },
   select: {
     width: '100%',
@@ -1330,7 +1448,12 @@ const styles = {
     padding: '12px 14px',
     fontSize: 15,
     outline: 'none',
-    background: '#fff'
+    background: '#fff',
+    boxSizing: 'border-box'
+  },
+  selectMobile: {
+    fontSize: 16,
+    padding: '12px'
   },
   textarea: {
     width: '100%',
@@ -1341,12 +1464,22 @@ const styles = {
     fontSize: 15,
     lineHeight: 1.7,
     resize: 'vertical',
-    outline: 'none'
+    outline: 'none',
+    boxSizing: 'border-box'
+  },
+  textareaMobile: {
+    minHeight: 180,
+    fontSize: 16,
+    padding: '12px'
   },
   primaryButtonRow: {
     display: 'flex',
     gap: 10,
     flexWrap: 'wrap'
+  },
+  primaryButtonRowMobile: {
+    flexDirection: 'column',
+    gap: 10
   },
   primaryButton: {
     border: 'none',
@@ -1358,6 +1491,11 @@ const styles = {
     cursor: 'pointer',
     boxShadow: '0 10px 24px rgba(37,99,235,0.22)'
   },
+  primaryButtonMobile: {
+    width: '100%',
+    fontSize: 15,
+    padding: '13px 14px'
+  },
   secondaryButton: {
     border: '1px solid #cbd5e1',
     background: '#fff',
@@ -1366,6 +1504,11 @@ const styles = {
     padding: '12px 18px',
     borderRadius: 12,
     cursor: 'pointer'
+  },
+  secondaryButtonMobile: {
+    width: '100%',
+    fontSize: 15,
+    padding: '13px 14px'
   },
   smallButton: {
     border: '1px solid #d1d5db',
@@ -1376,10 +1519,18 @@ const styles = {
     borderRadius: 10,
     cursor: 'pointer'
   },
+  smallButtonMobile: {
+    fontSize: 12,
+    padding: '7px 10px'
+  },
   markdownBody: {
     color: '#1f2937',
     lineHeight: 1.8,
     fontSize: 15
+  },
+  markdownBodyMobile: {
+    fontSize: 14,
+    lineHeight: 1.7
   },
   bulletList: {
     margin: 0,
@@ -1387,19 +1538,34 @@ const styles = {
     color: '#1f2937',
     lineHeight: 1.8
   },
+  bulletListMobile: {
+    paddingLeft: 18,
+    fontSize: 14,
+    lineHeight: 1.7
+  },
   bulletItem: {
     marginBottom: 6
+  },
+  bulletItemMobile: {
+    marginBottom: 5
   },
   emptyText: {
     margin: 0,
     color: '#6b7280',
     lineHeight: 1.7
   },
+  emptyTextMobile: {
+    fontSize: 14
+  },
   buttonWrap: {
     display: 'flex',
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 14
+  },
+  buttonWrapMobile: {
+    flexDirection: 'column',
+    gap: 8
   },
   questionButton: {
     border: '1px solid #bfdbfe',
@@ -1411,10 +1577,18 @@ const styles = {
     fontWeight: 700,
     textAlign: 'left'
   },
+  questionButtonMobile: {
+    width: '100%',
+    fontSize: 14,
+    padding: '11px 12px'
+  },
   toolGrid: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
     gap: 10
+  },
+  toolGridMobile: {
+    gridTemplateColumns: '1fr'
   },
   toolButton: {
     border: '1px solid #dbeafe',
@@ -1425,6 +1599,11 @@ const styles = {
     cursor: 'pointer',
     fontWeight: 800
   },
+  toolButtonMobile: {
+    width: '100%',
+    fontSize: 14,
+    padding: '12px'
+  },
   chatBox: {
     height: 520,
     overflowY: 'auto',
@@ -1433,6 +1612,11 @@ const styles = {
     borderRadius: 16,
     padding: 14,
     marginBottom: 12
+  },
+  chatBoxMobile: {
+    height: 360,
+    padding: 10,
+    marginBottom: 10
   },
   chatInputArea: {
     display: 'flex',
@@ -1449,7 +1633,13 @@ const styles = {
     fontSize: 15,
     lineHeight: 1.6,
     resize: 'vertical',
-    outline: 'none'
+    outline: 'none',
+    boxSizing: 'border-box'
+  },
+  chatTextareaMobile: {
+    minHeight: 84,
+    fontSize: 16,
+    padding: '12px'
   },
   guideList: {
     margin: 0,
@@ -1457,11 +1647,19 @@ const styles = {
     color: '#374151',
     lineHeight: 1.9
   },
+  guideListMobile: {
+    paddingLeft: 18,
+    fontSize: 14,
+    lineHeight: 1.7
+  },
   quizQuestion: {
     fontSize: 17,
     fontWeight: 800,
     color: '#111827',
     lineHeight: 1.7
+  },
+  quizQuestionMobile: {
+    fontSize: 15
   },
   quizOptionButton: {
     width: '100%',
@@ -1472,6 +1670,10 @@ const styles = {
     fontSize: 15,
     transition: 'all 0.2s ease'
   },
+  quizOptionButtonMobile: {
+    fontSize: 14,
+    padding: '11px 12px'
+  },
   bigTitleBox: {
     fontSize: 20,
     fontWeight: 900,
@@ -1481,5 +1683,9 @@ const styles = {
     borderRadius: 14,
     padding: '16px 18px',
     lineHeight: 1.6
+  },
+  bigTitleBoxMobile: {
+    fontSize: 17,
+    padding: '13px 14px'
   }
 };
