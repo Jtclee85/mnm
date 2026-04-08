@@ -1,496 +1,1125 @@
 import { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
 import Head from 'next/head';
+import ReactMarkdown from 'react-markdown';
 import Banner from '../components/Banner';
 
-// [본문 요약 파싱 및 추천질문 구문 파싱 유틸]
-const cleanContent = (text) => {
+/** =========================
+ *  유틸
+ *  ========================= */
+
+const extractTagBlock = (text, tag) => {
   if (!text) return '';
-  const textWithoutRec = text.replace(/\[추천질문\].*?(\n|$)/g, '').trim();
-  const summaryMatch = textWithoutRec.match(/<summary>([\s\S]*?)<\/summary>/);
-  if (summaryMatch) {
-    return summaryMatch[1].trim();
-  }
-  return textWithoutRec;
+  const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i');
+  const match = text.match(regex);
+  return match ? match[1].trim() : '';
 };
 
-const parseRecommendedQuestions = (content) => {
-  // [추천질문] 태그 뒤의 줄을 각각 추출하여 배열로 만듦
-  // 여러 블록이 있을 수 있으므로 모두 추출
-  const regex = /\[추천질문\]([^\[\]]+)/g;
-  let match, questions = [];
-  while ((match = regex.exec(content)) !== null) {
-    // 줄바꿈 기준 분리, 앞뒤 공백 및 불필요한 줄 제거
-    const lines = match[1]
-      .split(/\r?\n/)
-      .map(l => l.trim())
-      .filter(Boolean)
-      .filter(l => l.length > 1); // 너무 짧은건 제거(옵션)
-    questions.push(...lines);
+const extractMultiTagBlocks = (text, tag) => {
+  if (!text) return [];
+  const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'gi');
+  const results = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    results.push(match[1].trim());
   }
-  // 혹시 ;, ·, • 등 기타 구분자 있는 경우도 추가 분리
-  if (questions.length === 1 && /[·•;|]/.test(questions[0])) {
-    return questions[0].split(/[·•;|]/).map(l => l.trim()).filter(Boolean);
-  }
-  return questions;
+  return results;
 };
 
-export default function Home() {
-  const [conversationPhase, setConversationPhase] = useState('asking_topic');
-  const [topic, setTopic] = useState('');
-  const [sourceText, setSourceText] = useState('');
+const splitLines = (text) => {
+  if (!text) return [];
+  return text
+    .split(/\r?\n|•|·|-/g)
+    .map((line) => line.trim())
+    .filter(Boolean);
+};
 
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: '안녕? 나는 사회 조사학습을 도와주는 챗봇 [뭐냐면]이야. 오늘은 어떤 주제에 대해 조사해볼까?' }
-  ]);
-  const [input, setInput] = useState('');
-  const bottomRef = useRef(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const inputRef = useRef(null);
-  const [userEmoji, setUserEmoji] = useState('👤');
+const parseSectionedResponse = (rawText) => {
+  const easy = extractTagBlock(rawText, 'easy');
+  const summary = extractTagBlock(rawText, 'summary');
+  const keywords = extractTagBlock(rawText, 'keywords');
+  const vocabulary = extractTagBlock(rawText, 'vocabulary');
+  const questions = extractTagBlock(rawText, 'questions');
+  const searches = extractTagBlock(rawText, 'searches');
+  const teacher = extractTagBlock(rawText, 'teacher');
+  const quiz = extractTagBlock(rawText, 'quiz');
+  const evaluation = extractTagBlock(rawText, 'evaluation');
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  return {
+    easy,
+    summaryLines: splitLines(summary),
+    keywordLines: splitLines(keywords),
+    vocabularyLines: splitLines(vocabulary),
+    questionLines: splitLines(questions),
+    searchLines: splitLines(searches),
+    teacher,
+    quiz,
+    evaluation
+  };
+};
 
-  useEffect(() => {
-    if (!isLoading) {
-      inputRef.current?.focus();
-    }
-  }, [isLoading]);
+const copyText = async (text) => {
+  await navigator.clipboard.writeText(text);
+};
 
-  const createSystemMessage = (source) => ({
-    role: 'system',
-    content: `
-너는 '뭐냐면'이라는 이름의 AI 챗봇이야. 너는 지금 초등 저학년 학생과 대화하고 있어.
-너의 핵심 임무는 사용자가 제공한 아래의 [원본 자료]를 바탕으로, 사회과(역사, 지리, 일반사회 등) 개념을 쉽고 재미있게 설명해주는 것이야.
+const gradeLevelMap = {
+  low: '초등 저학년',
+  high: '초등 고학년',
+  발표: '발표 준비용'
+};
+
+const modeMap = {
+  understand: '이해 모드',
+  inquiry: '탐구 모드',
+  presentation: '발표 준비 모드'
+};
+
+/** =========================
+ *  시스템 프롬프트
+ *  ========================= */
+
+const createSystemMessage = ({
+  topic,
+  sourceText,
+  gradeLevel,
+  learningMode
+}) => ({
+  role: 'system',
+  content: `
+너는 '뭐냐면'이라는 이름의 초등 사회과 조사학습 도우미 AI다.
+
+[조사 주제]
+${topic}
+
+[학습 대상]
+${gradeLevelMap[gradeLevel] || '초등학생'}
+
+[학습 모드]
+${modeMap[learningMode] || '이해 모드'}
 
 [원본 자료]
-${source}
+${sourceText}
 [/원본 자료]
 
-**[꼭 지켜야 할 규칙]**
-- **가장 중요한 규칙: 답변은 사용자가 제공한 [원본 자료]를 최우선으로 하되, 아이들의 이해를 돕기 위해 필요한 경우 너의 일반 지식을 활용하여 배경지식이나 쉬운 예시를 덧붙여 설명할 수 있어. 하지만 [원본 자료]와 전혀 관련 없는 이야기는 하지 마.**
-- **말투:** 초등 저학년 학생이 이해할 수 있도록 쉬운 단어와 친절한 설명을 사용해야 해.
-- **답변 형식:** 어려운 소제목 대신, '🗺️ 지도 이야기', '🏛️ 제도 이야기'처럼 내용과 관련된 재미있는 짧은 제목을 이모티콘과 함께 붙여줘.
-- **추천 질문 생성:** 설명이 끝난 후, 다음 규칙에 따라 세 가지 수준의 추천 질문을 생성해야 해. 각 질문은 사용자가 더 깊이 탐구하도록 유도해야 하며, **반드시 [추천질문] 태그로 감싸서, 답변의 맨 마지막에 한 줄에 하나씩 제시해야 해.** 이 외의 다른 안내 문구는 절대 붙이지 마.
+너의 가장 중요한 역할은 학생이 가져온 어려운 전시물 설명, 안내문, 조사자료를
+초등학생 눈높이에 맞게 다시 이해할 수 있도록 바꾸어 주는 것이다.
 
-**[특별 기능 설명]**
-사용자가 요청하면, 아래 규칙에 따라 행동해 줘.
+반드시 아래 규칙을 지켜라.
 
-1.  **'퀴즈풀기' 요청:** [원본 자료]와 대화 내용을 바탕으로 재미있는 퀴즈 1개를 내고, 친구의 다음 답변을 채점하고 설명해 줘.
-2.  **'전체 요약' 요청:** 지금까지의 대화 전체 내용을 [조사 주제] 중심으로 요약해 줘.
-3.  **'말풍선 3줄요약' 요청:** 특정 메시지 내용을 받으면, 그 내용을 3줄의 개조식으로 요약해.
-4.  **'나 어땠어?' 요청:** 대화 내용을 바탕으로 학습 태도를 '최고야!', '정말 잘했어!', '좀 더 관심을 가져보자!' 중 하나로 평가하고 칭찬해 줘.
-5.  **'교과평어 만들기' 요청:** 대화 내용 전체를 바탕으로, 학생의 탐구 과정, 질문 수준, 이해도, 태도 등을 종합하여 선생님께 제출할 수 있는 정성적인 '교과 세부능력 및 특기사항' 예시문을 '~~함.', '~~였음.'과 같이 간결한 개조식으로 작성해 줘.
-      `
+[공통 규칙]
+1. 원본 자료를 최우선으로 활용하되, 이해를 돕기 위해 필요한 범위에서만 배경지식을 덧붙여라.
+2. 초등학생이 이해할 수 있는 쉬운 단어를 사용하라.
+3. 어려운 표현은 풀어서 설명하라.
+4. 설명은 친절하고 짧은 문장 위주로 써라.
+5. 사실과 다른 내용을 지어내지 마라.
+6. 결과는 반드시 아래 태그 형식으로 출력하라. 태그 바깥에는 아무 말도 쓰지 마라.
+
+[학습 모드별 강조]
+- 이해 모드: 쉬운 설명, 핵심 개념, 어려운 낱말 풀이를 가장 충실하게 작성
+- 탐구 모드: 탐구 질문과 추천 검색어를 더 풍부하게 작성
+- 발표 준비 모드: 발표하기 좋은 문장, 핵심 요약, 발표에 쓸 표현을 더 분명하게 작성
+
+[출력 형식]
+<easy>
+원본 자료를 쉬운 말로 4~8문장 정도로 설명
+</easy>
+
+<summary>
+핵심 내용 3줄
+한 줄에 1개씩
+</summary>
+
+<keywords>
+핵심 개념 3~5개
+한 줄에 1개씩
+</keywords>
+
+<vocabulary>
+어려운 낱말 풀이 3~5개
+형식: 낱말: 뜻
+한 줄에 1개씩
+</vocabulary>
+
+<questions>
+탐구 질문 3개
+한 줄에 1개씩
+</questions>
+
+<searches>
+추천 검색어 3~5개
+기본 검색어, 심화 검색어, 비교 검색어가 섞이도록 작성
+한 줄에 1개씩
+</searches>
+
+특수 요청이 있을 때는 아래처럼 추가 태그를 사용하라.
+
+1. 사용자가 "퀴즈풀기"를 요청하면:
+<quiz>
+객관식 또는 OX 퀴즈 1개와 정답 확인용 설명
+</quiz>
+
+2. 사용자가 "전체 요약"을 요청하면:
+<summary>
+지금까지의 활동 전체를 3줄로 요약
+</summary>
+
+3. 사용자가 "나 어땠어?"를 요청하면:
+<evaluation>
+최고야!, 정말 잘했어!, 좀 더 관심을 가져보자! 중 하나와 이유
+</evaluation>
+
+4. 사용자가 "교과평어 만들기"를 요청하면:
+<teacher>
+교과 세부능력 및 특기사항 예시문을 "~~함.", "~~였음." 형식의 개조식으로 작성
+</teacher>
+`
+});
+
+/** =========================
+ *  컴포넌트
+ *  ========================= */
+
+function SectionCard({ title, icon, children, actions }) {
+  return (
+    <div style={styles.sectionCard}>
+      <div style={styles.sectionHeader}>
+        <div style={styles.sectionTitle}>
+          <span style={{ marginRight: 8 }}>{icon}</span>
+          {title}
+        </div>
+        {actions ? <div>{actions}</div> : null}
+      </div>
+      <div style={styles.sectionBody}>{children}</div>
+    </div>
+  );
+}
+
+function BulletList({ items }) {
+  if (!items || items.length === 0) {
+    return <p style={styles.emptyText}>아직 생성된 내용이 없습니다.</p>;
+  }
+
+  return (
+    <ul style={styles.bulletList}>
+      {items.map((item, idx) => (
+        <li key={`${item}-${idx}`} style={styles.bulletItem}>
+          {item}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ChatBubble({ role, content }) {
+  const isUser = role === 'user';
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: isUser ? 'flex-end' : 'flex-start',
+        marginBottom: 10
+      }}
+    >
+      <div
+        style={{
+          maxWidth: '85%',
+          background: isUser ? '#2563eb' : '#ffffff',
+          color: isUser ? '#ffffff' : '#1f2937',
+          border: `1px solid ${isUser ? '#2563eb' : '#d1d5db'}`,
+          borderRadius: 16,
+          padding: '12px 14px',
+          whiteSpace: 'pre-wrap',
+          lineHeight: 1.6,
+          boxShadow: isUser
+            ? '0 6px 18px rgba(37,99,235,0.16)'
+            : '0 6px 18px rgba(0,0,0,0.06)'
+        }}
+      >
+        <ReactMarkdown
+          components={{
+            a: ({ node, ...props }) => (
+              <a {...props} target="_blank" rel="noopener noreferrer" />
+            )
+          }}
+        >
+          {content}
+        </ReactMarkdown>
+      </div>
+    </div>
+  );
+}
+
+/** =========================
+ *  메인
+ *  ========================= */
+
+export default function Home() {
+  const [topic, setTopic] = useState('');
+  const [sourceText, setSourceText] = useState('');
+  const [gradeLevel, setGradeLevel] = useState('high');
+  const [learningMode, setLearningMode] = useState('understand');
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const [analysisResult, setAnalysisResult] = useState({
+    easy: '',
+    summaryLines: [],
+    keywordLines: [],
+    vocabularyLines: [],
+    questionLines: [],
+    searchLines: [],
+    teacher: '',
+    quiz: '',
+    evaluation: ''
   });
 
-  const processStreamedResponse = async (messageHistory, metadata = {}) => {
-    setIsLoading(true);
-    let messageIndex = -1;
-    setMessages(prev => {
-      const newMessages = [...prev, { role: 'assistant', content: '', metadata }];
-      messageIndex = newMessages.length - 1;
-      return newMessages;
-    });
+  const [conversation, setConversation] = useState([
+    {
+      role: 'assistant',
+      content:
+        '안녕? 나는 조사자료를 쉽게 바꿔 주는 사회과 학습 도우미 [뭐냐면]이야. 먼저 조사 주제와 자료를 넣고, "자료 분석 시작" 버튼을 눌러 줘!'
+    }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const chatBottomRef = useRef(null);
+  const chatInputRef = useRef(null);
 
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [conversation]);
+
+  useEffect(() => {
+    if (!isChatLoading) {
+      chatInputRef.current?.focus();
+    }
+  }, [isChatLoading]);
+
+  const requestStream = async (messageHistory, { onChunk, onDone, onError }) => {
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messageHistory })
       });
-      if (!res.ok) { throw new Error(res.statusText); }
+
+      if (!res.ok || !res.body) {
+        throw new Error('서버 응답에 문제가 있습니다.');
+      }
+
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let fullText = '';
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
+
         const chunk = decoder.decode(value);
         const lines = chunk.split('\n\n');
+
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const data = JSON.parse(line.substring(6));
-            setMessages(prev => {
-              const newMessages = [...prev];
-              newMessages[messageIndex].content += data;
-              return newMessages;
-            });
+            fullText += data;
+            onChunk?.(data, fullText);
           }
         }
       }
+
+      onDone?.(fullText);
     } catch (error) {
-      setMessages(prev => {
-        const newMessages = [...prev];
-        newMessages[messageIndex].content = "앗, 답변을 가져오는 데 문제가 생겼어요.";
-        return newMessages;
-      });
-    } finally {
-      setMessages(prev => {
-        const lastMessage = prev[prev.length - 1];
-        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content.includes('[추천질문]')) {
-          const questions = parseRecommendedQuestions(lastMessage.content);
-          if (questions.length > 0) {
-            const updatedLastMessage = { ...lastMessage, metadata: { ...lastMessage.metadata, recommendedQuestions: questions } };
-            return [...prev.slice(0, -1), updatedLastMessage];
-          }
-        }
-        return prev;
-      });
-      setIsLoading(false);
+      console.error(error);
+      onError?.(error);
     }
   };
 
-  const fetchFullResponse = async (messageHistory) => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messageHistory })
-      });
-      if (!res.ok) throw new Error(res.statusText);
+  const buildBaseSystem = () =>
+    createSystemMessage({
+      topic,
+      sourceText,
+      gradeLevel,
+      learningMode
+    });
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
+  const handleAnalyze = async () => {
+    const trimmedTopic = topic.trim();
+    const trimmedSource = sourceText.trim();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            fullText += JSON.parse(line.substring(6));
-          }
-        }
-      }
-      return fullText;
-    } catch (error) {
-      console.error("전체 답변 요청 오류:", error);
-      return "오류";
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!input || isLoading) return;
-    const userInput = input.trim();
-    const userMsgForDisplay = { role: 'user', content: userInput };
-
-    if (conversationPhase === 'asking_topic') {
-      setMessages(prev => [...prev, userMsgForDisplay]);
-      setInput('');
-      setIsLoading(true);
-
-      const topicExtractionPrompt = {
-        role: 'system',
-        content: `너는 사용자의 문장에서 '초등 사회과 조사학습'에 적합한 주제어만 추출하는 AI야.
-- 주제어는 반드시 역사, 지리, 사회, 문화, 유물, 인물, 사건 등과 관련이 있어야 해.
-- 만약 사용자의 문장에서 위 기준에 맞는 적절한 주제어를 찾았다면, 다른 말 없이 그 주제어만 정확히 출력해.
-- 만약 사용자의 문장에 주제어가 없거나, 주제어가 있더라도 K-POP, 아이돌, 게임, 만화 등 사회과 학습과 관련 없는 내용이라면, '없음'이라고만 답해.
-예시: "세종대왕에 대해 알려줘" -> "세종대왕"
-예시: "블랙핑크가 누구야?" -> "없음"`
-      };
-      const extractedTopic = await fetchFullResponse([topicExtractionPrompt, { role: 'user', content: userInput }]);
-
-      if (extractedTopic && !extractedTopic.includes('없음')) {
-        setTopic(extractedTopic);
-
-        const recommendation = `좋은 주제네! '${extractedTopic}'에 대해 알아보자.\n\n먼저, [Google에서 '${extractedTopic}' 검색해보기](https://www.google.com/search?q=${encodeURIComponent(extractedTopic)})를 눌러서 어떤 자료가 있는지 살펴보는 거야.\n\n**💡 좋은 자료를 고르는 팁!**\n* 주소가 **go.kr** (정부 기관)이나 **or.kr** (공공기관)로 끝나는 사이트가 좋아.\n* **네이버 지식백과**, **위키백과** 같은 유명한 백과사전도 믿을 만해!\n\n마음에 드는 자료를 찾으면, 그 내용을 복사해서 여기에 붙여넣어 줄래? 내가 쉽고 재미있게 설명해 줄게!`;
-
-        setMessages(prev => [...prev, { role: 'assistant', content: recommendation }]);
-        setConversationPhase('asking_source');
-
-      } else {
-        setMessages(prev => [...prev, { role: 'assistant', content: '미안하지만 조사하기에 적절한 주제가 아닌 거 같아. 다시 한번 알려줄래?'}]);
-      }
-      setIsLoading(false);
+    if (!trimmedTopic) {
+      alert('조사 주제를 먼저 입력해 주세요.');
       return;
     }
 
-    if (conversationPhase === 'asking_source') {
-      setMessages(prev => [...prev, userMsgForDisplay]);
-      setInput('');
-      if (userInput.length < 50) {
-        setMessages(prev => [...prev, { role: 'assistant', content: '앗, 그건 설명할 자료라기엔 너무 짧은 것 같아. 조사한 내용을 여기에 길게 붙여넣어 줄래?'}]);
-        return;
-      }
-      setSourceText(userInput);
-      const firstPrompt = { role: 'user', content: `이 자료에 대해 설명해줘: ${userInput}` };
-      const systemMsg = createSystemMessage(userInput);
-      processStreamedResponse([systemMsg, ...messages, userMsgForDisplay, firstPrompt]);
-      setConversationPhase('chatting');
+    if (trimmedSource.length < 50) {
+      alert('조사자료를 조금 더 길게 넣어 주세요.');
       return;
     }
 
-        if (conversationPhase === 'chatting') {
-        const newMsg = { role: 'user', content: userInput };
-        setMessages(prev => [...prev, newMsg]);
-        setInput('');
-        setIsLoading(true); // AI가 응답 준비를 시작했음을 사용자에게 알립니다.
+    setIsAnalyzing(true);
 
-        // --- 1단계: 퀴즈 답변 상황인지 확인 (가장 먼저 처리) ---
-        const lastAssistantMessage = messages[messages.length - 1];
-        if (lastAssistantMessage?.role === 'assistant' && lastAssistantMessage?.metadata?.type === 'quiz') {
-            const systemMsg = createSystemMessage(sourceText);
-            // 퀴즈 답변이므로 관련성 검사 없이 바로 AI에게 채점을 요청합니다.
-            await processStreamedResponse([systemMsg, ...messages, newMsg]);
-            return;
-        }
+    const systemMsg = buildBaseSystem();
+    const userMsg = {
+      role: 'user',
+      content: '원본 자료를 분석해서 쉬운 설명, 핵심 개념, 어려운 낱말, 탐구 질문, 추천 검색어를 만들어 줘.'
+    };
 
-        // --- 2단계: 간단한 키워드로 관련성 확인 ---
-        const lastMessageContent = lastAssistantMessage?.content || '';
-        const userKeywords = userInput.replace(/[?.,!]/g, '').replace(/(은|는|이|가|에|의|께|서|랑|이랑|을|를|와|과|야|이야)\s/g, ' ').replace(/\s(뭐야|뭔데|알려줘|궁금해)/g, '').trim().split(' ');
-        
-        // 이전 챗봇 답변에 사용자 질문의 키워드가 하나라도 있으면 관련성이 높다고 판단합니다.
-        const isHeuristicallyRelevant = userKeywords.some(keyword => lastMessageContent.includes(keyword));
+    await requestStream([systemMsg, userMsg], {
+      onDone: (fullText) => {
+        const parsed = parseSectionedResponse(fullText);
+        setAnalysisResult(parsed);
 
-        if (isHeuristicallyRelevant) {
-            // 관련성이 높다고 판단되면, AI에게 바로 답변 생성을 요청합니다.
-            const systemMsg = createSystemMessage(sourceText);
-            await processStreamedResponse([systemMsg, ...messages, newMsg]);
-            return;
-        }
+        setConversation((prev) => [
+          ...prev,
+          {
+            role: 'user',
+            content: `조사 주제는 "${trimmedTopic}"이고, 자료 분석을 시작했어.`
+          },
+          {
+            role: 'assistant',
+            content:
+              '좋아! 자료를 분석해서 아래에 정리했어. 궁금한 점이 있으면 아래 대화창에서 이어서 물어봐도 돼.'
+          }
+        ]);
+      },
+      onError: () => {
+        alert('자료 분석 중 오류가 발생했습니다.');
+      }
+    });
 
-        // --- 3단계: AI에게 넓은 맥락의 관련성 확인 (최종 단계) ---
-        const sourceSummary = sourceText.length > 300 ? sourceText.substring(0, 300) + "..." : sourceText;
-        const relevanceCheckPrompt = {
-            role: 'system',
-            content: `너는 사용자의 질문이 **최초의 조사 주제**와 관련 있는지 판단하는 AI야. 대화가 다른 길로 새지 않도록 막는 것이 너의 가장 중요한 임무다.
-
-- **최초 조사 주제**: '${topic}'
-- **사용자가 제공한 원본 자료**: "${sourceSummary}"
-
-사용자의 마지막 질문이 아래 기준에 부합하는지 판단해.
-1. 질문이 **'${topic}'** 또는 **원본 자료의 내용**과 직접적으로 관련이 있는가?
-2. 질문이 원본 자료에 나오진 않지만, **'${topic}'**을 이해하는 데 관련있는 단어, 배경지식, 인물, 장소, 관련 사건에 대한 것인가? (예: '불상'을 조사할 때 '조계사'를 묻는 것)
-
-위 기준에 하나라도 해당하면 **'관련있음'**이라고만 답해.
-만약 질문이 K-POP, 아이돌, 게임, 개인적인 친구 이야기, 욕설, 유행하는 meme 등 **'${topic}'**과 명백히 관련 없는 주제라면 **'관련없음'**이라고만 답해. 다른 설명은 절대 추가하지 마.`
-        };
-
-        const isRelevantResponse = await fetchFullResponse([relevanceCheckPrompt, newMsg]);
-
-        if (isRelevantResponse.includes('관련없음')) {
-            const irrelevantAnswer = {
-                role: 'assistant',
-                content: '미안하지만 그건 지금 우리가 이야기하는 사회 주제랑은 조금 다른 이야기 같아. 조사하고 있는 주제에 대해 더 궁금한 점을 물어봐 줄래?'
-            };
-            // setMessages를 한 번 더 호출하는 대신, 기존 메시지 배열을 직접 수정하여 상태를 업데이트합니다.
-            setMessages(prev => [...prev, irrelevantAnswer]);
-            setIsLoading(false);
-        } else {
-            // AI가 관련있다고 판단했으므로, 답변 생성을 요청합니다.
-            const systemMsg = createSystemMessage(sourceText);
-            await processStreamedResponse([systemMsg, ...messages, newMsg]);
-        }
-        return; // 모든 처리가 끝났으므로 함수를 종료합니다.
-    }
+    setIsAnalyzing(false);
   };
 
-  const handleSpecialRequest = (userAction, prompt, metadata) => {
-    if (isLoading) return;
-    const userActionMsg = { role: 'user', content: userAction };
-    setMessages(prev => [...prev, userActionMsg]);
-    const newMsg = { role: 'user', content: prompt };
-    const systemMsg = createSystemMessage(sourceText);
-    processStreamedResponse([systemMsg, ...messages, userActionMsg, newMsg], metadata);
+  const handleFollowUpChat = async (customPrompt) => {
+    const userText = (customPrompt ?? chatInput).trim();
+    if (!userText || isChatLoading) return;
+
+    const userMessage = { role: 'user', content: userText };
+    const systemMsg = buildBaseSystem();
+
+    setConversation((prev) => [...prev, userMessage, { role: 'assistant', content: '' }]);
+    setChatInput('');
+    setIsChatLoading(true);
+
+    let targetIndex = -1;
+    setConversation((prev) => {
+      const updated = [...prev, userMessage, { role: 'assistant', content: '' }];
+      targetIndex = updated.length - 1;
+      return updated;
+    });
+
+    await requestStream([systemMsg, ...conversation, userMessage], {
+      onChunk: (data) => {
+        setConversation((prev) => {
+          const updated = [...prev];
+          if (updated[targetIndex]) {
+            updated[targetIndex].content += data;
+          }
+          return updated;
+        });
+      },
+      onDone: () => {},
+      onError: () => {
+        setConversation((prev) => {
+          const updated = [...prev];
+          if (updated[targetIndex]) {
+            updated[targetIndex].content = '앗, 답변을 가져오는 중 문제가 생겼어요.';
+          }
+          return updated;
+        });
+      }
+    });
+
+    setIsChatLoading(false);
   };
 
-  const handleRequestQuiz = () => handleSpecialRequest("💡 퀴즈 풀기", "지금까지 대화한 내용을 바탕으로, 학습 퀴즈 1개를 내주고 나의 다음 답변을 채점해줘.", { type: 'quiz' });
-  const handleRequestFullSummary = () => handleSpecialRequest("📜 전체 요약", `지금까지 나눈 대화의 주제인 '${topic}'에 대해 전체 내용을 요약해 줘.`, { type: 'summary' });
-  const handleRequestEvaluation = () => handleSpecialRequest("💯 나 어땠어?", "지금까지 나와의 대화, 질문 수준을 바탕으로 나의 학습 태도와 이해도를 '나 어땠어?' 기준에 맞춰 평가해 줘.", { type: 'evaluation' });
-  const handleRequestTeacherComment = () => handleSpecialRequest("✍️ 내가 어땠는지 선생님께 알리기", "지금까지의 활동을 바탕으로 선생님께 보여드릴 '교과평어'를 만들어 줘.", { type: 'teacher_comment' });
-  const handleBubbleSummary = (contentToSummarize) => handleSpecialRequest("💬 이 내용 3줄요약", `다음 내용을 3줄의 개조식으로 요약해줘: "${contentToSummarize}"`, { type: 'summary' });
-
-  const handleRecommendedQuestionClick = (question) => {
-    if (isLoading) return;
-    const newMsg = { role: 'user', content: question };
-    const systemMsg = createSystemMessage(sourceText);
-    setMessages(prev => [...prev, newMsg]);
-    processStreamedResponse([systemMsg, ...messages, newMsg]);
-  };
-
-  const handleCopy = async (text) => {
-    const summaryMatch = text.match(/<summary>([\s\S]*?)<\/summary>/);
-    const textToCopy = summaryMatch ? summaryMatch[1].trim() : text.trim();
-
-    try {
-      await navigator.clipboard.writeText(textToCopy);
-      setMessages(prev => [...prev, { role: 'assistant', content: '클립보드에 복사되었습니다. 패들릿이나 띵커벨에 붙여넣어 보세요!'}]);
-    } catch (err) {
-      console.error('클립보드 복사 실패:', err);
-      setMessages(prev => [...prev, { role: 'assistant', content: '앗, 복사에 실패했어. 다시 시도해 줄래?'}]);
-    }
-  };
-
-  // 전체 요약(3줄 개조식) 렌더링: summary 타입 메시지라면 자동 3줄로 쪼개서 불릿 출력
-  const renderSummaryBulletList = (content) => {
-    let pureText = content.replace(/<summary>([\s\S]*?)<\/summary>/g, "$1").trim();
-    // 마침표/줄바꿈/불릿 등으로 최대 3줄로 자름
-    let lines = pureText
-      .replace(/^[•·]/gm, '')   // 기존 불릿 제거
-      .split(/\r?\n|[•·]/g)
-      .map(l => l.trim())
-      .filter(Boolean);
-
-    // . , ; 등으로 더 분리
-    if (lines.length < 3) {
-      lines = pureText
-        .split(/[.;\n]/g)
-        .map(l => l.trim())
-        .filter(Boolean);
-    }
-    // 3줄 이상 나오면 3줄만
-    lines = lines.slice(0, 3);
-
-    // 혹시 1줄만 너무 길면 30~40자씩 잘라서라도 3줄 만듦
-    if (lines.length === 1 && lines[0].length > 80) {
-      const s = lines[0];
-      lines = [s.slice(0, 40), s.slice(40, 80), s.slice(80)];
-      lines = lines.filter(Boolean);
+  const handleQuiz = async () => {
+    if (!sourceText.trim()) {
+      alert('먼저 자료를 분석해 주세요.');
+      return;
     }
 
-    // 불릿 붙여서 리턴
-    return (
-      <ul style={{paddingLeft: '1.2em', margin:0}}>
-        {lines.map((line, i) => <li key={i} style={{marginBottom:'0.2em'}}>{line}</li>)}
-      </ul>
-    );
+    setIsAnalyzing(true);
+    const systemMsg = buildBaseSystem();
+    const userMsg = {
+      role: 'user',
+      content: '퀴즈풀기'
+    };
+
+    await requestStream([systemMsg, userMsg], {
+      onDone: (fullText) => {
+        const parsed = parseSectionedResponse(fullText);
+        setAnalysisResult((prev) => ({
+          ...prev,
+          quiz: parsed.quiz || '퀴즈를 만들지 못했어요.'
+        }));
+      },
+      onError: () => {
+        alert('퀴즈 생성 중 오류가 발생했습니다.');
+      }
+    });
+
+    setIsAnalyzing(false);
   };
 
-  const renderedMessages = messages.map((m, i) => {
-    const content = m.content;
-    const isUser = m.role === 'user';
-    const speakerName = isUser ? '나' : '뭐냐면';
-    const isNameVisible = i > 0;
+  const handleFullSummary = async () => {
+    if (!sourceText.trim()) {
+      alert('먼저 자료를 분석해 주세요.');
+      return;
+    }
 
-    const profilePic = isUser ? (
-      <div className="profile-pic">👤</div>
-    ) : (
-      <div className="profile-pic">
-        <img src="/monyamyeon-logo.png" alt="뭐냐면 로고" />
-      </div>
-    );
+    setIsAnalyzing(true);
+    const systemMsg = buildBaseSystem();
+    const userMsg = {
+      role: 'user',
+      content: '전체 요약'
+    };
 
-    // summary 타입이면 3줄 불릿화
-    const isSummary = m.metadata?.type === 'summary';
+    await requestStream([systemMsg, ...conversation, userMsg], {
+      onDone: (fullText) => {
+        const parsed = parseSectionedResponse(fullText);
+        setAnalysisResult((prev) => ({
+          ...prev,
+          summaryLines:
+            parsed.summaryLines.length > 0
+              ? parsed.summaryLines
+              : prev.summaryLines
+        }));
+      },
+      onError: () => {
+        alert('전체 요약 생성 중 오류가 발생했습니다.');
+      }
+    });
 
-    return (
-      <div key={i}>
-        <div className={`message-row ${isUser ? 'user-row' : 'assistant-row'}`}>
-          {!isUser && profilePic}
-          <div className="message-content-container">
-            {isNameVisible && <p className={`speaker-name ${isUser ? 'user-name' : 'assistant-name'}`}>{speakerName}</p>}
-            <div className={`message-bubble ${isUser ? 'user-bubble' : 'assistant-bubble'}`}>
-              {isSummary
-                ? renderSummaryBulletList(content)
-                : <ReactMarkdown
-                    components={{
-                      a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" />,
-                      summary: ({children}) => <>{children}</>,
-                    }}
-                  >
-                    {cleanContent(content)}
-                  </ReactMarkdown>
-              }
-              {m.role === 'assistant' && !isLoading && (
-                <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {cleanContent(m.content).length >= 300 && !m.metadata?.type && (
-                       <button onClick={() => handleBubbleSummary(content)} className="btn btn-tertiary" style={{fontSize:'0.9rem'}}>💬 이 내용 3줄요약</button>
-                  )}
-                  {(m.metadata?.type === 'summary' || m.metadata?.type === 'teacher_comment') && (
-                    <button onClick={() => handleCopy(content)} className="btn btn-tertiary">📋 복사하기</button>
-                  )}
-                  {m.metadata?.type === 'evaluation' && (
-                    <button onClick={handleRequestTeacherComment} className="btn btn-tertiary">✍️ 내가 어땠는지 선생님께 알리기</button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-          {isUser && profilePic}
-        </div>
-        {/* 추천질문(버튼) */}
-        {!isUser && !isLoading && m.metadata?.recommendedQuestions?.length > 0 && (
-          <div style={{alignSelf: 'flex-start', marginTop: '13px', marginLeft: '54px', maxWidth: '85%'}}>
-            {m.metadata.recommendedQuestions.map((q, index) => (
-              <button key={index} onClick={() => handleRecommendedQuestionClick(q)} className="btn btn-tertiary"
-                style={{margin: '4px', width: '100%', textAlign: 'left', justifyContent: 'flex-start'}}>
-                {q}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  });
+    setIsAnalyzing(false);
+  };
+
+  const handleEvaluation = async () => {
+    if (!sourceText.trim()) {
+      alert('먼저 자료를 분석해 주세요.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    const systemMsg = buildBaseSystem();
+    const userMsg = {
+      role: 'user',
+      content: '나 어땠어?'
+    };
+
+    await requestStream([systemMsg, ...conversation, userMsg], {
+      onDone: (fullText) => {
+        const parsed = parseSectionedResponse(fullText);
+        setAnalysisResult((prev) => ({
+          ...prev,
+          evaluation: parsed.evaluation || '평가 결과를 만들지 못했어요.'
+        }));
+      },
+      onError: () => {
+        alert('학습 평가 생성 중 오류가 발생했습니다.');
+      }
+    });
+
+    setIsAnalyzing(false);
+  };
+
+  const handleTeacherComment = async () => {
+    if (!sourceText.trim()) {
+      alert('먼저 자료를 분석해 주세요.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    const systemMsg = buildBaseSystem();
+    const userMsg = {
+      role: 'user',
+      content: '교과평어 만들기'
+    };
+
+    await requestStream([systemMsg, ...conversation, userMsg], {
+      onDone: (fullText) => {
+        const parsed = parseSectionedResponse(fullText);
+        setAnalysisResult((prev) => ({
+          ...prev,
+          teacher: parsed.teacher || '교과평어를 만들지 못했어요.'
+        }));
+      },
+      onError: () => {
+        alert('교과평어 생성 중 오류가 발생했습니다.');
+      }
+    });
+
+    setIsAnalyzing(false);
+  };
+
+  const buildExportText = () => {
+    return [
+      `조사 주제: ${topic}`,
+      '',
+      '[쉬운 설명]',
+      analysisResult.easy || '',
+      '',
+      '[핵심 내용 3줄]',
+      ...(analysisResult.summaryLines || []),
+      '',
+      '[핵심 개념]',
+      ...(analysisResult.keywordLines || []),
+      '',
+      '[어려운 낱말 풀이]',
+      ...(analysisResult.vocabularyLines || []),
+      '',
+      '[탐구 질문]',
+      ...(analysisResult.questionLines || []),
+      '',
+      '[추천 검색어]',
+      ...(analysisResult.searchLines || [])
+    ].join('\n');
+  };
 
   return (
     <>
       <Head>
-        <title>뭐냐면 - 조사학습 AI 챗봇</title>
-        <meta name="description" content="처음 만나는 조사학습 AI 챗봇, 뭐냐면!" />
-        <meta property="og:title" content="뭐냐면 - 사회 조사자료를 쉽고 재미있게 알려주는 AI 챗봇" />
-        <meta property="og:description" content="사회 조사자료를 쉽고 재미있게 알려주주는 AI 챗봇, 뭐냐면!" />
-        <meta property="og:image" content="https://mnm-kappa.vercel.app/preview.png" />
+        <title>뭐냐면 - 조사자료 난이도 조절 웹앱</title>
+        <meta
+          name="description"
+          content="전시물, 안내문, 조사자료를 초등학생 눈높이에 맞게 쉽게 바꾸고 탐구를 확장하는 AI 웹앱"
+        />
+        <meta
+          property="og:title"
+          content="뭐냐면 - 조사자료 난이도 조절 웹앱"
+        />
+        <meta
+          property="og:description"
+          content="사회과 조사학습과 박물관 학습을 위한 쉬운 설명, 핵심 개념, 탐구 질문, 추천 검색어 생성"
+        />
+        <meta
+          property="og:image"
+          content="https://mnm-kappa.vercel.app/preview.png"
+        />
         <meta property="og:url" content="https://mnm-kappa.vercel.app" />
       </Head>
 
-      <div style={{ maxWidth: 700, margin: '2rem auto', padding: 20 }}>
-        <Banner />
-        <div style={{
-          display: 'flex', flexDirection: 'column',
-          border: '1px solid #ddd', padding: '20px', height: '60vh',
-          overflowY: 'auto', borderRadius: '8px', backgroundColor: '#EAE7DC'
-        }}>
-          {renderedMessages}
-          <div ref={bottomRef} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 10 }}>
-          <textarea
-            ref={inputRef}
-            style={{
-              padding: 10, minHeight: '60px', maxHeight: '200px',
-              resize: 'vertical', overflowY: 'auto', fontSize: '1rem',
-              lineHeight: '1.5', marginBottom: '0.5rem', border: '1px solid #ccc', borderRadius: '8px'
-            }}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-              }
-            }}
-            placeholder={
-              conversationPhase === 'asking_topic' ? "오늘은 어떤 주제에 대해 알아볼까?" :
-              "추천받은 사이트에서 찾은 내용을 여기에 붙여넣어 줘!"
-            }
-            disabled={isLoading}
-          />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button
-              onClick={sendMessage}
-              disabled={isLoading}
-              className="btn btn-primary"
-            >
-              보내기 📨
-            </button>
-            {conversationPhase === 'chatting' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-                 <button onClick={handleRequestQuiz} disabled={isLoading} className="btn btn-tertiary">💡 퀴즈 풀기</button>
-                 <button onClick={handleRequestFullSummary} disabled={isLoading} className="btn btn-tertiary">📜 전체 요약</button>
-                 <button onClick={handleRequestEvaluation} disabled={isLoading} className="btn btn-tertiary">💯 나 어땠어?</button>
-              </div>
-            )}
+      <div style={styles.page}>
+        <div style={styles.container}>
+          <Banner />
+
+          <div style={styles.hero}>
+            <div style={styles.heroBadge}>사회과 조사학습 AI 코스웨어</div>
+            <h1 style={styles.heroTitle}>뭐냐면</h1>
+            <p style={styles.heroSubtitle}>
+              어려운 전시 설명, 안내문, 조사자료를
+              <br />
+              학생이 이해할 수 있는 말로 다시 바꿔 주는 웹앱
+            </p>
+          </div>
+
+          <div style={styles.grid}>
+            <div style={styles.leftColumn}>
+              <SectionCard title="기본 설정" icon="🛠️">
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>조사 주제</label>
+                  <input
+                    style={styles.input}
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    placeholder="예: 세종대왕, 불국사, 독도, 신석기 시대"
+                  />
+                </div>
+
+                <div style={styles.formRow}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>학습 수준</label>
+                    <select
+                      style={styles.select}
+                      value={gradeLevel}
+                      onChange={(e) => setGradeLevel(e.target.value)}
+                    >
+                      <option value="low">초등 저학년</option>
+                      <option value="high">초등 고학년</option>
+                      <option value="발표">발표 준비용</option>
+                    </select>
+                  </div>
+
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>학습 모드</label>
+                    <select
+                      style={styles.select}
+                      value={learningMode}
+                      onChange={(e) => setLearningMode(e.target.value)}
+                    >
+                      <option value="understand">이해 모드</option>
+                      <option value="inquiry">탐구 모드</option>
+                      <option value="presentation">발표 준비 모드</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>조사자료 입력</label>
+                  <textarea
+                    style={styles.textarea}
+                    value={sourceText}
+                    onChange={(e) => setSourceText(e.target.value)}
+                    placeholder="박물관 안내문, 전시 설명, 인터넷 조사자료를 여기에 붙여넣어 주세요."
+                  />
+                </div>
+
+                <div style={styles.primaryButtonRow}>
+                  <button
+                    style={styles.primaryButton}
+                    onClick={handleAnalyze}
+                    disabled={isAnalyzing}
+                  >
+                    {isAnalyzing ? '분석 중...' : '자료 분석 시작'}
+                  </button>
+
+                  <button
+                    style={styles.secondaryButton}
+                    onClick={async () => {
+                      try {
+                        await copyText(buildExportText());
+                        alert('결과를 복사했어요.');
+                      } catch (e) {
+                        alert('복사에 실패했어요.');
+                      }
+                    }}
+                  >
+                    결과 복사
+                  </button>
+                </div>
+              </SectionCard>
+
+              <SectionCard
+                title="쉬운 설명"
+                icon="🧒"
+                actions={
+                  analysisResult.easy ? (
+                    <button
+                      style={styles.smallButton}
+                      onClick={async () => {
+                        try {
+                          await copyText(analysisResult.easy);
+                          alert('쉬운 설명을 복사했어요.');
+                        } catch (e) {
+                          alert('복사에 실패했어요.');
+                        }
+                      }}
+                    >
+                      복사
+                    </button>
+                  ) : null
+                }
+              >
+                {analysisResult.easy ? (
+                  <div style={styles.markdownBody}>
+                    <ReactMarkdown>{analysisResult.easy}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p style={styles.emptyText}>
+                    자료를 분석하면 여기에 쉬운 설명이 나타납니다.
+                  </p>
+                )}
+              </SectionCard>
+
+              <SectionCard title="핵심 내용 3줄" icon="📝">
+                <BulletList items={analysisResult.summaryLines} />
+              </SectionCard>
+
+              <SectionCard title="핵심 개념" icon="🧠">
+                <BulletList items={analysisResult.keywordLines} />
+              </SectionCard>
+
+              <SectionCard title="어려운 낱말 풀이" icon="📚">
+                <BulletList items={analysisResult.vocabularyLines} />
+              </SectionCard>
+
+              <SectionCard title="탐구 질문" icon="❓">
+                <BulletList items={analysisResult.questionLines} />
+                {analysisResult.questionLines?.length > 0 && (
+                  <div style={styles.buttonWrap}>
+                    {analysisResult.questionLines.map((q, idx) => (
+                      <button
+                        key={`${q}-${idx}`}
+                        style={styles.questionButton}
+                        onClick={() => handleFollowUpChat(q)}
+                        disabled={isChatLoading}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </SectionCard>
+
+              <SectionCard title="추천 검색어" icon="🔎">
+                <BulletList items={analysisResult.searchLines} />
+              </SectionCard>
+
+              <SectionCard title="학습 확장 도구" icon="🚀">
+                <div style={styles.toolGrid}>
+                  <button
+                    style={styles.toolButton}
+                    onClick={handleQuiz}
+                    disabled={isAnalyzing}
+                  >
+                    💡 퀴즈 만들기
+                  </button>
+                  <button
+                    style={styles.toolButton}
+                    onClick={handleFullSummary}
+                    disabled={isAnalyzing}
+                  >
+                    📜 전체 요약
+                  </button>
+                  <button
+                    style={styles.toolButton}
+                    onClick={handleEvaluation}
+                    disabled={isAnalyzing}
+                  >
+                    💯 나 어땠어?
+                  </button>
+                  <button
+                    style={styles.toolButton}
+                    onClick={handleTeacherComment}
+                    disabled={isAnalyzing}
+                  >
+                    ✍️ 교과평어 만들기
+                  </button>
+                </div>
+              </SectionCard>
+
+              {analysisResult.quiz ? (
+                <SectionCard title="퀴즈" icon="🎯">
+                  <div style={styles.markdownBody}>
+                    <ReactMarkdown>{analysisResult.quiz}</ReactMarkdown>
+                  </div>
+                </SectionCard>
+              ) : null}
+
+              {analysisResult.evaluation ? (
+                <SectionCard title="학습 평가" icon="🌟">
+                  <div style={styles.markdownBody}>
+                    <ReactMarkdown>{analysisResult.evaluation}</ReactMarkdown>
+                  </div>
+                </SectionCard>
+              ) : null}
+
+              {analysisResult.teacher ? (
+                <SectionCard
+                  title="교과평어 예시"
+                  icon="🧾"
+                  actions={
+                    <button
+                      style={styles.smallButton}
+                      onClick={async () => {
+                        try {
+                          await copyText(analysisResult.teacher);
+                          alert('교과평어를 복사했어요.');
+                        } catch (e) {
+                          alert('복사에 실패했어요.');
+                        }
+                      }}
+                    >
+                      복사
+                    </button>
+                  }
+                >
+                  <div style={styles.markdownBody}>
+                    <ReactMarkdown>{analysisResult.teacher}</ReactMarkdown>
+                  </div>
+                </SectionCard>
+              ) : null}
+            </div>
+
+            <div style={styles.rightColumn}>
+              <SectionCard title="후속 질문 대화창" icon="💬">
+                <div style={styles.chatBox}>
+                  {conversation.map((msg, idx) => (
+                    <ChatBubble
+                      key={`${msg.role}-${idx}-${msg.content.slice(0, 10)}`}
+                      role={msg.role}
+                      content={msg.content}
+                    />
+                  ))}
+                  <div ref={chatBottomRef} />
+                </div>
+
+                <div style={styles.chatInputArea}>
+                  <textarea
+                    ref={chatInputRef}
+                    style={styles.chatTextarea}
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="분석 결과를 보고 더 궁금한 점을 물어보세요."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleFollowUpChat();
+                      }
+                    }}
+                    disabled={isChatLoading}
+                  />
+                  <button
+                    style={styles.primaryButton}
+                    onClick={() => handleFollowUpChat()}
+                    disabled={isChatLoading}
+                  >
+                    {isChatLoading ? '답변 중...' : '질문 보내기'}
+                  </button>
+                </div>
+              </SectionCard>
+
+              <SectionCard title="활용 안내" icon="📌">
+                <ul style={styles.guideList}>
+                  <li>박물관 안내판, 전시 설명문, 조사자료를 붙여넣어 보세요.</li>
+                  <li>먼저 쉬운 설명을 읽고, 핵심 개념과 낱말 풀이를 확인하세요.</li>
+                  <li>탐구 질문 버튼을 눌러 후속 질문을 이어갈 수 있어요.</li>
+                  <li>추천 검색어를 이용해 조사 범위를 넓혀 보세요.</li>
+                  <li>교과평어 만들기 기능은 교사 참고용으로 활용할 수 있어요.</li>
+                </ul>
+              </SectionCard>
+            </div>
           </div>
         </div>
       </div>
     </>
   );
 }
+
+/** =========================
+ *  스타일
+ *  ========================= */
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    background:
+      'linear-gradient(180deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%)',
+    padding: '24px 16px 48px'
+  },
+  container: {
+    maxWidth: 1280,
+    margin: '0 auto'
+  },
+  hero: {
+    textAlign: 'center',
+    margin: '8px 0 24px'
+  },
+  heroBadge: {
+    display: 'inline-block',
+    background: '#dbeafe',
+    color: '#1d4ed8',
+    padding: '8px 14px',
+    borderRadius: 999,
+    fontSize: 14,
+    fontWeight: 700,
+    marginBottom: 12
+  },
+  heroTitle: {
+    fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+    margin: '0 0 8px',
+    color: '#111827',
+    fontWeight: 900
+  },
+  heroSubtitle: {
+    margin: 0,
+    color: '#4b5563',
+    lineHeight: 1.7,
+    fontSize: 'clamp(1rem, 2vw, 1.15rem)'
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: '1.4fr 0.9fr',
+    gap: 20
+  },
+  leftColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 18
+  },
+  rightColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 18
+  },
+  sectionCard: {
+    background: '#ffffff',
+    border: '1px solid #e5e7eb',
+    borderRadius: 20,
+    boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)',
+    overflow: 'hidden'
+  },
+  sectionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '16px 18px',
+    borderBottom: '1px solid #eef2f7',
+    background: '#fcfcff'
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+    color: '#111827'
+  },
+  sectionBody: {
+    padding: 18
+  },
+  formGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    marginBottom: 16
+  },
+  formRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 12
+  },
+  label: {
+    fontWeight: 700,
+    color: '#374151',
+    fontSize: 14
+  },
+  input: {
+    width: '100%',
+    border: '1px solid #cbd5e1',
+    borderRadius: 12,
+    padding: '12px 14px',
+    fontSize: 15,
+    outline: 'none'
+  },
+  select: {
+    width: '100%',
+    border: '1px solid #cbd5e1',
+    borderRadius: 12,
+    padding: '12px 14px',
+    fontSize: 15,
+    outline: 'none',
+    background: '#fff'
+  },
+  textarea: {
+    width: '100%',
+    minHeight: 220,
+    border: '1px solid #cbd5e1',
+    borderRadius: 14,
+    padding: '14px 16px',
+    fontSize: 15,
+    lineHeight: 1.7,
+    resize: 'vertical',
+    outline: 'none'
+  },
+  primaryButtonRow: {
+    display: 'flex',
+    gap: 10,
+    flexWrap: 'wrap'
+  },
+  primaryButton: {
+    border: 'none',
+    background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
+    color: '#fff',
+    fontWeight: 800,
+    padding: '12px 18px',
+    borderRadius: 12,
+    cursor: 'pointer',
+    boxShadow: '0 10px 24px rgba(37,99,235,0.22)'
+  },
+  secondaryButton: {
+    border: '1px solid #cbd5e1',
+    background: '#fff',
+    color: '#334155',
+    fontWeight: 700,
+    padding: '12px 18px',
+    borderRadius: 12,
+    cursor: 'pointer'
+  },
+  smallButton: {
+    border: '1px solid #d1d5db',
+    background: '#fff',
+    color: '#374151',
+    fontWeight: 700,
+    padding: '8px 12px',
+    borderRadius: 10,
+    cursor: 'pointer'
+  },
+  markdownBody: {
+    color: '#1f2937',
+    lineHeight: 1.8,
+    fontSize: 15
+  },
+  bulletList: {
+    margin: 0,
+    paddingLeft: 20,
+    color: '#1f2937',
+    lineHeight: 1.8
+  },
+  bulletItem: {
+    marginBottom: 6
+  },
+  emptyText: {
+    margin: 0,
+    color: '#6b7280',
+    lineHeight: 1.7
+  },
+  buttonWrap: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14
+  },
+  questionButton: {
+    border: '1px solid #bfdbfe',
+    background: '#eff6ff',
+    color: '#1d4ed8',
+    padding: '10px 12px',
+    borderRadius: 12,
+    cursor: 'pointer',
+    fontWeight: 700,
+    textAlign: 'left'
+  },
+  toolGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 10
+  },
+  toolButton: {
+    border: '1px solid #dbeafe',
+    background: '#f8fbff',
+    color: '#1e3a8a',
+    padding: '12px 14px',
+    borderRadius: 12,
+    cursor: 'pointer',
+    fontWeight: 800
+  },
+  chatBox: {
+    height: 520,
+    overflowY: 'auto',
+    background: '#f8fafc',
+    border: '1px solid #e5e7eb',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 12
+  },
+  chatInputArea: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10
+  },
+  chatTextarea: {
+    width: '100%',
+    minHeight: 90,
+    maxHeight: 220,
+    border: '1px solid #cbd5e1',
+    borderRadius: 14,
+    padding: '12px 14px',
+    fontSize: 15,
+    lineHeight: 1.6,
+    resize: 'vertical',
+    outline: 'none'
+  },
+  guideList: {
+    margin: 0,
+    paddingLeft: 20,
+    color: '#374151',
+    lineHeight: 1.9
+  }
+};
