@@ -9,7 +9,7 @@ import ChatBubble from '../components/ChatBubble';
 import QuizCard from '../components/QuizCard';
 import ModeBadge from '../components/ModeBadge';
 
-import { createSystemMessage } from '../lib/systemPrompt';
+import { createSystemMessage, createChatSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, copyText, modeMap } from '../lib/parseResponse';
 
 /** =========================
@@ -168,6 +168,9 @@ export default function Home() {
   const buildBaseSystem = () =>
     createSystemMessage({ topic, sourceText, gradeLevel, learningMode });
 
+  const buildChatSystem = () =>
+    createChatSystemMessage({ topic, sourceText, gradeLevel });
+
   const handleAnalyze = async () => {
     const trimmedTopic = topic.trim();
     const trimmedSource = sourceText.trim();
@@ -295,7 +298,7 @@ export default function Home() {
     setConversation((prev) => [...prev, userMessage, assistantPlaceholder]);
     scrollChatToBottom(false);
 
-    await requestStream([buildBaseSystem(), ...conversation, userMessage], {
+    await requestStream([buildChatSystem(), ...conversation, userMessage], {
       onChunk: (data) => {
         setConversation((prev) => {
           const updated = [...prev];
