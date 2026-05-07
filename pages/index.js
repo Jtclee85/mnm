@@ -95,7 +95,17 @@ export default function Home() {
         body: JSON.stringify({ messages: messageHistory })
       });
 
-      if (!res.ok || !res.body) throw new Error('서버 응답에 문제가 있습니다.');
+      if (!res.ok) {
+        let errMsg = '오류가 발생했습니다. 다시 시도해 주세요.';
+        try {
+          const body = await res.json();
+          if (body.error) errMsg = body.error;
+        } catch {}
+        onError?.(errMsg);
+        return;
+      }
+
+      if (!res.body) throw new Error('서버 응답에 문제가 있습니다.');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -153,19 +163,42 @@ export default function Home() {
 
     setIsAnalyzing(true);
 
+    const thinkingMsg = trimmedSource.length > 3000
+      ? '자료가 너무 길어서 조금 오래 생각하는 중입니다. 잠시만 기다려 줘!'
+      : '분석 중이야, 잠깐만 기다려 줘!';
+
+    setConversation((prev) => [
+      ...prev,
+      { role: 'user', content: `조사 주제는 "${trimmedTopic}"이고, 자료 분석을 시작했어.` },
+      { role: 'assistant', content: thinkingMsg }
+    ]);
+    scrollChatToBottom(true);
+
     await requestStream(
       [buildBaseSystem(), { role: 'user', content: '원본 자료를 분석해서 모드에 맞는 학습 결과를 만들어 줘.' }],
       {
         onDone: (fullText) => {
           setAnalysisResult(parseSectionedResponse(fullText));
-          setConversation((prev) => [
-            ...prev,
-            { role: 'user', content: `조사 주제는 "${trimmedTopic}"이고, 자료 분석을 시작했어.` },
-            { role: 'assistant', content: '좋아! 지금 선택한 모드에 맞게 결과를 정리했어. 아래 카드들을 보면서 공부해 보자.' }
-          ]);
+          setConversation((prev) => {
+            const updated = [...prev];
+            const last = updated.length - 1;
+            if (updated[last]?.role === 'assistant') {
+              updated[last] = { ...updated[last], content: '좋아! 지금 선택한 모드에 맞게 결과를 정리했어. 아래 카드들을 보면서 공부해 보자.' };
+            }
+            return updated;
+          });
           scrollChatToBottom(true);
         },
-        onError: () => alert('자료 분석 중 오류가 발생했습니다.')
+        onError: (msg) => {
+          setConversation((prev) => {
+            const updated = [...prev];
+            const last = updated.length - 1;
+            if (updated[last]?.role === 'assistant') {
+              updated[last] = { ...updated[last], content: msg || '자료 분석 중 오류가 발생했습니다.' };
+            }
+            return updated;
+          });
+        }
       }
     );
 
@@ -185,7 +218,7 @@ export default function Home() {
 
     await requestStream(messages, {
       onDone: (fullText) => onDone(parseSectionedResponse(fullText)),
-      onError: () => alert('처리 중 오류가 발생했습니다.')
+      onError: (msg) => alert(msg || '처리 중 오류가 발생했습니다.')
     });
 
     setIsAnalyzing(false);
@@ -261,12 +294,12 @@ export default function Home() {
         scrollChatToBottom(false);
       },
       onDone: () => scrollChatToBottom(true),
-      onError: () => {
+      onError: (msg) => {
         setConversation((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
           if (updated[lastIdx]?.role === 'assistant') {
-            updated[lastIdx] = { ...updated[lastIdx], content: '앗, 답변을 가져오는 중 문제가 생겼어요.' };
+            updated[lastIdx] = { ...updated[lastIdx], content: msg || '앗, 답변을 가져오는 중 문제가 생겼어요.' };
           }
           return updated;
         });

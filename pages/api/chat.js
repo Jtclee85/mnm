@@ -1,11 +1,13 @@
 import OpenAI from "openai";
 
-// 스트리밍 응답을 위한 Edge Runtime 설정
 export const config = {
   runtime: 'edge',
 };
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// 한국어 기준 약 7,500 토큰 이내로 제어 (시스템 프롬프트 포함)
+const MAX_TOTAL_CHARS = 15000;
 
 export default async function handler(req) {
   if (req.method !== 'POST') {
@@ -14,20 +16,34 @@ export default async function handler(req) {
 
   const { messages } = await req.json();
 
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return new Response(JSON.stringify({ error: '잘못된 요청입니다.' }), { status: 400 });
+  }
+
+  const totalChars = messages.reduce(
+    (sum, m) => sum + (typeof m.content === 'string' ? m.content.length : 0),
+    0
+  );
+
+  if (totalChars > MAX_TOTAL_CHARS) {
+    return new Response(
+      JSON.stringify({ error: '입력 자료가 너무 깁니다. 조사자료를 짧게 줄여 주세요.' }),
+      { status: 400 }
+    );
+  }
+
   try {
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       messages,
-      stream: true, // ✨ 스트리밍 옵션 활성화
+      stream: true,
     });
 
-    // Node.js의 ReadableStream을 웹 표준 ReadableStream으로 변환
     const webStream = new ReadableStream({
       async start(controller) {
         for await (const chunk of stream) {
           const delta = chunk.choices[0]?.delta?.content || "";
           if (delta) {
-            // 클라이언트에 보낼 데이터 인코딩
             const encoded = new TextEncoder().encode(`data: ${JSON.stringify(delta)}\n\n`);
             controller.enqueue(encoded);
           }
@@ -41,12 +57,20 @@ export default async function handler(req) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no', // Nginx 등 리버스 프록시의 버퍼링 방지
+        'X-Accel-Buffering': 'no',
       },
     });
 
   } catch (error) {
     console.error("OpenAI API 호출 오류:", error);
-    return new Response(JSON.stringify({ error: 'API request failed' }), { status: 500 });
+
+    if (error?.status === 429) {
+      return new Response(
+        JSON.stringify({ error: '지금 너무 많이 사용 중이에요. 잠시 후 다시 시도해 주세요.' }),
+        { status: 429 }
+      );
+    }
+
+    return new Response(JSON.stringify({ error: '오류가 발생했습니다. 다시 시도해 주세요.' }), { status: 500 });
   }
 }
