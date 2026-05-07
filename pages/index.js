@@ -1,508 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import ReactMarkdown from 'react-markdown';
+
 import Banner from '../components/Banner';
+import SectionCard from '../components/SectionCard';
+import BulletList from '../components/BulletList';
+import ChatBubble from '../components/ChatBubble';
+import QuizCard from '../components/QuizCard';
+import ModeBadge from '../components/ModeBadge';
 
-/** =========================
- *  유틸
- *  ========================= */
-
-const extractTagBlock = (text, tag) => {
-  if (!text) return '';
-  const regex = new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`, 'i');
-  const match = text.match(regex);
-  return match ? match[1].trim() : '';
-};
-
-const splitLines = (text) => {
-  if (!text) return [];
-  return text
-    .split(/\r?\n|•|·/g)
-    .map((line) => line.trim())
-    .filter(Boolean);
-};
-
-const parseQuizBlock = (quizText) => {
-  if (!quizText) return null;
-
-  const lines = quizText
-    .split(/\r?\n/g)
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  let question = '';
-  let answer = '';
-  let explanation = '';
-  let options = [];
-  let type = 'mcq';
-  let inOptions = false;
-
-  for (const line of lines) {
-    if (/^문제\s*:/i.test(line)) {
-      question = line.replace(/^문제\s*:/i, '').trim();
-      continue;
-    }
-    if (/^선택지\s*:/i.test(line)) {
-      inOptions = true;
-      continue;
-    }
-    if (/^정답\s*:/i.test(line)) {
-      inOptions = false;
-      answer = line.replace(/^정답\s*:/i, '').trim();
-      continue;
-    }
-    if (/^해설\s*:/i.test(line)) {
-      inOptions = false;
-      explanation = line.replace(/^해설\s*:/i, '').trim();
-      continue;
-    }
-    if (inOptions) {
-      const opt = line.replace(/^[0-9]+\.\s*/, '').trim();
-      if (opt) options.push(opt);
-    }
-  }
-
-  if (options.length === 2 && options.includes('O') && options.includes('X')) {
-    type = 'ox';
-  }
-
-  if (!question && lines.length > 0) {
-    question = lines[0];
-  }
-
-  return {
-    type,
-    question,
-    options,
-    answer,
-    explanation
-  };
-};
-
-const parseSectionedResponse = (rawText) => {
-  const easy = extractTagBlock(rawText, 'easy');
-  const summary = extractTagBlock(rawText, 'summary');
-  const keywords = extractTagBlock(rawText, 'keywords');
-  const vocabulary = extractTagBlock(rawText, 'vocabulary');
-  const questions = extractTagBlock(rawText, 'questions');
-  const searches = extractTagBlock(rawText, 'searches');
-  const reteach = extractTagBlock(rawText, 'reteach');
-  const further = extractTagBlock(rawText, 'further');
-  const presentationTitle = extractTagBlock(rawText, 'presentation_title');
-  const presentationScript = extractTagBlock(rawText, 'presentation_script');
-  const presentationOrder = extractTagBlock(rawText, 'presentation_order');
-  const expectedQuestions = extractTagBlock(rawText, 'expected_questions');
-  const teacher = extractTagBlock(rawText, 'teacher');
-  const quiz = extractTagBlock(rawText, 'quiz');
-  const evaluation = extractTagBlock(rawText, 'evaluation');
-
-  return {
-    easy,
-    summaryLines: splitLines(summary),
-    keywordLines: splitLines(keywords),
-    vocabularyLines: splitLines(vocabulary),
-    questionLines: splitLines(questions),
-    searchLines: splitLines(searches),
-    reteachLines: splitLines(reteach),
-    furtherLines: splitLines(further),
-    presentationTitle,
-    presentationScriptLines: splitLines(presentationScript),
-    presentationOrderLines: splitLines(presentationOrder),
-    expectedQuestionLines: splitLines(expectedQuestions),
-    teacher,
-    quiz,
-    evaluation
-  };
-};
-
-const copyText = async (text) => {
-  await navigator.clipboard.writeText(text);
-};
-
-const gradeLevelMap = {
-  low: '초등 저학년',
-  high: '초등 고학년',
-  발표: '발표 준비용'
-};
-
-const modeMap = {
-  understand: '이해 모드',
-  inquiry: '탐구 모드',
-  presentation: '발표 준비 모드'
-};
-
-/** =========================
- *  시스템 프롬프트
- *  ========================= */
-
-const createSystemMessage = ({
-  topic,
-  sourceText,
-  gradeLevel,
-  learningMode
-}) => ({
-  role: 'system',
-  content: `
-너는 '뭐냐면'이라는 이름의 초등 사회과 조사학습 도우미 AI다.
-
-[조사 주제]
-${topic}
-
-[학습 대상]
-${gradeLevelMap[gradeLevel] || '초등학생'}
-
-[학습 모드]
-${modeMap[learningMode] || '이해 모드'}
-
-[원본 자료]
-${sourceText}
-[/원본 자료]
-
-너의 가장 중요한 역할은 학생이 가져온 어려운 전시물 설명, 안내문, 조사자료를
-초등학생 눈높이에 맞게 다시 이해할 수 있도록 바꾸어 주는 것이다.
-
-반드시 아래 규칙을 지켜라.
-
-[공통 규칙]
-1. 원본 자료를 최우선으로 활용하되, 이해를 돕기 위해 필요한 범위에서만 배경지식을 덧붙여라.
-2. 초등학생이 이해할 수 있는 쉬운 단어를 사용하라.
-3. 어려운 표현은 풀어서 설명하라.
-4. 설명은 친절하고 짧은 문장 위주로 써라.
-5. 사실과 다른 내용을 지어내지 마라.
-6. 결과는 반드시 아래 태그 형식으로 출력하라. 태그 바깥에는 아무 말도 쓰지 마라.
-
-[이해 모드 출력 강조]
-- 쉬운 설명을 가장 자세히 작성
-- 어려운 낱말 풀이를 충실히 작성
-- 학생이 자기 말로 다시 말해볼 수 있게 핵심을 단순화
-
-[탐구 모드 출력 강조]
-- 핵심 개념을 구조적으로 제시
-- 탐구 질문을 더 좋게 만들기
-- 추천 검색어와 더 조사할 거리 제시
-
-[발표 준비 모드 출력 강조]
-- 발표 제목 제안
-- 발표용 3문장 요약
-- 발표 순서
-- 예상 질문과 답변 거리 제시
-
-[기본 출력 형식]
-<easy>
-원본 자료를 쉬운 말로 4~8문장 정도로 설명
-</easy>
-
-<summary>
-핵심 내용 3줄
-한 줄에 1개씩
-</summary>
-
-<keywords>
-핵심 개념 3~5개
-한 줄에 1개씩
-</keywords>
-
-<vocabulary>
-어려운 낱말 풀이 3~5개
-형식: 낱말: 뜻
-한 줄에 1개씩
-</vocabulary>
-
-<questions>
-탐구 질문 3개
-한 줄에 1개씩
-</questions>
-
-<searches>
-추천 검색어 3~5개
-기본 검색어, 심화 검색어, 비교 검색어가 섞이도록 작성
-한 줄에 1개씩
-</searches>
-
-<reteach>
-학생이 자기 말로 다시 말해볼 수 있도록 짧은 문장 2~3개
-한 줄에 1개씩
-</reteach>
-
-<further>
-이 주제와 이어서 조사하면 좋은 거리 2~4개
-한 줄에 1개씩
-</further>
-
-<presentation_title>
-발표 제목 1개
-</presentation_title>
-
-<presentation_script>
-발표용 3문장
-한 줄에 1개씩
-</presentation_script>
-
-<presentation_order>
-발표 순서 3단계
-예: 처음 - 가운데 - 마무리
-한 줄에 1개씩
-</presentation_order>
-
-<expected_questions>
-친구들이 물어볼 만한 예상 질문 2~3개
-한 줄에 1개씩
-</expected_questions>
-
-특수 요청이 있을 때는 아래처럼 추가 태그를 사용하라.
-
-1. 사용자가 "퀴즈풀기"를 요청하면 반드시 아래 형식으로만 출력하라.
-<quiz>
-문제: 질문 내용
-선택지:
-1. 보기1
-2. 보기2
-3. 보기3
-4. 보기4
-정답: 2
-해설: 왜 2번이 정답인지 쉬운 말로 설명
-</quiz>
-
-OX 퀴즈로 만들 때는 아래 형식으로 출력하라.
-<quiz>
-문제: 질문 내용
-선택지:
-1. O
-2. X
-정답: 1
-해설: 왜 O가 정답인지 쉬운 말로 설명
-</quiz>
-
-2. 사용자가 "전체 요약"을 요청하면:
-<summary>
-지금까지의 활동 전체를 3줄로 요약
-</summary>
-
-3. 사용자가 "나 어땠어?"를 요청하면:
-<evaluation>
-최고야!, 정말 잘했어!, 좀 더 관심을 가져보자! 중 하나와 이유
-</evaluation>
-
-4. 사용자가 "교과평어 만들기"를 요청하면:
-<teacher>
-교과 세부능력 및 특기사항 예시문을 "~~함.", "~~였음." 형식의 개조식으로 작성
-</teacher>
-`
-});
-
-/** =========================
- *  컴포넌트
- *  ========================= */
-
-function SectionCard({ title, icon, children, actions, isMobile }) {
-  return (
-    <div style={{ ...styles.sectionCard, ...(isMobile ? styles.sectionCardMobile : {}) }}>
-      <div style={{ ...styles.sectionHeader, ...(isMobile ? styles.sectionHeaderMobile : {}) }}>
-        <div style={{ ...styles.sectionTitle, ...(isMobile ? styles.sectionTitleMobile : {}) }}>
-          <span style={{ marginRight: 8 }}>{icon}</span>
-          {title}
-        </div>
-        {actions ? <div>{actions}</div> : null}
-      </div>
-      <div style={{ ...styles.sectionBody, ...(isMobile ? styles.sectionBodyMobile : {}) }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function BulletList({ items, isMobile }) {
-  if (!items || items.length === 0) {
-    return <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>아직 생성된 내용이 없습니다.</p>;
-  }
-
-  return (
-    <ul style={{ ...styles.bulletList, ...(isMobile ? styles.bulletListMobile : {}) }}>
-      {items.map((item, idx) => (
-        <li key={`${item}-${idx}`} style={{ ...styles.bulletItem, ...(isMobile ? styles.bulletItemMobile : {}) }}>
-          {item}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function ChatBubble({ role, content, isMobile }) {
-  const isUser = role === 'user';
-  return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: isUser ? 'flex-end' : 'flex-start',
-        marginBottom: isMobile ? 8 : 10
-      }}
-    >
-      <div
-        style={{
-          maxWidth: isMobile ? '92%' : '85%',
-          background: isUser ? '#2563eb' : '#ffffff',
-          color: isUser ? '#ffffff' : '#1f2937',
-          border: `1px solid ${isUser ? '#2563eb' : '#d1d5db'}`,
-          borderRadius: 16,
-          padding: isMobile ? '10px 12px' : '12px 14px',
-          whiteSpace: 'pre-wrap',
-          lineHeight: 1.6,
-          fontSize: isMobile ? 14 : 15,
-          boxShadow: isUser
-            ? '0 6px 18px rgba(37,99,235,0.16)'
-            : '0 6px 18px rgba(0,0,0,0.06)'
-        }}
-      >
-        <ReactMarkdown
-          components={{
-            a: ({ node, ...props }) => (
-              <a {...props} target="_blank" rel="noopener noreferrer" />
-            )
-          }}
-        >
-          {content}
-        </ReactMarkdown>
-      </div>
-    </div>
-  );
-}
-
-function QuizCard({ quizData, onReset, isMobile }) {
-  const [selected, setSelected] = useState(null);
-  const [submitted, setSubmitted] = useState(false);
-
-  if (!quizData) {
-    return <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>퀴즈가 아직 없습니다.</p>;
-  }
-
-  const correctIndex = Math.max(0, Number(quizData.answer) - 1);
-  const isCorrect = selected === correctIndex;
-
-  return (
-    <div>
-      <div style={{ ...styles.quizQuestion, ...(isMobile ? styles.quizQuestionMobile : {}) }}>
-        {quizData.question || '문제가 없습니다.'}
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-        {(quizData.options || []).map((option, idx) => {
-          const isSelected = selected === idx;
-          const isAnswer = submitted && idx === correctIndex;
-          const isWrongSelected = submitted && isSelected && idx !== correctIndex;
-
-          let background = '#ffffff';
-          let border = '#cbd5e1';
-          let color = '#1f2937';
-
-          if (!submitted && isSelected) {
-            background = '#eff6ff';
-            border = '#60a5fa';
-            color = '#1d4ed8';
-          }
-          if (isAnswer) {
-            background = '#ecfdf5';
-            border = '#22c55e';
-            color = '#166534';
-          }
-          if (isWrongSelected) {
-            background = '#fef2f2';
-            border = '#ef4444';
-            color = '#991b1b';
-          }
-
-          return (
-            <button
-              key={`${option}-${idx}`}
-              type="button"
-              disabled={submitted}
-              onClick={() => setSelected(idx)}
-              style={{
-                ...styles.quizOptionButton,
-                ...(isMobile ? styles.quizOptionButtonMobile : {}),
-                background,
-                borderColor: border,
-                color,
-                cursor: submitted ? 'default' : 'pointer'
-              }}
-            >
-              <span style={{ fontWeight: 800, marginRight: 8 }}>{idx + 1}.</span>
-              {option}
-            </button>
-          );
-        })}
-      </div>
-
-      <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-        {!submitted ? (
-          <button
-            type="button"
-            style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
-            disabled={selected === null}
-            onClick={() => setSubmitted(true)}
-          >
-            정답 확인
-          </button>
-        ) : (
-          <button
-            type="button"
-            style={{ ...styles.secondaryButton, ...(isMobile ? styles.secondaryButtonMobile : {}) }}
-            onClick={onReset}
-          >
-            새 퀴즈 만들기
-          </button>
-        )}
-      </div>
-
-      {submitted && (
-        <div
-          style={{
-            marginTop: 16,
-            padding: isMobile ? 12 : 14,
-            borderRadius: 12,
-            background: isCorrect ? '#ecfdf5' : '#fef2f2',
-            border: `1px solid ${isCorrect ? '#22c55e' : '#ef4444'}`,
-            color: isCorrect ? '#166534' : '#991b1b',
-            fontSize: isMobile ? 14 : 15
-          }}
-        >
-          <div style={{ fontWeight: 800, marginBottom: 6 }}>
-            {isCorrect ? '정답이야! 잘했어 👏' : '아쉽지만 다시 보자!'}
-          </div>
-          <div style={{ lineHeight: 1.7 }}>
-            정답은 <strong>{correctIndex + 1}번</strong>이야.
-            {quizData.explanation ? ` ${quizData.explanation}` : ''}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ModeBadge({ learningMode }) {
-  const config = {
-    understand: { label: '이해 모드', color: '#1d4ed8', bg: '#dbeafe' },
-    inquiry: { label: '탐구 모드', color: '#047857', bg: '#d1fae5' },
-    presentation: { label: '발표 준비 모드', color: '#7c3aed', bg: '#ede9fe' }
-  };
-
-  const item = config[learningMode] || config.understand;
-
-  return (
-    <div
-      style={{
-        display: 'inline-block',
-        padding: '8px 14px',
-        borderRadius: 999,
-        fontSize: 14,
-        fontWeight: 800,
-        color: item.color,
-        background: item.bg
-      }}
-    >
-      현재 결과 화면: {item.label}
-    </div>
-  );
-}
+import { createSystemMessage } from '../lib/systemPrompt';
+import { parseSectionedResponse, parseQuizBlock, copyText, modeMap } from '../lib/parseResponse';
 
 /** =========================
  *  메인
@@ -551,10 +59,7 @@ export default function Home() {
   const chatInputRef = useRef(null);
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 900);
-    };
-
+    const handleResize = () => setIsMobile(window.innerWidth <= 900);
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -569,9 +74,7 @@ export default function Home() {
     });
   };
 
-  useEffect(() => {
-    scrollChatToBottom(true);
-  }, [conversation]);
+  useEffect(() => { scrollChatToBottom(true); }, [conversation]);
 
   useEffect(() => {
     if (!isChatLoading && chatInputRef.current) {
@@ -583,6 +86,7 @@ export default function Home() {
     }
   }, [isChatLoading]);
 
+  // SSE 스트리밍 — 청크 경계에서 끊길 경우를 대비해 버퍼로 누적 후 파싱
   const requestStream = async (messageHistory, { onChunk, onDone, onError }) => {
     try {
       const res = await fetch('/api/chat', {
@@ -591,27 +95,42 @@ export default function Home() {
         body: JSON.stringify({ messages: messageHistory })
       });
 
-      if (!res.ok || !res.body) {
-        throw new Error('서버 응답에 문제가 있습니다.');
-      }
+      if (!res.ok || !res.body) throw new Error('서버 응답에 문제가 있습니다.');
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let fullText = '';
+      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n\n');
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop(); // 마지막 미완성 조각은 다음 루프로 이월
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.substring(6));
-            fullText += data;
-            onChunk?.(data, fullText);
+        for (const part of parts) {
+          if (part.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(part.substring(6));
+              fullText += data;
+              onChunk?.(data, fullText);
+            } catch {
+              // 불완전한 JSON 청크는 건너뜀
+            }
           }
+        }
+      }
+
+      // 스트림 종료 후 버퍼 잔여분 처리
+      if (buffer.startsWith('data: ')) {
+        try {
+          const data = JSON.parse(buffer.substring(6));
+          fullText += data;
+          onChunk?.(data, fullText);
+        } catch {
+          // 무시
         }
       }
 
@@ -623,62 +142,99 @@ export default function Home() {
   };
 
   const buildBaseSystem = () =>
-    createSystemMessage({
-      topic,
-      sourceText,
-      gradeLevel,
-      learningMode
-    });
+    createSystemMessage({ topic, sourceText, gradeLevel, learningMode });
 
   const handleAnalyze = async () => {
     const trimmedTopic = topic.trim();
     const trimmedSource = sourceText.trim();
 
-    if (!trimmedTopic) {
-      alert('조사 주제를 먼저 입력해 주세요.');
-      return;
-    }
-
-    if (trimmedSource.length < 50) {
-      alert('조사자료를 조금 더 길게 넣어 주세요.');
-      return;
-    }
+    if (!trimmedTopic) { alert('조사 주제를 먼저 입력해 주세요.'); return; }
+    if (trimmedSource.length < 50) { alert('조사자료를 조금 더 길게 넣어 주세요.'); return; }
 
     setIsAnalyzing(true);
 
-    const systemMsg = buildBaseSystem();
-    const userMsg = {
-      role: 'user',
-      content: '원본 자료를 분석해서 모드에 맞는 학습 결과를 만들어 줘.'
-    };
-
-    await requestStream([systemMsg, userMsg], {
-      onDone: (fullText) => {
-        const parsed = parseSectionedResponse(fullText);
-        setAnalysisResult(parsed);
-
-        setConversation((prev) => [
-          ...prev,
-          {
-            role: 'user',
-            content: `조사 주제는 "${trimmedTopic}"이고, 자료 분석을 시작했어.`
-          },
-          {
-            role: 'assistant',
-            content:
-              '좋아! 지금 선택한 모드에 맞게 결과를 정리했어. 아래 카드들을 보면서 공부해 보자.'
-          }
-        ]);
-
-        scrollChatToBottom(true);
-      },
-      onError: () => {
-        alert('자료 분석 중 오류가 발생했습니다.');
+    await requestStream(
+      [buildBaseSystem(), { role: 'user', content: '원본 자료를 분석해서 모드에 맞는 학습 결과를 만들어 줘.' }],
+      {
+        onDone: (fullText) => {
+          setAnalysisResult(parseSectionedResponse(fullText));
+          setConversation((prev) => [
+            ...prev,
+            { role: 'user', content: `조사 주제는 "${trimmedTopic}"이고, 자료 분석을 시작했어.` },
+            { role: 'assistant', content: '좋아! 지금 선택한 모드에 맞게 결과를 정리했어. 아래 카드들을 보면서 공부해 보자.' }
+          ]);
+          scrollChatToBottom(true);
+        },
+        onError: () => alert('자료 분석 중 오류가 발생했습니다.')
       }
+    );
+
+    setIsAnalyzing(false);
+  };
+
+  // 퀴즈/요약/평가/교과평어에 공통으로 쓰이는 단일 핸들러
+  const handleSpecialRequest = async ({ promptText, withHistory = false, onDone }) => {
+    if (!sourceText.trim()) { alert('먼저 자료를 분석해 주세요.'); return; }
+
+    setIsAnalyzing(true);
+    const systemMsg = buildBaseSystem();
+    const userMsg = { role: 'user', content: promptText };
+    const messages = withHistory
+      ? [systemMsg, ...conversation, userMsg]
+      : [systemMsg, userMsg];
+
+    await requestStream(messages, {
+      onDone: (fullText) => onDone(parseSectionedResponse(fullText)),
+      onError: () => alert('처리 중 오류가 발생했습니다.')
     });
 
     setIsAnalyzing(false);
   };
+
+  const handleQuiz = () =>
+    handleSpecialRequest({
+      promptText: '퀴즈풀기',
+      onDone: (parsed) => {
+        setAnalysisResult((prev) => ({ ...prev, quiz: parsed.quiz || '퀴즈를 만들지 못했어요.' }));
+        setQuizKey((prev) => prev + 1);
+      }
+    });
+
+  const handleFullSummary = () =>
+    handleSpecialRequest({
+      promptText: '전체 요약',
+      withHistory: true,
+      onDone: (parsed) => {
+        setAnalysisResult((prev) => ({
+          ...prev,
+          summaryLines: parsed.summaryLines.length > 0 ? parsed.summaryLines : prev.summaryLines
+        }));
+      }
+    });
+
+  const handleEvaluation = () =>
+    handleSpecialRequest({
+      promptText: '나 어땠어?',
+      withHistory: true,
+      onDone: (parsed) => {
+        setAnalysisResult((prev) => ({
+          ...prev,
+          evaluation: parsed.evaluation || '평가 결과를 만들지 못했어요.'
+        }));
+      }
+    });
+
+  const handleTeacherComment = () =>
+    handleSpecialRequest({
+      promptText: '교과평어 만들기',
+      withHistory: true,
+      onDone: (parsed) => {
+        setAnalysisResult((prev) => ({
+          ...prev,
+          teacher: parsed.teacher || '교과평어를 만들지 못했어요.'
+        }));
+      }
+    });
 
   const handleFollowUpChat = async (customPrompt) => {
     const userText = (customPrompt ?? chatInput).trim();
@@ -686,35 +242,31 @@ export default function Home() {
 
     const userMessage = { role: 'user', content: userText };
     const assistantPlaceholder = { role: 'assistant', content: '' };
-    const systemMsg = buildBaseSystem();
-    const historyForRequest = [...conversation, userMessage];
 
     setChatInput('');
     setIsChatLoading(true);
     setConversation((prev) => [...prev, userMessage, assistantPlaceholder]);
     scrollChatToBottom(false);
 
-    await requestStream([systemMsg, ...historyForRequest], {
+    await requestStream([buildBaseSystem(), ...conversation, userMessage], {
       onChunk: (data) => {
         setConversation((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
-          if (updated[lastIdx] && updated[lastIdx].role === 'assistant') {
-            updated[lastIdx].content += data;
+          if (updated[lastIdx]?.role === 'assistant') {
+            updated[lastIdx] = { ...updated[lastIdx], content: updated[lastIdx].content + data };
           }
           return updated;
         });
         scrollChatToBottom(false);
       },
-      onDone: () => {
-        scrollChatToBottom(true);
-      },
+      onDone: () => scrollChatToBottom(true),
       onError: () => {
         setConversation((prev) => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
-          if (updated[lastIdx] && updated[lastIdx].role === 'assistant') {
-            updated[lastIdx].content = '앗, 답변을 가져오는 중 문제가 생겼어요.';
+          if (updated[lastIdx]?.role === 'assistant') {
+            updated[lastIdx] = { ...updated[lastIdx], content: '앗, 답변을 가져오는 중 문제가 생겼어요.' };
           }
           return updated;
         });
@@ -724,154 +276,26 @@ export default function Home() {
     setIsChatLoading(false);
   };
 
-  const handleQuiz = async () => {
-    if (!sourceText.trim()) {
-      alert('먼저 자료를 분석해 주세요.');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    const systemMsg = buildBaseSystem();
-    const userMsg = {
-      role: 'user',
-      content: '퀴즈풀기'
-    };
-
-    await requestStream([systemMsg, userMsg], {
-      onDone: (fullText) => {
-        const parsed = parseSectionedResponse(fullText);
-        setAnalysisResult((prev) => ({
-          ...prev,
-          quiz: parsed.quiz || '퀴즈를 만들지 못했어요.'
-        }));
-        setQuizKey((prev) => prev + 1);
-      },
-      onError: () => {
-        alert('퀴즈 생성 중 오류가 발생했습니다.');
-      }
-    });
-
-    setIsAnalyzing(false);
-  };
-
-  const handleFullSummary = async () => {
-    if (!sourceText.trim()) {
-      alert('먼저 자료를 분석해 주세요.');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    const systemMsg = buildBaseSystem();
-    const userMsg = {
-      role: 'user',
-      content: '전체 요약'
-    };
-
-    await requestStream([systemMsg, ...conversation, userMsg], {
-      onDone: (fullText) => {
-        const parsed = parseSectionedResponse(fullText);
-        setAnalysisResult((prev) => ({
-          ...prev,
-          summaryLines:
-            parsed.summaryLines.length > 0 ? parsed.summaryLines : prev.summaryLines
-        }));
-      },
-      onError: () => {
-        alert('전체 요약 생성 중 오류가 발생했습니다.');
-      }
-    });
-
-    setIsAnalyzing(false);
-  };
-
-  const handleEvaluation = async () => {
-    if (!sourceText.trim()) {
-      alert('먼저 자료를 분석해 주세요.');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    const systemMsg = buildBaseSystem();
-    const userMsg = {
-      role: 'user',
-      content: '나 어땠어?'
-    };
-
-    await requestStream([systemMsg, ...conversation, userMsg], {
-      onDone: (fullText) => {
-        const parsed = parseSectionedResponse(fullText);
-        setAnalysisResult((prev) => ({
-          ...prev,
-          evaluation: parsed.evaluation || '평가 결과를 만들지 못했어요.'
-        }));
-      },
-      onError: () => {
-        alert('학습 평가 생성 중 오류가 발생했습니다.');
-      }
-    });
-
-    setIsAnalyzing(false);
-  };
-
-  const handleTeacherComment = async () => {
-    if (!sourceText.trim()) {
-      alert('먼저 자료를 분석해 주세요.');
-      return;
-    }
-
-    setIsAnalyzing(true);
-    const systemMsg = buildBaseSystem();
-    const userMsg = {
-      role: 'user',
-      content: '교과평어 만들기'
-    };
-
-    await requestStream([systemMsg, ...conversation, userMsg], {
-      onDone: (fullText) => {
-        const parsed = parseSectionedResponse(fullText);
-        setAnalysisResult((prev) => ({
-          ...prev,
-          teacher: parsed.teacher || '교과평어를 만들지 못했어요.'
-        }));
-      },
-      onError: () => {
-        alert('교과평어 생성 중 오류가 발생했습니다.');
-      }
-    });
-
-    setIsAnalyzing(false);
-  };
-
-  const buildExportText = () => {
-    return [
-      `조사 주제: ${topic}`,
-      `모드: ${modeMap[learningMode]}`,
-      '',
-      '[쉬운 설명]',
-      analysisResult.easy || '',
-      '',
-      '[핵심 내용 3줄]',
-      ...(analysisResult.summaryLines || []),
-      '',
-      '[핵심 개념]',
-      ...(analysisResult.keywordLines || []),
-      '',
-      '[어려운 낱말 풀이]',
-      ...(analysisResult.vocabularyLines || []),
-      '',
-      '[탐구 질문]',
-      ...(analysisResult.questionLines || []),
-      '',
-      '[추천 검색어]',
-      ...(analysisResult.searchLines || []),
-      '',
-      '[발표 제목]',
-      analysisResult.presentationTitle || '',
-      '',
-      '[발표용 3문장]',
-      ...(analysisResult.presentationScriptLines || [])
-    ].join('\n');
-  };
+  const buildExportText = () => [
+    `조사 주제: ${topic}`,
+    `모드: ${modeMap[learningMode]}`,
+    '',
+    '[쉬운 설명]', analysisResult.easy || '',
+    '',
+    '[핵심 내용 3줄]', ...(analysisResult.summaryLines || []),
+    '',
+    '[핵심 개념]', ...(analysisResult.keywordLines || []),
+    '',
+    '[어려운 낱말 풀이]', ...(analysisResult.vocabularyLines || []),
+    '',
+    '[탐구 질문]', ...(analysisResult.questionLines || []),
+    '',
+    '[추천 검색어]', ...(analysisResult.searchLines || []),
+    '',
+    '[발표 제목]', analysisResult.presentationTitle || '',
+    '',
+    '[발표용 3문장]', ...(analysisResult.presentationScriptLines || [])
+  ].join('\n');
 
   const parsedQuiz = parseQuizBlock(analysisResult.quiz);
 
@@ -888,12 +312,8 @@ export default function Home() {
                 <button
                   style={{ ...styles.smallButton, ...(isMobile ? styles.smallButtonMobile : {}) }}
                   onClick={async () => {
-                    try {
-                      await copyText(analysisResult.easy);
-                      alert('쉬운 설명을 복사했어요.');
-                    } catch {
-                      alert('복사에 실패했어요.');
-                    }
+                    try { await copyText(analysisResult.easy); alert('쉬운 설명을 복사했어요.'); }
+                    catch { alert('복사에 실패했어요.'); }
                   }}
                 >
                   복사
@@ -906,7 +326,7 @@ export default function Home() {
                 <ReactMarkdown>{analysisResult.easy}</ReactMarkdown>
               </div>
             ) : (
-              <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>
+              <p style={{ margin: 0, color: '#6b7280', lineHeight: 1.7, ...(isMobile ? { fontSize: 14 } : {}) }}>
                 자료를 분석하면 여기에 쉬운 설명이 나타납니다.
               </p>
             )}
@@ -972,7 +392,7 @@ export default function Home() {
                 {analysisResult.presentationTitle}
               </div>
             ) : (
-              <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>
+              <p style={{ margin: 0, color: '#6b7280', lineHeight: 1.7, ...(isMobile ? { fontSize: 14 } : {}) }}>
                 자료를 분석하면 여기에 발표 제목이 나타납니다.
               </p>
             )}
@@ -1000,10 +420,7 @@ export default function Home() {
     <>
       <Head>
         <title>뭐냐면 - 조사자료 난이도 조절 웹앱</title>
-        <meta
-          name="description"
-          content="전시물, 안내문, 조사자료를 초등학생 눈높이에 맞게 쉽게 바꾸고 탐구를 확장하는 AI 웹앱"
-        />
+        <meta name="description" content="전시물, 안내문, 조사자료를 초등학생 눈높이에 맞게 쉽게 바꾸고 탐구를 확장하는 AI 웹앱" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </Head>
 
@@ -1029,18 +446,11 @@ export default function Home() {
             <ModeBadge learningMode={learningMode} />
           </div>
 
-          <div
-            style={{
-              ...styles.grid,
-              ...(isMobile ? styles.gridMobile : {})
-            }}
-          >
+          <div style={{ ...styles.grid, ...(isMobile ? styles.gridMobile : {}) }}>
             <div style={{ ...styles.leftColumn, ...(isMobile ? styles.leftColumnMobile : {}) }}>
               <SectionCard title="기본 설정" icon="🛠️" isMobile={isMobile}>
                 <div style={styles.formGroup}>
-                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>
-                    조사 주제
-                  </label>
+                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>조사 주제</label>
                   <input
                     style={{ ...styles.input, ...(isMobile ? styles.inputMobile : {}) }}
                     value={topic}
@@ -1049,16 +459,9 @@ export default function Home() {
                   />
                 </div>
 
-                <div
-                  style={{
-                    ...styles.formRow,
-                    ...(isMobile ? styles.formRowMobile : {})
-                  }}
-                >
+                <div style={{ ...styles.formRow, ...(isMobile ? styles.formRowMobile : {}) }}>
                   <div style={styles.formGroup}>
-                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>
-                      학습 수준
-                    </label>
+                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 수준</label>
                     <select
                       style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
                       value={gradeLevel}
@@ -1071,9 +474,7 @@ export default function Home() {
                   </div>
 
                   <div style={styles.formGroup}>
-                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>
-                      학습 모드
-                    </label>
+                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 모드</label>
                     <select
                       style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
                       value={learningMode}
@@ -1087,9 +488,7 @@ export default function Home() {
                 </div>
 
                 <div style={styles.formGroup}>
-                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>
-                    조사자료 입력
-                  </label>
+                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>조사자료 입력</label>
                   <textarea
                     style={{ ...styles.textarea, ...(isMobile ? styles.textareaMobile : {}) }}
                     value={sourceText}
@@ -1098,12 +497,7 @@ export default function Home() {
                   />
                 </div>
 
-                <div
-                  style={{
-                    ...styles.primaryButtonRow,
-                    ...(isMobile ? styles.primaryButtonRowMobile : {})
-                  }}
-                >
+                <div style={{ ...styles.primaryButtonRow, ...(isMobile ? styles.primaryButtonRowMobile : {}) }}>
                   <button
                     style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
                     onClick={handleAnalyze}
@@ -1115,12 +509,8 @@ export default function Home() {
                   <button
                     style={{ ...styles.secondaryButton, ...(isMobile ? styles.secondaryButtonMobile : {}) }}
                     onClick={async () => {
-                      try {
-                        await copyText(buildExportText());
-                        alert('결과를 복사했어요.');
-                      } catch {
-                        alert('복사에 실패했어요.');
-                      }
+                      try { await copyText(buildExportText()); alert('결과를 복사했어요.'); }
+                      catch { alert('복사에 실패했어요.'); }
                     }}
                   >
                     결과 복사
@@ -1131,63 +521,29 @@ export default function Home() {
               {renderModeResultCards()}
 
               <SectionCard title="학습 확장 도구" icon="🚀" isMobile={isMobile}>
-                <div
-                  style={{
-                    ...styles.toolGrid,
-                    ...(isMobile ? styles.toolGridMobile : {})
-                  }}
-                >
-                  <button
-                    style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }}
-                    onClick={handleQuiz}
-                    disabled={isAnalyzing}
-                  >
-                    💡 퀴즈 만들기
-                  </button>
-                  <button
-                    style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }}
-                    onClick={handleFullSummary}
-                    disabled={isAnalyzing}
-                  >
-                    📜 전체 요약
-                  </button>
-                  <button
-                    style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }}
-                    onClick={handleEvaluation}
-                    disabled={isAnalyzing}
-                  >
-                    💯 나 어땠어?
-                  </button>
-                  <button
-                    style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }}
-                    onClick={handleTeacherComment}
-                    disabled={isAnalyzing}
-                  >
-                    ✍️ 교과평어 만들기
-                  </button>
+                <div style={{ ...styles.toolGrid, ...(isMobile ? styles.toolGridMobile : {}) }}>
+                  <button style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }} onClick={handleQuiz} disabled={isAnalyzing}>💡 퀴즈 만들기</button>
+                  <button style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }} onClick={handleFullSummary} disabled={isAnalyzing}>📜 전체 요약</button>
+                  <button style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }} onClick={handleEvaluation} disabled={isAnalyzing}>💯 나 어땠어?</button>
+                  <button style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }} onClick={handleTeacherComment} disabled={isAnalyzing}>✍️ 교과평어 만들기</button>
                 </div>
               </SectionCard>
 
-              {analysisResult.quiz ? (
+              {analysisResult.quiz && (
                 <SectionCard title="퀴즈" icon="🎯" isMobile={isMobile}>
-                  <QuizCard
-                    key={quizKey}
-                    quizData={parsedQuiz}
-                    onReset={handleQuiz}
-                    isMobile={isMobile}
-                  />
+                  <QuizCard key={quizKey} quizData={parsedQuiz} onReset={handleQuiz} isMobile={isMobile} />
                 </SectionCard>
-              ) : null}
+              )}
 
-              {analysisResult.evaluation ? (
+              {analysisResult.evaluation && (
                 <SectionCard title="학습 평가" icon="🌟" isMobile={isMobile}>
                   <div style={{ ...styles.markdownBody, ...(isMobile ? styles.markdownBodyMobile : {}) }}>
                     <ReactMarkdown>{analysisResult.evaluation}</ReactMarkdown>
                   </div>
                 </SectionCard>
-              ) : null}
+              )}
 
-              {analysisResult.teacher ? (
+              {analysisResult.teacher && (
                 <SectionCard
                   title="교과평어 예시"
                   icon="🧾"
@@ -1196,12 +552,8 @@ export default function Home() {
                     <button
                       style={{ ...styles.smallButton, ...(isMobile ? styles.smallButtonMobile : {}) }}
                       onClick={async () => {
-                        try {
-                          await copyText(analysisResult.teacher);
-                          alert('교과평어를 복사했어요.');
-                        } catch {
-                          alert('복사에 실패했어요.');
-                        }
+                        try { await copyText(analysisResult.teacher); alert('교과평어를 복사했어요.'); }
+                        catch { alert('복사에 실패했어요.'); }
                       }}
                     >
                       복사
@@ -1212,7 +564,7 @@ export default function Home() {
                     <ReactMarkdown>{analysisResult.teacher}</ReactMarkdown>
                   </div>
                 </SectionCard>
-              ) : null}
+              )}
             </div>
 
             <div style={{ ...styles.rightColumn, ...(isMobile ? styles.rightColumnMobile : {}) }}>
@@ -1292,24 +644,13 @@ export default function Home() {
 const styles = {
   page: {
     minHeight: '100vh',
-    background:
-      'linear-gradient(180deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%)',
+    background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 45%, #f8fafc 100%)',
     padding: '24px 16px 48px'
   },
-  pageMobile: {
-    padding: '16px 10px 32px'
-  },
-  container: {
-    maxWidth: 1280,
-    margin: '0 auto'
-  },
-  hero: {
-    textAlign: 'center',
-    margin: '8px 0 24px'
-  },
-  heroMobile: {
-    margin: '4px 0 16px'
-  },
+  pageMobile: { padding: '16px 10px 32px' },
+  container: { maxWidth: 1280, margin: '0 auto' },
+  hero: { textAlign: 'center', margin: '8px 0 24px' },
+  heroMobile: { margin: '4px 0 16px' },
   heroBadge: {
     display: 'inline-block',
     background: '#dbeafe',
@@ -1320,372 +661,90 @@ const styles = {
     fontWeight: 700,
     marginBottom: 12
   },
-  heroBadgeMobile: {
-    fontSize: 12,
-    padding: '6px 10px',
-    marginBottom: 10
-  },
-  heroTitle: {
-    fontSize: 'clamp(2rem, 5vw, 3.5rem)',
-    margin: '0 0 8px',
-    color: '#111827',
-    fontWeight: 900
-  },
-  heroTitleMobile: {
-    fontSize: '2rem',
-    margin: '0 0 6px'
-  },
-  heroSubtitle: {
-    margin: 0,
-    color: '#4b5563',
-    lineHeight: 1.7,
-    fontSize: 'clamp(1rem, 2vw, 1.15rem)'
-  },
-  heroSubtitleMobile: {
-    fontSize: 14,
-    lineHeight: 1.6
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: '1.4fr 0.9fr',
-    gap: 20
-  },
-  gridMobile: {
-    gridTemplateColumns: '1fr',
-    gap: 14
-  },
-  leftColumn: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 18
-  },
-  leftColumnMobile: {
-    gap: 14
-  },
-  rightColumn: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 18
-  },
-  rightColumnMobile: {
-    gap: 14
-  },
-  sectionCard: {
-    background: '#ffffff',
-    border: '1px solid #e5e7eb',
-    borderRadius: 20,
-    boxShadow: '0 10px 30px rgba(15, 23, 42, 0.06)',
-    overflow: 'hidden'
-  },
-  sectionCardMobile: {
-    borderRadius: 16
-  },
-  sectionHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '16px 18px',
-    borderBottom: '1px solid #eef2f7',
-    background: '#fcfcff'
-  },
-  sectionHeaderMobile: {
-    padding: '13px 14px'
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-    color: '#111827'
-  },
-  sectionTitleMobile: {
-    fontSize: 16
-  },
-  sectionBody: {
-    padding: 18
-  },
-  sectionBodyMobile: {
-    padding: 14
-  },
-  formGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    marginBottom: 16
-  },
-  formRow: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 12
-  },
-  formRowMobile: {
-    gridTemplateColumns: '1fr',
-    gap: 0
-  },
-  label: {
-    fontWeight: 700,
-    color: '#374151',
-    fontSize: 14
-  },
-  labelMobile: {
-    fontSize: 13
-  },
+  heroBadgeMobile: { fontSize: 12, padding: '6px 10px', marginBottom: 10 },
+  heroTitle: { fontSize: 'clamp(2rem, 5vw, 3.5rem)', margin: '0 0 8px', color: '#111827', fontWeight: 900 },
+  heroTitleMobile: { fontSize: '2rem', margin: '0 0 6px' },
+  heroSubtitle: { margin: 0, color: '#4b5563', lineHeight: 1.7, fontSize: 'clamp(1rem, 2vw, 1.15rem)' },
+  heroSubtitleMobile: { fontSize: 14, lineHeight: 1.6 },
+  grid: { display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: 20 },
+  gridMobile: { gridTemplateColumns: '1fr', gap: 14 },
+  leftColumn: { display: 'flex', flexDirection: 'column', gap: 18 },
+  leftColumnMobile: { gap: 14 },
+  rightColumn: { display: 'flex', flexDirection: 'column', gap: 18 },
+  rightColumnMobile: { gap: 14 },
+  formGroup: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
+  formRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
+  formRowMobile: { gridTemplateColumns: '1fr', gap: 0 },
+  label: { fontWeight: 700, color: '#374151', fontSize: 14 },
+  labelMobile: { fontSize: 13 },
   input: {
-    width: '100%',
-    border: '1px solid #cbd5e1',
-    borderRadius: 12,
-    padding: '12px 14px',
-    fontSize: 15,
-    outline: 'none',
-    boxSizing: 'border-box'
+    width: '100%', border: '1px solid #cbd5e1', borderRadius: 12,
+    padding: '12px 14px', fontSize: 15, outline: 'none', boxSizing: 'border-box'
   },
-  inputMobile: {
-    fontSize: 16,
-    padding: '12px'
-  },
+  inputMobile: { fontSize: 16, padding: '12px' },
   select: {
-    width: '100%',
-    border: '1px solid #cbd5e1',
-    borderRadius: 12,
-    padding: '12px 14px',
-    fontSize: 15,
-    outline: 'none',
-    background: '#fff',
-    boxSizing: 'border-box'
+    width: '100%', border: '1px solid #cbd5e1', borderRadius: 12,
+    padding: '12px 14px', fontSize: 15, outline: 'none', background: '#fff', boxSizing: 'border-box'
   },
-  selectMobile: {
-    fontSize: 16,
-    padding: '12px'
-  },
+  selectMobile: { fontSize: 16, padding: '12px' },
   textarea: {
-    width: '100%',
-    minHeight: 220,
-    border: '1px solid #cbd5e1',
-    borderRadius: 14,
-    padding: '14px 16px',
-    fontSize: 15,
-    lineHeight: 1.7,
-    resize: 'vertical',
-    outline: 'none',
-    boxSizing: 'border-box'
+    width: '100%', minHeight: 220, border: '1px solid #cbd5e1', borderRadius: 14,
+    padding: '14px 16px', fontSize: 15, lineHeight: 1.7, resize: 'vertical',
+    outline: 'none', boxSizing: 'border-box'
   },
-  textareaMobile: {
-    minHeight: 180,
-    fontSize: 16,
-    padding: '12px'
-  },
-  primaryButtonRow: {
-    display: 'flex',
-    gap: 10,
-    flexWrap: 'wrap'
-  },
-  primaryButtonRowMobile: {
-    flexDirection: 'column',
-    gap: 10
-  },
+  textareaMobile: { minHeight: 180, fontSize: 16, padding: '12px' },
+  primaryButtonRow: { display: 'flex', gap: 10, flexWrap: 'wrap' },
+  primaryButtonRowMobile: { flexDirection: 'column', gap: 10 },
   primaryButton: {
     border: 'none',
     background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-    color: '#fff',
-    fontWeight: 800,
-    padding: '12px 18px',
-    borderRadius: 12,
-    cursor: 'pointer',
-    boxShadow: '0 10px 24px rgba(37,99,235,0.22)'
+    color: '#fff', fontWeight: 800, padding: '12px 18px', borderRadius: 12,
+    cursor: 'pointer', boxShadow: '0 10px 24px rgba(37,99,235,0.22)'
   },
-  primaryButtonMobile: {
-    width: '100%',
-    fontSize: 15,
-    padding: '13px 14px'
-  },
+  primaryButtonMobile: { width: '100%', fontSize: 15, padding: '13px 14px' },
   secondaryButton: {
-    border: '1px solid #cbd5e1',
-    background: '#fff',
-    color: '#334155',
-    fontWeight: 700,
-    padding: '12px 18px',
-    borderRadius: 12,
-    cursor: 'pointer'
+    border: '1px solid #cbd5e1', background: '#fff', color: '#334155',
+    fontWeight: 700, padding: '12px 18px', borderRadius: 12, cursor: 'pointer'
   },
-  secondaryButtonMobile: {
-    width: '100%',
-    fontSize: 15,
-    padding: '13px 14px'
-  },
+  secondaryButtonMobile: { width: '100%', fontSize: 15, padding: '13px 14px' },
   smallButton: {
-    border: '1px solid #d1d5db',
-    background: '#fff',
-    color: '#374151',
-    fontWeight: 700,
-    padding: '8px 12px',
-    borderRadius: 10,
-    cursor: 'pointer'
+    border: '1px solid #d1d5db', background: '#fff', color: '#374151',
+    fontWeight: 700, padding: '8px 12px', borderRadius: 10, cursor: 'pointer'
   },
-  smallButtonMobile: {
-    fontSize: 12,
-    padding: '7px 10px'
-  },
-  markdownBody: {
-    color: '#1f2937',
-    lineHeight: 1.8,
-    fontSize: 15
-  },
-  markdownBodyMobile: {
-    fontSize: 14,
-    lineHeight: 1.7
-  },
-  bulletList: {
-    margin: 0,
-    paddingLeft: 20,
-    color: '#1f2937',
-    lineHeight: 1.8
-  },
-  bulletListMobile: {
-    paddingLeft: 18,
-    fontSize: 14,
-    lineHeight: 1.7
-  },
-  bulletItem: {
-    marginBottom: 6
-  },
-  bulletItemMobile: {
-    marginBottom: 5
-  },
-  emptyText: {
-    margin: 0,
-    color: '#6b7280',
-    lineHeight: 1.7
-  },
-  emptyTextMobile: {
-    fontSize: 14
-  },
-  buttonWrap: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14
-  },
-  buttonWrapMobile: {
-    flexDirection: 'column',
-    gap: 8
-  },
+  smallButtonMobile: { fontSize: 12, padding: '7px 10px' },
+  markdownBody: { color: '#1f2937', lineHeight: 1.8, fontSize: 15 },
+  markdownBodyMobile: { fontSize: 14, lineHeight: 1.7 },
+  buttonWrap: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  buttonWrapMobile: { flexDirection: 'column', gap: 8 },
   questionButton: {
-    border: '1px solid #bfdbfe',
-    background: '#eff6ff',
-    color: '#1d4ed8',
-    padding: '10px 12px',
-    borderRadius: 12,
-    cursor: 'pointer',
-    fontWeight: 700,
-    textAlign: 'left'
+    border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8',
+    padding: '10px 12px', borderRadius: 12, cursor: 'pointer', fontWeight: 700, textAlign: 'left'
   },
-  questionButtonMobile: {
-    width: '100%',
-    fontSize: 14,
-    padding: '11px 12px'
-  },
-  toolGrid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: 10
-  },
-  toolGridMobile: {
-    gridTemplateColumns: '1fr'
-  },
+  questionButtonMobile: { width: '100%', fontSize: 14, padding: '11px 12px' },
+  toolGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
+  toolGridMobile: { gridTemplateColumns: '1fr' },
   toolButton: {
-    border: '1px solid #dbeafe',
-    background: '#f8fbff',
-    color: '#1e3a8a',
-    padding: '12px 14px',
-    borderRadius: 12,
-    cursor: 'pointer',
-    fontWeight: 800
+    border: '1px solid #dbeafe', background: '#f8fbff', color: '#1e3a8a',
+    padding: '12px 14px', borderRadius: 12, cursor: 'pointer', fontWeight: 800
   },
-  toolButtonMobile: {
-    width: '100%',
-    fontSize: 14,
-    padding: '12px'
-  },
+  toolButtonMobile: { width: '100%', fontSize: 14, padding: '12px' },
   chatBox: {
-    height: 520,
-    overflowY: 'auto',
-    background: '#f8fafc',
-    border: '1px solid #e5e7eb',
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 12
+    height: 520, overflowY: 'auto', background: '#f8fafc',
+    border: '1px solid #e5e7eb', borderRadius: 16, padding: 14, marginBottom: 12
   },
-  chatBoxMobile: {
-    height: 360,
-    padding: 10,
-    marginBottom: 10
-  },
-  chatInputArea: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 10
-  },
+  chatBoxMobile: { height: 360, padding: 10, marginBottom: 10 },
+  chatInputArea: { display: 'flex', flexDirection: 'column', gap: 10 },
   chatTextarea: {
-    width: '100%',
-    minHeight: 90,
-    maxHeight: 220,
-    border: '1px solid #cbd5e1',
-    borderRadius: 14,
-    padding: '12px 14px',
-    fontSize: 15,
-    lineHeight: 1.6,
-    resize: 'vertical',
-    outline: 'none',
-    boxSizing: 'border-box'
+    width: '100%', minHeight: 90, maxHeight: 220, border: '1px solid #cbd5e1',
+    borderRadius: 14, padding: '12px 14px', fontSize: 15, lineHeight: 1.6,
+    resize: 'vertical', outline: 'none', boxSizing: 'border-box'
   },
-  chatTextareaMobile: {
-    minHeight: 84,
-    fontSize: 16,
-    padding: '12px'
-  },
-  guideList: {
-    margin: 0,
-    paddingLeft: 20,
-    color: '#374151',
-    lineHeight: 1.9
-  },
-  guideListMobile: {
-    paddingLeft: 18,
-    fontSize: 14,
-    lineHeight: 1.7
-  },
-  quizQuestion: {
-    fontSize: 17,
-    fontWeight: 800,
-    color: '#111827',
-    lineHeight: 1.7
-  },
-  quizQuestionMobile: {
-    fontSize: 15
-  },
-  quizOptionButton: {
-    width: '100%',
-    textAlign: 'left',
-    border: '1px solid #cbd5e1',
-    borderRadius: 12,
-    padding: '12px 14px',
-    fontSize: 15,
-    transition: 'all 0.2s ease'
-  },
-  quizOptionButtonMobile: {
-    fontSize: 14,
-    padding: '11px 12px'
-  },
+  chatTextareaMobile: { minHeight: 84, fontSize: 16, padding: '12px' },
+  guideList: { margin: 0, paddingLeft: 20, color: '#374151', lineHeight: 1.9 },
+  guideListMobile: { paddingLeft: 18, fontSize: 14, lineHeight: 1.7 },
   bigTitleBox: {
-    fontSize: 20,
-    fontWeight: 900,
-    color: '#5b21b6',
-    background: '#f5f3ff',
-    border: '1px solid #ddd6fe',
-    borderRadius: 14,
-    padding: '16px 18px',
-    lineHeight: 1.6
+    fontSize: 20, fontWeight: 900, color: '#5b21b6', background: '#f5f3ff',
+    border: '1px solid #ddd6fe', borderRadius: 14, padding: '16px 18px', lineHeight: 1.6
   },
-  bigTitleBoxMobile: {
-    fontSize: 17,
-    padding: '13px 14px'
-  }
+  bigTitleBoxMobile: { fontSize: 17, padding: '13px 14px' }
 };

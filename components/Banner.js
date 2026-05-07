@@ -16,8 +16,8 @@ const Banner = () => {
       <Image
         src={bannerImage}
         alt="뭐냐면 챗봇 배너"
-        layout="fill"
-        objectFit="cover"
+        fill
+        style={{ objectFit: 'cover' }}
         priority
       />
       <div style={{
