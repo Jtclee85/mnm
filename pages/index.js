@@ -521,11 +521,13 @@ export default function Home() {
 
                 <div style={styles.formGroup}>
                   <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 모드</label>
-                  <div style={{ position: 'relative' }}>
-                    <div style={{ ...styles.modeButtonGroup, ...(isMobile ? styles.modeButtonGroupMobile : {}) }}>
-                      {modeOptions.map(({ value, label, icon }) => (
+                  <div style={{ ...styles.modeButtonGroup, ...(isMobile ? styles.modeButtonGroupMobile : {}) }}>
+                    {modeOptions.map(({ value, label, icon }) => (
+                      <div
+                        key={value}
+                        style={{ flex: 1, position: 'relative', zIndex: hoveredMode === value ? 10 : 1 }}
+                      >
                         <button
-                          key={value}
                           type="button"
                           style={{
                             ...styles.modeButton,
@@ -539,14 +541,14 @@ export default function Home() {
                           <span style={{ fontSize: isMobile ? 18 : 22 }}>{icon}</span>
                           {label}
                         </button>
-                      ))}
-                    </div>
-                    {showModeTip && (
-                      <div style={styles.modeTipBubble}>
-                        <div style={styles.modeTipArrow} />
-                        {modeTips[tipMode]}
+                        {(hoveredMode === value || (changeTip && learningMode === value)) && (
+                          <div style={styles.modeTipBubble}>
+                            <div style={styles.modeTipArrow} />
+                            {modeTips[value]}
+                          </div>
+                        )}
                       </div>
-                    )}
+                    ))}
                   </div>
                 </div>
 
@@ -805,7 +807,7 @@ const styles = {
   },
   modeButtonGroupMobile: { gap: 6 },
   modeButton: {
-    flex: 1,
+    width: '100%',
     border: '1.5px solid #e5e7eb',
     background: '#fff',
     color: '#374151',
