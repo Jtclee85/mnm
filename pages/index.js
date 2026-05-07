@@ -58,10 +58,11 @@ export default function Home() {
   const chatBottomRef = useRef(null);
   const chatInputRef = useRef(null);
 
-  const [hoverTip, setHoverTip] = useState(false);
+  const [hoveredMode, setHoveredMode] = useState(null);
   const [changeTip, setChangeTip] = useState(false);
   const tipTimerRef = useRef(null);
-  const showModeTip = hoverTip || changeTip;
+  const showModeTip = hoveredMode !== null || changeTip;
+  const tipMode = hoveredMode || learningMode;
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 900);
@@ -505,43 +506,47 @@ export default function Home() {
                   />
                 </div>
 
-                <div style={{ ...styles.formRow, ...(isMobile ? styles.formRowMobile : {}) }}>
-                  <div style={styles.formGroup}>
-                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 수준</label>
-                    <select
-                      style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
-                      value={gradeLevel}
-                      onChange={(e) => setGradeLevel(e.target.value)}
-                    >
-                      <option value="low">초등 저학년</option>
-                      <option value="high">초등 고학년</option>
-                      <option value="발표">발표 준비용</option>
-                    </select>
-                  </div>
+                <div style={styles.formGroup}>
+                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 수준</label>
+                  <select
+                    style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
+                    value={gradeLevel}
+                    onChange={(e) => setGradeLevel(e.target.value)}
+                  >
+                    <option value="low">초등 저학년</option>
+                    <option value="high">초등 고학년</option>
+                    <option value="발표">발표 준비용</option>
+                  </select>
+                </div>
 
-                  <div style={styles.formGroup}>
-                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 모드</label>
-                    <div style={{ position: 'relative' }}>
-                      <select
-                        style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
-                        value={learningMode}
-                        onChange={(e) => setLearningMode(e.target.value)}
-                        onMouseEnter={() => { clearTimeout(tipTimerRef.current); setHoverTip(true); }}
-                        onMouseLeave={() => setHoverTip(false)}
-                        onFocus={() => { clearTimeout(tipTimerRef.current); setHoverTip(true); }}
-                        onBlur={() => setHoverTip(false)}
-                      >
-                        <option value="understand">이해 모드</option>
-                        <option value="inquiry">탐구 모드</option>
-                        <option value="presentation">발표 준비 모드</option>
-                      </select>
-                      {showModeTip && (
-                        <div style={styles.modeTipBubble}>
-                          <div style={styles.modeTipArrow} />
-                          {modeTips[learningMode]}
-                        </div>
-                      )}
+                <div style={styles.formGroup}>
+                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 모드</label>
+                  <div style={{ position: 'relative' }}>
+                    <div style={{ ...styles.modeButtonGroup, ...(isMobile ? styles.modeButtonGroupMobile : {}) }}>
+                      {modeOptions.map(({ value, label, icon }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          style={{
+                            ...styles.modeButton,
+                            ...(learningMode === value ? styles.modeButtonActive : {}),
+                            ...(isMobile ? styles.modeButtonMobile : {})
+                          }}
+                          onClick={() => setLearningMode(value)}
+                          onMouseEnter={() => setHoveredMode(value)}
+                          onMouseLeave={() => setHoveredMode(null)}
+                        >
+                          <span style={{ fontSize: isMobile ? 18 : 22 }}>{icon}</span>
+                          {label}
+                        </button>
+                      ))}
                     </div>
+                    {showModeTip && (
+                      <div style={styles.modeTipBubble}>
+                        <div style={styles.modeTipArrow} />
+                        {modeTips[tipMode]}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -672,6 +677,12 @@ export default function Home() {
   );
 }
 
+const modeOptions = [
+  { value: 'understand', label: '이해 모드',    icon: '🧒' },
+  { value: 'inquiry',    label: '탐구 모드',    icon: '🔍' },
+  { value: 'presentation', label: '발표 준비', icon: '🎤' }
+];
+
 const modeTips = {
   understand: '어려운 설명을 먼저 쉽게 이해할 때 써요.\n쉬운 설명, 낱말 풀이, 핵심 내용 중심으로 정리해요.\n처음 자료를 읽을 때 가장 먼저 사용하면 좋아요.',
   inquiry: '이해한 내용을 바탕으로 더 조사할 때 써요.\n질문, 검색어, 더 조사할 거리를 보여줘요.\n탐구 주제 확장에 가장 잘 맞아요.',
@@ -788,6 +799,39 @@ const styles = {
     border: '1px solid #ddd6fe', borderRadius: 14, padding: '16px 18px', lineHeight: 1.6
   },
   bigTitleBoxMobile: { fontSize: 17, padding: '13px 14px' },
+  modeButtonGroup: {
+    display: 'flex',
+    gap: 8
+  },
+  modeButtonGroupMobile: { gap: 6 },
+  modeButton: {
+    flex: 1,
+    border: '1.5px solid #e5e7eb',
+    background: '#fff',
+    color: '#374151',
+    borderRadius: 12,
+    padding: '12px 8px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 6,
+    lineHeight: 1.3,
+    transition: 'all 0.15s ease'
+  },
+  modeButtonActive: {
+    border: '2px solid #2563eb',
+    background: '#eff6ff',
+    color: '#1d4ed8',
+    boxShadow: '0 4px 12px rgba(37,99,235,0.15)'
+  },
+  modeButtonMobile: {
+    fontSize: 12,
+    padding: '10px 6px',
+    gap: 4
+  },
   modeTipBubble: {
     position: 'absolute',
     top: 'calc(100% + 8px)',
@@ -806,7 +850,7 @@ const styles = {
   modeTipArrow: {
     position: 'absolute',
     top: -7,
-    left: 16,
+    left: 'calc(50% - 7px)',
     width: 0,
     height: 0,
     borderLeft: '7px solid transparent',
