@@ -506,21 +506,7 @@ export default function Home() {
         <div style={styles.container}>
           <Banner />
 
-          <div style={{ ...styles.hero, ...(isMobile ? styles.heroMobile : {}) }}>
-            <div style={{ ...styles.heroBadge, ...(isMobile ? styles.heroBadgeMobile : {}) }}>
-              사회과 조사학습 AI 코스웨어
-            </div>
-            <h1 style={{ ...styles.heroTitle, ...(isMobile ? styles.heroTitleMobile : {}) }}>
-              뭐냐면
-            </h1>
-            <p style={{ ...styles.heroSubtitle, ...(isMobile ? styles.heroSubtitleMobile : {}) }}>
-              어려운 전시 설명, 안내문, 조사자료를
-              <br />
-              학생이 이해할 수 있는 말로 다시 바꿔 주는 웹앱
-            </p>
-          </div>
-
-          <div style={{ textAlign: 'center', marginBottom: isMobile ? 14 : 18 }}>
+<div style={{ textAlign: 'center', marginBottom: isMobile ? 14 : 18 }}>
             <ModeBadge learningMode={learningMode} />
           </div>
 
@@ -739,24 +725,7 @@ const styles = {
   },
   pageMobile: { padding: '16px 10px 32px' },
   container: { maxWidth: 1280, margin: '0 auto' },
-  hero: { textAlign: 'center', margin: '8px 0 24px' },
-  heroMobile: { margin: '4px 0 16px' },
-  heroBadge: {
-    display: 'inline-block',
-    background: '#dbeafe',
-    color: '#1d4ed8',
-    padding: '8px 14px',
-    borderRadius: 999,
-    fontSize: 14,
-    fontWeight: 700,
-    marginBottom: 12
-  },
-  heroBadgeMobile: { fontSize: 12, padding: '6px 10px', marginBottom: 10 },
-  heroTitle: { fontSize: 'clamp(2rem, 5vw, 3.5rem)', margin: '0 0 8px', color: '#111827', fontWeight: 900 },
-  heroTitleMobile: { fontSize: '2rem', margin: '0 0 6px' },
-  heroSubtitle: { margin: 0, color: '#4b5563', lineHeight: 1.7, fontSize: 'clamp(1rem, 2vw, 1.15rem)' },
-  heroSubtitleMobile: { fontSize: 14, lineHeight: 1.6 },
-  grid: { display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: 20 },
+grid: { display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: 20 },
   gridMobile: { gridTemplateColumns: '1fr', gap: 14 },
   leftColumn: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftColumnMobile: { gap: 14 },
