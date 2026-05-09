@@ -9,6 +9,23 @@ body {
   color: #333;
 }
 
+@keyframes toolFill {
+  0%   { width: 0%; }
+  100% { width: 100%; }
+}
+
+.tool-fill-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, #2563eb, #7c3aed);
+  border-radius: 0 2px 0 0;
+  animation: toolFill 2.2s linear infinite;
+  pointer-events: none;
+}
+
 /* 말풍선 스타일 */
 .message-container {
   display: flex;

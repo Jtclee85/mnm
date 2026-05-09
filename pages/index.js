@@ -24,6 +24,7 @@ export default function Home() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [loadingTool, setLoadingTool] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
 
   const [analysisResult, setAnalysisResult] = useState({
@@ -251,10 +252,11 @@ export default function Home() {
   };
 
   // 퀴즈/요약/평가/교과평어에 공통으로 쓰이는 단일 핸들러
-  const handleSpecialRequest = async ({ promptText, withHistory = false, onDone }) => {
+  const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey }) => {
     if (!sourceText.trim()) { alert('먼저 자료를 분석해 주세요.'); return; }
 
     setIsAnalyzing(true);
+    setLoadingTool(toolKey ?? null);
     const systemMsg = buildBaseSystem();
     const userMsg = { role: 'user', content: promptText };
     const messages = withHistory
@@ -267,11 +269,13 @@ export default function Home() {
     });
 
     setIsAnalyzing(false);
+    setLoadingTool(null);
   };
 
   const handleQuiz = () =>
     handleSpecialRequest({
       promptText: '퀴즈풀기',
+      toolKey: 'quiz',
       onDone: (parsed) => {
         setAnalysisResult((prev) => ({ ...prev, quiz: parsed.quiz || '퀴즈를 만들지 못했어요.' }));
         setQuizKey((prev) => prev + 1);
@@ -281,6 +285,7 @@ export default function Home() {
   const handleFullSummary = () =>
     handleSpecialRequest({
       promptText: '전체 요약',
+      toolKey: 'summary',
       withHistory: true,
       onDone: (parsed) => {
         setAnalysisResult((prev) => ({
@@ -293,6 +298,7 @@ export default function Home() {
   const handleEvaluation = () =>
     handleSpecialRequest({
       promptText: '나 어땠어?',
+      toolKey: 'evaluation',
       withHistory: true,
       onDone: (parsed) => {
         setAnalysisResult((prev) => ({
@@ -305,6 +311,7 @@ export default function Home() {
   const handleTeacherComment = () =>
     handleSpecialRequest({
       promptText: '교과평어 만들기',
+      toolKey: 'teacher',
       withHistory: true,
       onDone: (parsed) => {
         setAnalysisResult((prev) => ({
@@ -604,10 +611,22 @@ export default function Home() {
 
               <SectionCard title="학습 확장 도구" icon="🚀" isMobile={isMobile}>
                 <div style={{ ...styles.toolGrid, ...(isMobile ? styles.toolGridMobile : {}) }}>
-                  <button style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }} onClick={handleQuiz} disabled={isAnalyzing}>💡 퀴즈 만들기</button>
-                  <button style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }} onClick={handleFullSummary} disabled={isAnalyzing}>📜 전체 요약</button>
-                  <button style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }} onClick={handleEvaluation} disabled={isAnalyzing}>💯 나 어땠어?</button>
-                  <button style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}) }} onClick={handleTeacherComment} disabled={isAnalyzing}>✍️ 교과평어 만들기</button>
+                  {[
+                    { key: 'quiz',       label: '💡 퀴즈 만들기',    handler: handleQuiz },
+                    { key: 'summary',    label: '📜 전체 요약',      handler: handleFullSummary },
+                    { key: 'evaluation', label: '💯 나 어땠어?',     handler: handleEvaluation },
+                    { key: 'teacher',    label: '✍️ 교과평어 만들기', handler: handleTeacherComment },
+                  ].map(({ key, label, handler }) => (
+                    <button
+                      key={key}
+                      style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}), position: 'relative', overflow: 'hidden' }}
+                      onClick={handler}
+                      disabled={isAnalyzing}
+                    >
+                      {loadingTool === key && <span className="tool-fill-bar" />}
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </SectionCard>
 
