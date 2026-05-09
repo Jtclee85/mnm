@@ -214,7 +214,7 @@ export default function Home() {
 
     setConversation((prev) => [
       ...prev,
-      { role: 'user', content: `조사 주제는 "${trimmedTopic}"이고, 자료 분석을 시작했어.` },
+      { role: 'user', content: `조사주제는 '${trimmedTopic}'야. 자료를 분석해줘` },
       { role: 'assistant', content: thinkingMsg }
     ]);
     scrollChatToBottom(true);
