@@ -530,49 +530,56 @@ export default function Home() {
                   />
                 </div>
 
-                <div style={styles.formGroup}>
-                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 수준</label>
-                  <select
-                    style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
-                    value={gradeLevel}
-                    onChange={(e) => setGradeLevel(e.target.value)}
-                  >
-                    <option value="low">초등 저학년</option>
-                    <option value="high">초등 고학년</option>
-                    <option value="발표">발표 준비용</option>
-                  </select>
-                </div>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr',
+                  gap: 12,
+                  marginBottom: 16
+                }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 수준</label>
+                    <select
+                      style={{ ...styles.select, ...(isMobile ? styles.selectMobile : {}) }}
+                      value={gradeLevel}
+                      onChange={(e) => setGradeLevel(e.target.value)}
+                    >
+                      <option value="low">초등 저학년</option>
+                      <option value="high">초등 고학년</option>
+                      <option value="발표">발표 준비용</option>
+                    </select>
+                  </div>
 
-                <div style={styles.formGroup}>
-                  <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 모드</label>
-                  <div style={{ ...styles.modeButtonGroup, ...(isMobile ? styles.modeButtonGroupMobile : {}) }}>
-                    {modeOptions.map(({ value, label, icon }) => (
-                      <div
-                        key={value}
-                        style={{ flex: 1, position: 'relative', zIndex: hoveredMode === value ? 10 : 1 }}
-                      >
-                        <button
-                          type="button"
-                          style={{
-                            ...styles.modeButton,
-                            ...(learningMode === value ? styles.modeButtonActive : {}),
-                            ...(isMobile ? styles.modeButtonMobile : {})
-                          }}
-                          onClick={() => setLearningMode(value)}
-                          onMouseEnter={() => setHoveredMode(value)}
-                          onMouseLeave={() => setHoveredMode(null)}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>학습 모드</label>
+                    <div style={{ ...styles.modeButtonGroup, ...(isMobile ? styles.modeButtonGroupMobile : {}) }}>
+                      {modeOptions.map(({ value, label, icon }) => (
+                        <div
+                          key={value}
+                          style={{ flex: 1, position: 'relative', zIndex: hoveredMode === value ? 10 : 1 }}
                         >
-                          <span style={{ fontSize: isMobile ? 18 : 22 }}>{icon}</span>
-                          {label}
-                        </button>
-                        {(hoveredMode === value || (changeTip && learningMode === value)) && (
-                          <div style={styles.modeTipBubble}>
-                            <div style={styles.modeTipArrow} />
-                            {modeTips[value]}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                          <button
+                            type="button"
+                            style={{
+                              ...styles.modeButton,
+                              ...(learningMode === value ? styles.modeButtonActive : {}),
+                              ...(isMobile ? styles.modeButtonMobile : {})
+                            }}
+                            onClick={() => setLearningMode(value)}
+                            onMouseEnter={() => setHoveredMode(value)}
+                            onMouseLeave={() => setHoveredMode(null)}
+                          >
+                            <span style={{ fontSize: isMobile ? 14 : 16 }}>{icon}</span>
+                            {label}
+                          </button>
+                          {(hoveredMode === value || (changeTip && learningMode === value)) && (
+                            <div style={styles.modeTipBubble}>
+                              <div style={styles.modeTipArrow} />
+                              {modeTips[value]}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -835,43 +842,43 @@ grid: { display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: 20 },
     border: '1.5px solid #e5e7eb',
     background: '#fff',
     color: '#374151',
-    borderRadius: 12,
-    padding: '12px 8px',
-    fontSize: 13,
+    borderRadius: 10,
+    padding: '7px 4px',
+    fontSize: 11,
     fontWeight: 700,
     cursor: 'pointer',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 6,
-    lineHeight: 1.3,
+    gap: 3,
+    lineHeight: 1.2,
     transition: 'all 0.15s ease'
   },
   modeButtonActive: {
     border: '2px solid #2563eb',
     background: '#eff6ff',
     color: '#1d4ed8',
-    boxShadow: '0 4px 12px rgba(37,99,235,0.15)'
+    boxShadow: '0 3px 8px rgba(37,99,235,0.15)'
   },
   modeButtonMobile: {
-    fontSize: 12,
-    padding: '10px 6px',
-    gap: 4
+    fontSize: 11,
+    padding: '6px 4px',
+    gap: 2
   },
   modeTipBubble: {
     position: 'absolute',
-    top: 'calc(100% + 8px)',
+    top: 'calc(100% + 6px)',
     left: 0,
     right: 0,
     background: '#1e3a8a',
     color: '#fff',
-    borderRadius: 12,
-    padding: '12px 14px',
-    fontSize: 13,
-    lineHeight: 1.8,
+    borderRadius: 10,
+    padding: '8px 10px',
+    fontSize: 11,
+    lineHeight: 1.6,
     zIndex: 100,
     whiteSpace: 'pre-line',
-    boxShadow: '0 8px 24px rgba(30,58,138,0.25)'
+    boxShadow: '0 6px 18px rgba(30,58,138,0.25)'
   },
   modeTipArrow: {
     position: 'absolute',
