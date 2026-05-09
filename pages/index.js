@@ -621,7 +621,47 @@ export default function Home() {
 
               {renderModeResultCards()}
 
-{analysisResult.quiz && (
+            </div>
+
+            <div style={{ ...styles.rightColumn, ...(isMobile ? styles.rightColumnMobile : {}) }}>
+              <SectionCard title="후속 질문 대화창" icon="💬" isMobile={isMobile}>
+                <div ref={chatBoxRef} style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
+                  {conversation.map((msg, idx) => (
+                    <ChatBubble
+                      key={`${msg.role}-${idx}-${msg.content.slice(0, 10)}`}
+                      role={msg.role}
+                      content={msg.content}
+                      isMobile={isMobile}
+                    />
+                  ))}
+                </div>
+
+                <div style={styles.chatInputArea}>
+                  <textarea
+                    ref={chatInputRef}
+                    style={{ ...styles.chatTextarea, ...(isMobile ? styles.chatTextareaMobile : {}) }}
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="분석 결과를 보고 더 궁금한 점을 물어보세요."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleFollowUpChat();
+                      }
+                    }}
+                    disabled={isChatLoading}
+                  />
+                  <button
+                    style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
+                    onClick={() => handleFollowUpChat()}
+                    disabled={isChatLoading}
+                  >
+                    {isChatLoading ? '답변 중...' : '질문 보내기'}
+                  </button>
+                </div>
+              </SectionCard>
+
+              {analysisResult.quiz && (
                 <div ref={quizRef}>
                   <SectionCard title="퀴즈" icon="🎯" isMobile={isMobile}>
                     <QuizCard key={quizKey} quizData={parsedQuiz} onReset={handleQuiz} isMobile={isMobile} />
@@ -663,45 +703,6 @@ export default function Home() {
                   </SectionCard>
                 </div>
               )}
-            </div>
-
-            <div style={{ ...styles.rightColumn, ...(isMobile ? styles.rightColumnMobile : {}) }}>
-              <SectionCard title="후속 질문 대화창" icon="💬" isMobile={isMobile}>
-                <div ref={chatBoxRef} style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
-                  {conversation.map((msg, idx) => (
-                    <ChatBubble
-                      key={`${msg.role}-${idx}-${msg.content.slice(0, 10)}`}
-                      role={msg.role}
-                      content={msg.content}
-                      isMobile={isMobile}
-                    />
-                  ))}
-                </div>
-
-                <div style={styles.chatInputArea}>
-                  <textarea
-                    ref={chatInputRef}
-                    style={{ ...styles.chatTextarea, ...(isMobile ? styles.chatTextareaMobile : {}) }}
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="분석 결과를 보고 더 궁금한 점을 물어보세요."
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleFollowUpChat();
-                      }
-                    }}
-                    disabled={isChatLoading}
-                  />
-                  <button
-                    style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
-                    onClick={() => handleFollowUpChat()}
-                    disabled={isChatLoading}
-                  >
-                    {isChatLoading ? '답변 중...' : '질문 보내기'}
-                  </button>
-                </div>
-              </SectionCard>
 
             </div>
           </div>
