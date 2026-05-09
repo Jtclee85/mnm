@@ -3,6 +3,10 @@
 /* 웹 폰트 (프리텐다드) 불러오기 */
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css') format('woff');
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: #FAF8F0;
   font-family: 'Jalnan2', sans-serif;

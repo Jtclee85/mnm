@@ -104,29 +104,26 @@ export default function Home() {
     return () => clearTimeout(tipTimerRef.current);
   }, [learningMode]);
 
-  // 퀴즈/평가/교과평어 카드 생성 시 해당 카드로 페이지 스크롤
+  // 퀴즈/평가/교과평어 카드 생성 시 해당 카드로 부드럽게 스크롤
+  // requestAnimationFrame 한 번으로는 React 렌더링 완료 전에 실행되어 위치 계산이 틀릴 수 있으므로
+  // setTimeout으로 DOM이 완전히 그려진 뒤 스크롤
+  const smoothScrollTo = (ref) => {
+    const timer = setTimeout(() => {
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    return () => clearTimeout(timer);
+  };
+
   useEffect(() => {
-    if (analysisResult.quiz) {
-      requestAnimationFrame(() => {
-        quizRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    }
+    if (analysisResult.quiz) return smoothScrollTo(quizRef);
   }, [analysisResult.quiz]);
 
   useEffect(() => {
-    if (analysisResult.evaluation) {
-      requestAnimationFrame(() => {
-        evaluationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    }
+    if (analysisResult.evaluation) return smoothScrollTo(evaluationRef);
   }, [analysisResult.evaluation]);
 
   useEffect(() => {
-    if (analysisResult.teacher) {
-      requestAnimationFrame(() => {
-        teacherRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-    }
+    if (analysisResult.teacher) return smoothScrollTo(teacherRef);
   }, [analysisResult.teacher]);
 
   // SSE 스트리밍 — 청크 경계에서 끊길 경우를 대비해 버퍼로 누적 후 파싱
