@@ -601,21 +601,6 @@ export default function Home() {
                     {isAnalyzing ? '분석 중...' : '자료 분석 시작'}
                   </button>
 
-                  {[
-                    { key: 'quiz',       label: '💡 퀴즈',    handler: handleQuiz },
-                    { key: 'evaluation', label: '💯 평가',     handler: handleEvaluation },
-                    { key: 'teacher',    label: '✍️ 교과평어', handler: handleTeacherComment },
-                  ].map(({ key, label, handler }) => (
-                    <button
-                      key={key}
-                      style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}), position: 'relative', overflow: 'hidden' }}
-                      onClick={handler}
-                      disabled={isAnalyzing}
-                    >
-                      {loadingTool === key && <span className="tool-fill-bar" />}
-                      {label}
-                    </button>
-                  ))}
                 </div>
               </SectionCard>
 
@@ -658,6 +643,24 @@ export default function Home() {
                   >
                     {isChatLoading ? '답변 중...' : '질문 보내기'}
                   </button>
+                </div>
+
+                <div style={{ ...styles.toolGrid, ...(isMobile ? styles.toolGridMobile : {}), marginTop: 10 }}>
+                  {[
+                    { key: 'quiz',       label: '💡 퀴즈',    handler: handleQuiz },
+                    { key: 'evaluation', label: '💯 평가',     handler: handleEvaluation },
+                    { key: 'teacher',    label: '✍️ 교과평어', handler: handleTeacherComment },
+                  ].map(({ key, label, handler }) => (
+                    <button
+                      key={key}
+                      style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}), position: 'relative', overflow: 'hidden' }}
+                      onClick={handler}
+                      disabled={isAnalyzing}
+                    >
+                      {loadingTool === key && <span className="tool-fill-bar" />}
+                      {label}
+                    </button>
+                  ))}
                 </div>
               </SectionCard>
 
