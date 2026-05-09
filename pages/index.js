@@ -602,27 +602,10 @@ export default function Home() {
                     {isAnalyzing ? '분석 중...' : '자료 분석 시작'}
                   </button>
 
-                  <button
-                    style={{ ...styles.secondaryButton, ...(isMobile ? styles.secondaryButtonMobile : {}) }}
-                    onClick={async () => {
-                      try { await copyText(buildExportText()); alert('결과를 복사했어요.'); }
-                      catch { alert('복사에 실패했어요.'); }
-                    }}
-                  >
-                    결과 복사
-                  </button>
-                </div>
-              </SectionCard>
-
-              {renderModeResultCards()}
-
-              <SectionCard title="학습 확장 도구" icon="🚀" isMobile={isMobile}>
-                <div style={{ ...styles.toolGrid, ...(isMobile ? styles.toolGridMobile : {}) }}>
                   {[
-                    { key: 'quiz',       label: '💡 퀴즈 만들기',    handler: handleQuiz },
-                    { key: 'summary',    label: '📜 전체 요약',      handler: handleFullSummary },
-                    { key: 'evaluation', label: '💯 나 어땠어?',     handler: handleEvaluation },
-                    { key: 'teacher',    label: '✍️ 교과평어 만들기', handler: handleTeacherComment },
+                    { key: 'quiz',       label: '💡 퀴즈',    handler: handleQuiz },
+                    { key: 'evaluation', label: '💯 평가',     handler: handleEvaluation },
+                    { key: 'teacher',    label: '✍️ 교과평어', handler: handleTeacherComment },
                   ].map(({ key, label, handler }) => (
                     <button
                       key={key}
@@ -637,7 +620,9 @@ export default function Home() {
                 </div>
               </SectionCard>
 
-              {analysisResult.quiz && (
+              {renderModeResultCards()}
+
+{analysisResult.quiz && (
                 <div ref={quizRef}>
                   <SectionCard title="퀴즈" icon="🎯" isMobile={isMobile}>
                     <QuizCard key={quizKey} quizData={parsedQuiz} onReset={handleQuiz} isMobile={isMobile} />
