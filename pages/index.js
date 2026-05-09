@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import ReactMarkdown from 'react-markdown';
 
@@ -381,7 +381,11 @@ export default function Home() {
     '[발표용 3문장]', ...(analysisResult.presentationScriptLines || [])
   ].join('\n');
 
-  const parsedQuiz = parseQuizBlock(analysisResult.quiz);
+  // analysisResult.quiz가 바뀔 때만 파싱·셔플 — 렌더마다 실행되면 hoveredTool 변경 시마다 리셋됨
+  const parsedQuiz = useMemo(
+    () => parseQuizBlock(analysisResult.quiz),
+    [analysisResult.quiz]
+  );
 
   const renderModeResultCards = () => {
     if (learningMode === 'understand') {
