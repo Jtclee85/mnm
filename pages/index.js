@@ -55,8 +55,11 @@ export default function Home() {
   ]);
 
   const [chatInput, setChatInput] = useState('');
-  const chatBottomRef = useRef(null);
+  const chatBoxRef = useRef(null);
   const chatInputRef = useRef(null);
+  const quizRef = useRef(null);
+  const evaluationRef = useRef(null);
+  const teacherRef = useRef(null);
 
   const [hoveredMode, setHoveredMode] = useState(null);
   const [changeTip, setChangeTip] = useState(false);
@@ -71,12 +74,12 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // 채팅 박스 내부만 스크롤 — scrollIntoView는 페이지 전체를 올려버리므로 사용하지 않음
   const scrollChatToBottom = (smooth = true) => {
     requestAnimationFrame(() => {
-      chatBottomRef.current?.scrollIntoView({
-        behavior: smooth ? 'smooth' : 'auto',
-        block: 'end'
-      });
+      const el = chatBoxRef.current;
+      if (!el) return;
+      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
     });
   };
 
@@ -99,6 +102,31 @@ export default function Home() {
     tipTimerRef.current = setTimeout(() => setChangeTip(false), 4000);
     return () => clearTimeout(tipTimerRef.current);
   }, [learningMode]);
+
+  // 퀴즈/평가/교과평어 카드 생성 시 해당 카드로 페이지 스크롤
+  useEffect(() => {
+    if (analysisResult.quiz) {
+      requestAnimationFrame(() => {
+        quizRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, [analysisResult.quiz]);
+
+  useEffect(() => {
+    if (analysisResult.evaluation) {
+      requestAnimationFrame(() => {
+        evaluationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, [analysisResult.evaluation]);
+
+  useEffect(() => {
+    if (analysisResult.teacher) {
+      requestAnimationFrame(() => {
+        teacherRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  }, [analysisResult.teacher]);
 
   // SSE 스트리밍 — 청크 경계에서 끊길 경우를 대비해 버퍼로 누적 후 파싱
   const requestStream = async (messageHistory, { onChunk, onDone, onError }) => {
@@ -598,46 +626,52 @@ export default function Home() {
               </SectionCard>
 
               {analysisResult.quiz && (
-                <SectionCard title="퀴즈" icon="🎯" isMobile={isMobile}>
-                  <QuizCard key={quizKey} quizData={parsedQuiz} onReset={handleQuiz} isMobile={isMobile} />
-                </SectionCard>
+                <div ref={quizRef}>
+                  <SectionCard title="퀴즈" icon="🎯" isMobile={isMobile}>
+                    <QuizCard key={quizKey} quizData={parsedQuiz} onReset={handleQuiz} isMobile={isMobile} />
+                  </SectionCard>
+                </div>
               )}
 
               {analysisResult.evaluation && (
-                <SectionCard title="학습 평가" icon="🌟" isMobile={isMobile}>
-                  <div style={{ ...styles.markdownBody, ...(isMobile ? styles.markdownBodyMobile : {}) }}>
-                    <ReactMarkdown>{analysisResult.evaluation}</ReactMarkdown>
-                  </div>
-                </SectionCard>
+                <div ref={evaluationRef}>
+                  <SectionCard title="학습 평가" icon="🌟" isMobile={isMobile}>
+                    <div style={{ ...styles.markdownBody, ...(isMobile ? styles.markdownBodyMobile : {}) }}>
+                      <ReactMarkdown>{analysisResult.evaluation}</ReactMarkdown>
+                    </div>
+                  </SectionCard>
+                </div>
               )}
 
               {analysisResult.teacher && (
-                <SectionCard
-                  title="교과평어 예시"
-                  icon="🧾"
-                  isMobile={isMobile}
-                  actions={
-                    <button
-                      style={{ ...styles.smallButton, ...(isMobile ? styles.smallButtonMobile : {}) }}
-                      onClick={async () => {
-                        try { await copyText(analysisResult.teacher); alert('교과평어를 복사했어요.'); }
-                        catch { alert('복사에 실패했어요.'); }
-                      }}
-                    >
-                      복사
-                    </button>
-                  }
-                >
-                  <div style={{ ...styles.markdownBody, ...(isMobile ? styles.markdownBodyMobile : {}) }}>
-                    <ReactMarkdown>{analysisResult.teacher}</ReactMarkdown>
-                  </div>
-                </SectionCard>
+                <div ref={teacherRef}>
+                  <SectionCard
+                    title="교과평어 예시"
+                    icon="🧾"
+                    isMobile={isMobile}
+                    actions={
+                      <button
+                        style={{ ...styles.smallButton, ...(isMobile ? styles.smallButtonMobile : {}) }}
+                        onClick={async () => {
+                          try { await copyText(analysisResult.teacher); alert('교과평어를 복사했어요.'); }
+                          catch { alert('복사에 실패했어요.'); }
+                        }}
+                      >
+                        복사
+                      </button>
+                    }
+                  >
+                    <div style={{ ...styles.markdownBody, ...(isMobile ? styles.markdownBodyMobile : {}) }}>
+                      <ReactMarkdown>{analysisResult.teacher}</ReactMarkdown>
+                    </div>
+                  </SectionCard>
+                </div>
               )}
             </div>
 
             <div style={{ ...styles.rightColumn, ...(isMobile ? styles.rightColumnMobile : {}) }}>
               <SectionCard title="후속 질문 대화창" icon="💬" isMobile={isMobile}>
-                <div style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
+                <div ref={chatBoxRef} style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
                   {conversation.map((msg, idx) => (
                     <ChatBubble
                       key={`${msg.role}-${idx}-${msg.content.slice(0, 10)}`}
@@ -646,7 +680,6 @@ export default function Home() {
                       isMobile={isMobile}
                     />
                   ))}
-                  <div ref={chatBottomRef} />
                 </div>
 
                 <div style={styles.chatInputArea}>
