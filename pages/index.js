@@ -105,12 +105,13 @@ export default function Home() {
   }, [learningMode]);
 
   // 퀴즈/평가/교과평어 카드 생성 시 해당 카드로 부드럽게 스크롤
-  // requestAnimationFrame 한 번으로는 React 렌더링 완료 전에 실행되어 위치 계산이 틀릴 수 있으므로
-  // setTimeout으로 DOM이 완전히 그려진 뒤 스크롤
+  // scrollIntoView의 smooth가 브라우저마다 무시되는 경우가 있어 window.scrollTo로 직접 처리
   const smoothScrollTo = (ref) => {
     const timer = setTimeout(() => {
-      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 80);
+      if (!ref.current) return;
+      const top = ref.current.getBoundingClientRect().top + window.pageYOffset - 16;
+      window.scrollTo({ top, behavior: 'smooth' });
+    }, 150);
     return () => clearTimeout(timer);
   };
 
