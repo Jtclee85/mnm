@@ -31,9 +31,11 @@ const Banner = () => {
         height: '100%'
       }}>
         <h1 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 'bold', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>뭐냐면</h1>
-        {/* ✨ [수정됨] 부제목 텍스트 변경 */}
-        <p style={{ fontSize: '1.1rem', color: '#444', margin: '5px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>
-          조사한 자료를 쉽고 재미있게 설명해주는 AI 친구
+        <p style={{ fontSize: '1rem', color: '#444', margin: '6px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)', fontWeight: 700 }}>
+          사회과 조사학습 AI코스웨어
+        </p>
+        <p style={{ fontSize: '0.9rem', color: '#555', margin: '3px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>
+          자료조사, 탐구, 발표준비 도우미
         </p>
       </div>
     </div>
