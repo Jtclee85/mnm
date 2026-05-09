@@ -593,10 +593,11 @@ export default function Home() {
 
                 <div style={{ ...styles.primaryButtonRow, ...(isMobile ? styles.primaryButtonRowMobile : {}) }}>
                   <button
-                    style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
+                    style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}), position: 'relative', overflow: 'hidden' }}
                     onClick={handleAnalyze}
                     disabled={isAnalyzing}
                   >
+                    {isAnalyzing && <span className="tool-fill-bar-light" />}
                     {isAnalyzing ? '분석 중...' : '자료 분석 시작'}
                   </button>
 
