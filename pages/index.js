@@ -25,6 +25,7 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [loadingTool, setLoadingTool] = useState(null);
+  const [hoveredTool, setHoveredTool] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
 
   const [analysisResult, setAnalysisResult] = useState({
@@ -651,15 +652,24 @@ export default function Home() {
                     { key: 'evaluation', label: '💯 평가',     handler: handleEvaluation },
                     { key: 'teacher',    label: '✍️ 교과평어', handler: handleTeacherComment },
                   ].map(({ key, label, handler }) => (
-                    <button
-                      key={key}
-                      style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}), position: 'relative', overflow: 'hidden' }}
-                      onClick={handler}
-                      disabled={isAnalyzing}
-                    >
-                      {loadingTool === key && <span className="tool-fill-bar" />}
-                      {label}
-                    </button>
+                    <div key={key} style={{ position: 'relative', zIndex: hoveredTool === key ? 10 : 1 }}>
+                      <button
+                        style={{ ...styles.toolButton, ...(isMobile ? styles.toolButtonMobile : {}), position: 'relative', overflow: 'hidden', width: '100%' }}
+                        onClick={handler}
+                        disabled={isAnalyzing}
+                        onMouseEnter={() => setHoveredTool(key)}
+                        onMouseLeave={() => setHoveredTool(null)}
+                      >
+                        {loadingTool === key && <span className="tool-fill-bar" />}
+                        {label}
+                      </button>
+                      {hoveredTool === key && (
+                        <div style={styles.toolTipBubble}>
+                          <div style={styles.toolTipArrow} />
+                          {toolTips[key]}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </SectionCard>
@@ -714,6 +724,12 @@ export default function Home() {
     </>
   );
 }
+
+const toolTips = {
+  quiz:       '학습 내용으로 퀴즈를\n만들어 풀어볼 수 있어요.',
+  evaluation: '지금까지의 학습 태도와\n내용을 평가해 줘요.',
+  teacher:    '교과 세부능력 특기사항\n예시문을 만들어 줘요.'
+};
 
 const modeOptions = [
   { value: 'understand', label: '이해 모드',    icon: '🧒' },
@@ -794,13 +810,40 @@ grid: { display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: 20 },
     padding: '10px 12px', borderRadius: 12, cursor: 'pointer', fontWeight: 700, textAlign: 'left'
   },
   questionButtonMobile: { width: '100%', fontSize: 14, padding: '11px 12px' },
-  toolGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 },
-  toolGridMobile: { gridTemplateColumns: '1fr' },
+  toolGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 },
+  toolGridMobile: { gridTemplateColumns: '1fr 1fr 1fr', gap: 6 },
   toolButton: {
     border: '1px solid #dbeafe', background: '#f8fbff', color: '#1e3a8a',
-    padding: '12px 14px', borderRadius: 12, cursor: 'pointer', fontWeight: 800
+    padding: '9px 6px', borderRadius: 10, cursor: 'pointer', fontWeight: 800,
+    fontSize: 12, textAlign: 'center'
   },
-  toolButtonMobile: { width: '100%', fontSize: 14, padding: '12px' },
+  toolButtonMobile: { fontSize: 11, padding: '7px 4px' },
+  toolTipBubble: {
+    position: 'absolute',
+    bottom: 'calc(100% + 6px)',
+    left: 0,
+    right: 0,
+    background: '#1e3a8a',
+    color: '#fff',
+    borderRadius: 10,
+    padding: '8px 10px',
+    fontSize: 11,
+    lineHeight: 1.6,
+    zIndex: 100,
+    whiteSpace: 'pre-line',
+    textAlign: 'center',
+    boxShadow: '0 4px 14px rgba(30,58,138,0.25)'
+  },
+  toolTipArrow: {
+    position: 'absolute',
+    bottom: -6,
+    left: 'calc(50% - 6px)',
+    width: 0,
+    height: 0,
+    borderLeft: '6px solid transparent',
+    borderRight: '6px solid transparent',
+    borderTop: '6px solid #1e3a8a'
+  },
   chatBox: {
     height: 520, overflowY: 'auto', background: '#f8fafc',
     border: '1px solid #e5e7eb', borderRadius: 16, padding: 14, marginBottom: 12
