@@ -200,8 +200,19 @@ export default function Home() {
   const buildChatSystem = () =>
     createChatSystemMessage({ topic, sourceText, gradeLevel });
 
-  const buildEvaluationSystem = () =>
-    createEvaluationSystemMessage({ topic, gradeLevel, quizResult });
+  const buildEvaluationSystem = () => {
+    // 분석 요청·버튼 명령을 제외한 실제 추가 질문만 추출
+    const excludePatterns = [
+      /^조사주제는\s+'.+'\s*야[\.\s]*자료를\s*분석해줘/,
+      /^(나 어땠어\?|교과평어 만들기|퀴즈풀기|전체 요약)$/
+    ];
+    const followUpQuestions = conversation
+      .filter(msg => msg.role === 'user')
+      .map(msg => msg.content.trim())
+      .filter(content => !excludePatterns.some(re => re.test(content)));
+
+    return createEvaluationSystemMessage({ topic, gradeLevel, quizResult, followUpQuestions });
+  };
 
   const handleAnalyze = async () => {
     const trimmedTopic = topic.trim();
