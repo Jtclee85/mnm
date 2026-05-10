@@ -8,9 +8,11 @@ import BulletList from '../components/BulletList';
 import ChatBubble from '../components/ChatBubble';
 import QuizCard from '../components/QuizCard';
 import ModeBadge from '../components/ModeBadge';
+import ReflectionCard from '../components/ReflectionCard';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText, modeMap } from '../lib/parseResponse';
+import { useStudentNotes } from '../lib/useStudentNotes';
 
 /** =========================
  *  메인
@@ -49,9 +51,7 @@ export default function Home() {
 
   const [quizKey, setQuizKey] = useState(0);
 
-  const [reflectionSummary, setReflectionSummary] = useState('');
-  const [reflectionNewLearning, setReflectionNewLearning] = useState('');
-  const [reflectionQuestions, setReflectionQuestions] = useState('');
+  const { notes, updateNote, saveStatus } = useStudentNotes(topic);
 
   const [conversation, setConversation] = useState([
     {
@@ -481,41 +481,13 @@ export default function Home() {
             <BulletList items={analysisResult.reteachLines} isMobile={isMobile} />
           </SectionCard>
 
-          <SectionCard title="내 생각 정리하기" icon="✏️" isMobile={isMobile}>
-            <div style={styles.reflectionGroup}>
-              <label style={{ ...styles.reflectionLabel, ...(isMobile ? styles.reflectionLabelMobile : {}) }}>
-                내가 이해한 내용을 한 문장으로 정리해보기
-              </label>
-              <textarea
-                style={{ ...styles.reflectionTextarea, ...(isMobile ? styles.reflectionTextareaMobile : {}) }}
-                value={reflectionSummary}
-                onChange={(e) => setReflectionSummary(e.target.value)}
-                placeholder="자료에서 가장 중요하다고 생각한 내용을 한 문장으로 써 보세요."
-              />
-            </div>
-            <div style={styles.reflectionGroup}>
-              <label style={{ ...styles.reflectionLabel, ...(isMobile ? styles.reflectionLabelMobile : {}) }}>
-                원래 자료와 비교했을 때 새롭게 알게 된 점
-              </label>
-              <textarea
-                style={{ ...styles.reflectionTextarea, ...(isMobile ? styles.reflectionTextareaMobile : {}) }}
-                value={reflectionNewLearning}
-                onChange={(e) => setReflectionNewLearning(e.target.value)}
-                placeholder="쉬운 설명을 읽고 나서 새롭게 알게 된 사실이 있나요?"
-              />
-            </div>
-            <div style={{ ...styles.reflectionGroup, marginBottom: 0 }}>
-              <label style={{ ...styles.reflectionLabel, ...(isMobile ? styles.reflectionLabelMobile : {}) }}>
-                아직 궁금한 점
-              </label>
-              <textarea
-                style={{ ...styles.reflectionTextarea, ...(isMobile ? styles.reflectionTextareaMobile : {}) }}
-                value={reflectionQuestions}
-                onChange={(e) => setReflectionQuestions(e.target.value)}
-                placeholder="더 알고 싶거나 이해가 잘 되지 않는 점을 자유롭게 써 보세요."
-              />
-            </div>
-          </SectionCard>
+          <ReflectionCard
+            fields={REFLECTION_FIELDS.understand}
+            notes={notes}
+            onUpdate={updateNote}
+            saveStatus={saveStatus}
+            isMobile={isMobile}
+          />
         </>
       );
     }
@@ -544,6 +516,14 @@ export default function Home() {
               </div>
             )}
           </SectionCard>
+
+          <ReflectionCard
+            fields={REFLECTION_FIELDS.inquiry}
+            notes={notes}
+            onUpdate={updateNote}
+            saveStatus={saveStatus}
+            isMobile={isMobile}
+          />
 
           <SectionCard title="추천 검색어" icon="🔎" isMobile={isMobile}>
             <BulletList items={analysisResult.searchLines} isMobile={isMobile} />
@@ -582,6 +562,14 @@ export default function Home() {
           <SectionCard title="예상 질문" icon="🙋" isMobile={isMobile}>
             <BulletList items={analysisResult.expectedQuestionLines} isMobile={isMobile} />
           </SectionCard>
+
+          <ReflectionCard
+            fields={REFLECTION_FIELDS.presentation}
+            notes={notes}
+            onUpdate={updateNote}
+            saveStatus={saveStatus}
+            isMobile={isMobile}
+          />
         </>
       );
     }
@@ -1009,33 +997,58 @@ grid: { display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: 20 },
     borderLeft: '7px solid transparent',
     borderRight: '7px solid transparent',
     borderBottom: '7px solid #1e3a8a'
-  },
-  reflectionGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    marginBottom: 16
-  },
-  reflectionLabel: {
-    fontWeight: 700,
-    color: '#374151',
-    fontSize: 14,
-    lineHeight: 1.5
-  },
-  reflectionLabelMobile: { fontSize: 13 },
-  reflectionTextarea: {
-    width: '100%',
-    minHeight: 72,
-    border: '1.5px solid #c7d2fe',
-    borderRadius: 12,
-    padding: '11px 14px',
-    fontSize: 15,
-    lineHeight: 1.7,
-    resize: 'vertical',
-    outline: 'none',
-    boxSizing: 'border-box',
-    background: '#fafbff',
-    color: '#1f2937'
-  },
-  reflectionTextareaMobile: { minHeight: 64, fontSize: 14, padding: '10px 12px' }
+  }
+};
+
+/** =========================
+ *  모드별 학생 성찰 필드 정의
+ *  ========================= */
+
+const REFLECTION_FIELDS = {
+  understand: [
+    {
+      key: 'understand_summary',
+      label: '내가 이해한 내용을 한 문장으로 정리해보기',
+      placeholder: '가장 중요하다고 생각한 내용을 나만의 말로 한 문장으로 써 보세요.'
+    },
+    {
+      key: 'understand_newLearning',
+      label: '원래 자료와 비교했을 때 새롭게 알게 된 점',
+      placeholder: '쉬운 설명을 읽고 "아, 이건 몰랐는데!" 싶었던 것이 있나요?'
+    },
+    {
+      key: 'understand_questions',
+      label: '아직 궁금한 점',
+      placeholder: '아직 이해가 안 되거나 더 알고 싶은 점을 써 보세요. 이 질문이 탐구의 출발점이 될 거예요!'
+    }
+  ],
+  inquiry: [
+    {
+      key: 'inquiry_thought',
+      label: '내 생각 쓰기',
+      placeholder: '탐구 질문 중 하나를 골라 내 생각을 자유롭게 써 보세요.'
+    },
+    {
+      key: 'inquiry_debate',
+      label: '친구와 토론해보고 싶은 점',
+      placeholder: '친구와 함께 이야기하면 재미있을 것 같은 질문이나 주제를 써 보세요.'
+    },
+    {
+      key: 'inquiry_research',
+      label: '추가로 조사하고 싶은 내용',
+      placeholder: '더 깊이 알아보고 싶은 내용이나 찾아보고 싶은 자료를 써 보세요.'
+    }
+  ],
+  presentation: [
+    {
+      key: 'presentation_revision',
+      label: '발표 후 내가 보완하고 싶은 점',
+      placeholder: '발표를 마친 후 "다음엔 이렇게 하면 더 좋겠다"는 점을 써 보세요.'
+    },
+    {
+      key: 'presentation_message',
+      label: '청중에게 꼭 전달하고 싶은 핵심 메시지',
+      placeholder: '내 발표를 들은 친구가 반드시 기억해갔으면 하는 딱 한 가지를 써 보세요.'
+    }
+  ]
 };
