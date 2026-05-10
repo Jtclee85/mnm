@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { playCorrect, playWrong } from '../lib/sounds';
 
 export default function QuizCard({ quizData, onReset, isMobile, onResult }) {
   const [selected, setSelected] = useState(null);
@@ -64,8 +65,10 @@ export default function QuizCard({ quizData, onReset, isMobile, onResult }) {
             style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
             disabled={selected === null}
             onClick={() => {
+              const correct = selected === correctIndex;
               setSubmitted(true);
-              onResult?.(selected === correctIndex ? 'correct' : 'incorrect');
+              onResult?.(correct ? 'correct' : 'incorrect');
+              if (correct) playCorrect(); else playWrong();
             }}
           >
             정답 확인
