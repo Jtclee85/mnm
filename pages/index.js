@@ -13,6 +13,7 @@ import ReflectionCard from '../components/ReflectionCard';
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText, modeMap } from '../lib/parseResponse';
 import { useStudentNotes } from '../lib/useStudentNotes';
+import { useSessionSave } from '../lib/useSessionSave';
 import { REFLECTION_FIELDS } from '../lib/reflectionFields';
 import { encodeShareData } from '../lib/shareUtils';
 
@@ -33,35 +34,39 @@ export default function Home() {
   const [quizResult, setQuizResult] = useState(null); // 'correct' | 'incorrect' | null
   const [isMobile, setIsMobile] = useState(false);
 
-  const [analysisResult, setAnalysisResult] = useState({
-    easy: '',
-    summaryLines: [],
-    keywordLines: [],
-    vocabularyLines: [],
-    questionLines: [],
-    searchLines: [],
-    reteachLines: [],
-    furtherLines: [],
-    presentationTitle: '',
-    presentationScriptLines: [],
-    presentationOrderLines: [],
-    expectedQuestionLines: [],
-    teacher: '',
-    quiz: '',
-    evaluation: ''
-  });
+  const [analysisResult, setAnalysisResult] = useState(EMPTY_ANALYSIS);
 
   const [quizKey, setQuizKey] = useState(0);
 
   const { notes, updateNote, saveStatus } = useStudentNotes(topic);
+  const { savedTopics, triggerSave, saveNow, loadSession, deleteSession } = useSessionSave();
 
-  const [conversation, setConversation] = useState([
-    {
-      role: 'assistant',
-      content:
-        '안녕? 나는 조사자료를 쉽게 바꿔 주는 사회과 학습 도우미 [뭐냐면]이야. 먼저 조사 주제와 자료를 넣고, "자료 분석 시작" 버튼을 눌러 줘!'
-    }
-  ]);
+  const [conversation, setConversation] = useState([INIT_MSG]);
+
+  // 전체 세션(조사자료·채팅·성찰) 자동저장
+  useEffect(() => {
+    if (!topic.trim()) return;
+    triggerSave({ topic, sourceText, gradeLevel, learningMode, conversation, notes });
+  }, [topic, sourceText, gradeLevel, learningMode, conversation, notes, triggerSave]);
+
+  // 이전 조사 불러오기
+  const handleLoadSession = (savedTopic) => {
+    // 현재 세션 즉시 저장 후 교체
+    if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, learningMode, conversation, notes });
+
+    const session = loadSession(savedTopic);
+    if (!session) return;
+
+    setTopic(session.topic ?? '');
+    setSourceText(session.sourceText ?? '');
+    setGradeLevel(session.gradeLevel ?? 'high');
+    setLearningMode(session.learningMode ?? 'understand');
+    setConversation(session.conversation?.length > 0 ? session.conversation : [INIT_MSG]);
+    setAnalysisResult(EMPTY_ANALYSIS);
+    setQuizResult(null);
+    setQuizKey(k => k + 1);
+    // notes는 useStudentNotes가 topic 변경 시 자동으로 localStorage에서 읽어옴
+  };
 
   const [chatInput, setChatInput] = useState('');
   const chatBoxRef = useRef(null);
@@ -610,7 +615,31 @@ export default function Home() {
 
           <div style={{ ...styles.grid, ...(isMobile ? styles.gridMobile : {}) }}>
             <div style={{ ...styles.leftColumn, ...(isMobile ? styles.leftColumnMobile : {}) }}>
-              <SectionCard title="기본 설정" icon="🛠️" isMobile={isMobile}>
+              <SectionCard
+                title="기본 설정"
+                icon="🛠️"
+                isMobile={isMobile}
+                actions={
+                  savedTopics.length > 0 ? (
+                    <div style={styles.topicChipsWrap}>
+                      <span style={styles.topicChipsLabel}>📂</span>
+                      {savedTopics.slice(0, 6).map(({ topic: t }) => (
+                        <button
+                          key={t}
+                          style={{
+                            ...styles.topicChip,
+                            ...(t === topic ? styles.topicChipActive : {})
+                          }}
+                          onClick={() => handleLoadSession(t)}
+                          title={`"${t}" 불러오기`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null
+                }
+              >
                 <div style={styles.formGroup}>
                   <label style={{ ...styles.label, ...(isMobile ? styles.labelMobile : {}) }}>조사 주제</label>
                   <input
@@ -817,6 +846,19 @@ export default function Home() {
   );
 }
 
+// 초기 대화 메시지 — 세션 불러오기 시에도 재사용
+const INIT_MSG = {
+  role: 'assistant',
+  content: '안녕? 나는 조사자료를 쉽게 바꿔 주는 사회과 학습 도우미 [뭐냐면]이야. 먼저 조사 주제와 자료를 넣고, "자료 분석 시작" 버튼을 눌러 줘!'
+};
+
+const EMPTY_ANALYSIS = {
+  easy: '', summaryLines: [], keywordLines: [], vocabularyLines: [],
+  questionLines: [], searchLines: [], reteachLines: [], furtherLines: [],
+  presentationTitle: '', presentationScriptLines: [], presentationOrderLines: [],
+  expectedQuestionLines: [], teacher: '', quiz: '', evaluation: ''
+};
+
 const toolTips = {
   quiz:       '학습 내용으로 퀴즈를\n만들어 풀어볼 수 있어요.',
   evaluation: '지금까지 공부과정과\n조사활동을 돌아봐요.',
@@ -1012,6 +1054,36 @@ grid: { display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: 20 },
     borderLeft: '7px solid transparent',
     borderRight: '7px solid transparent',
     borderBottom: '7px solid #1e3a8a'
+  },
+  topicChipsWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    flexWrap: 'nowrap',
+    overflowX: 'auto',
+    maxWidth: 320
+  },
+  topicChipsLabel: {
+    fontSize: 13,
+    flexShrink: 0
+  },
+  topicChip: {
+    border: '1.5px solid #bfdbfe',
+    background: '#eff6ff',
+    color: '#1d4ed8',
+    fontSize: 12,
+    fontWeight: 800,
+    padding: '5px 12px',
+    borderRadius: 20,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+    transition: 'all 0.15s'
+  },
+  topicChipActive: {
+    background: '#2563eb',
+    border: '1.5px solid #2563eb',
+    color: '#fff'
   }
 };
 

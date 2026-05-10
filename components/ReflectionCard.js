@@ -18,13 +18,9 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, on
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
     } catch {
-      // 클립보드 권한 없을 때 새 탭으로 열기
       window.open(url, '_blank');
     }
   };
-
-  // 작성된 내용이 하나라도 있을 때만 공유 버튼 표시
-  const hasAnyNote = fields.some(f => notes[f.key]?.trim());
 
   return (
     <div style={{ ...s.card, ...(isMobile ? s.cardMobile : {}) }}>
@@ -36,7 +32,7 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, on
           </span>
         </div>
         <div style={s.headerRight}>
-          {onShare && hasAnyNote && (
+          {onShare && (
             <button
               onClick={handleShareClick}
               style={{ ...s.shareBtn, ...(copied ? s.shareBtnCopied : {}) }}
@@ -45,7 +41,7 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, on
               {copied ? '✓ 링크 복사됨!' : '🔗 공유하기'}
             </button>
           )}
-          <SaveBadge status={saveStatus} />
+          <SaveBadge status={saveStatus} isMobile={isMobile} />
         </div>
       </div>
 
@@ -71,21 +67,26 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, on
   );
 }
 
-function SaveBadge({ status }) {
-  if (!status) return null;
-  const saved = status === 'saved';
+function SaveBadge({ status, isMobile }) {
+  const cfg = {
+    idle:   { text: '자동으로 저장됩니다.', color: '#6b7280', bg: 'transparent', border: 'none' },
+    saving: { text: '자동저장 중...',       color: '#92400e', bg: '#fef3c7',     border: '1px solid #fde68a' },
+    saved:  { text: '✓ 자동 저장됨',       color: '#065f46', bg: '#d1fae5',     border: '1px solid #6ee7b7' },
+  }[status] ?? { text: '자동으로 저장됩니다.', color: '#6b7280', bg: 'transparent', border: 'none' };
+
   return (
     <div style={{
-      fontSize: 11,
+      fontSize: isMobile ? 10 : 11,
       fontWeight: 700,
-      color: saved ? '#065f46' : '#92400e',
-      background: saved ? '#d1fae5' : '#fef3c7',
-      padding: '3px 9px',
+      color: cfg.color,
+      background: cfg.bg,
+      border: cfg.border,
+      padding: cfg.bg === 'transparent' ? '3px 0' : '3px 9px',
       borderRadius: 20,
-      letterSpacing: '-0.01em',
-      transition: 'all 0.25s'
+      transition: 'all 0.25s',
+      whiteSpace: 'nowrap'
     }}>
-      {saved ? '✓ 자동 저장됨' : '저장 중...'}
+      {cfg.text}
     </div>
   );
 }
@@ -108,25 +109,25 @@ const s = {
   },
   headerMobile: { padding: '11px 14px' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 8 },
-  headerRight: { display: 'flex', alignItems: 'center', gap: 8 },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
   pencil: { fontSize: 18 },
   title: { fontSize: 16, fontWeight: 800, color: '#92400e' },
   titleMobile: { fontSize: 15 },
   shareBtn: {
-    border: '1px solid #d97706',
+    border: '1.5px solid #d97706',
     background: '#fef3c7',
     color: '#92400e',
-    fontWeight: 700,
-    fontSize: 11,
-    padding: '3px 9px',
-    borderRadius: 20,
+    fontWeight: 800,
+    fontSize: 13,
+    padding: '6px 14px',
+    borderRadius: 10,
     cursor: 'pointer',
     transition: 'all 0.2s',
     whiteSpace: 'nowrap'
   },
   shareBtnCopied: {
     background: '#d1fae5',
-    border: '1px solid #059669',
+    border: '1.5px solid #059669',
     color: '#065f46'
   },
   body: { padding: 18 },
