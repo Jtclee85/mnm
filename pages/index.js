@@ -687,7 +687,7 @@ export default function Home() {
                 <div style={{ ...styles.toolGrid, ...(isMobile ? styles.toolGridMobile : {}), marginTop: 10 }}>
                   {[
                     { key: 'quiz',       label: '💡 퀴즈',    handler: handleQuiz },
-                    { key: 'evaluation', label: '💯 평가',     handler: handleEvaluation },
+                    { key: 'evaluation', label: '🌟 나 어땠어?', handler: handleEvaluation },
                     { key: 'teacher',    label: '✍️ 교과평어', handler: handleTeacherComment },
                   ].map(({ key, label, handler }) => (
                     <div key={key} style={{ position: 'relative', zIndex: hoveredTool === key ? 10 : 1 }}>
@@ -765,7 +765,7 @@ export default function Home() {
 
 const toolTips = {
   quiz:       '학습 내용으로 퀴즈를\n만들어 풀어볼 수 있어요.',
-  evaluation: '지금까지의 학습 태도와\n내용을 평가해 줘요.',
+  evaluation: '대화와 퀴즈 활동을\n돌아보고 한마디 해줘요.',
   teacher:    '교과 세부능력 특기사항\n예시문을 만들어 줘요.'
 };
 
