@@ -88,16 +88,14 @@ export default function Home() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 채팅 박스 내부만 스크롤 — scrollIntoView는 페이지 전체를 올려버리므로 사용하지 않음
-  const scrollChatToBottom = (smooth = true) => {
-    requestAnimationFrame(() => {
-      const el = chatBoxRef.current;
-      if (!el) return;
-      el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
-    });
-  };
-
-  useEffect(() => { scrollChatToBottom(true); }, [conversation]);
+  // conversation이 바뀔 때마다 채팅박스 내부를 즉시 맨 아래로 스크롤
+  // requestAnimationFrame + smooth 조합은 스트리밍 chunk가 빠르게 들어올 때 서로 충돌해
+  // 실제로 스크롤되지 않는 문제가 있어 scrollTop 직접 할당으로 교체
+  useEffect(() => {
+    const el = chatBoxRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [conversation]);
 
   useEffect(() => {
     if (!isChatLoading && chatInputRef.current) {
@@ -253,7 +251,6 @@ export default function Home() {
       { role: 'user', content: `조사주제는 '${trimmedTopic}'야. 자료를 분석해줘` },
       { role: 'assistant', content: thinkingMsg }
     ]);
-    scrollChatToBottom(true);
 
     await requestStream(
       [buildBaseSystem(), { role: 'user', content: '원본 자료를 분석해서 모드에 맞는 학습 결과를 만들어 줘.' }],
@@ -268,7 +265,6 @@ export default function Home() {
             }
             return updated;
           });
-          scrollChatToBottom(true);
         },
         onError: (msg) => {
           setConversation((prev) => {
@@ -396,7 +392,6 @@ export default function Home() {
     setChatInput('');
     setIsChatLoading(true);
     setConversation((prev) => [...prev, userMessage, assistantPlaceholder]);
-    scrollChatToBottom(false);
 
     await requestStream([buildChatSystem(), ...conversation, userMessage], {
       onChunk: (data) => {
@@ -408,9 +403,8 @@ export default function Home() {
           }
           return updated;
         });
-        scrollChatToBottom(false);
       },
-      onDone: () => scrollChatToBottom(true),
+      onDone: () => {},
       onError: (msg) => {
         setConversation((prev) => {
           const updated = [...prev];
