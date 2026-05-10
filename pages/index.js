@@ -43,16 +43,16 @@ export default function Home() {
 
   const [conversation, setConversation] = useState([INIT_MSG]);
 
-  // 전체 세션(조사자료·채팅·성찰) 자동저장
+  // 전체 세션(조사자료·채팅·성찰·분석결과) 자동저장
   useEffect(() => {
     if (!topic.trim()) return;
-    triggerSave({ topic, sourceText, gradeLevel, learningMode, conversation, notes });
-  }, [topic, sourceText, gradeLevel, learningMode, conversation, notes, triggerSave]);
+    triggerSave({ topic, sourceText, gradeLevel, learningMode, conversation, notes, analysisResult });
+  }, [topic, sourceText, gradeLevel, learningMode, conversation, notes, analysisResult, triggerSave]);
 
   // 이전 조사 불러오기
   const handleLoadSession = (savedTopic) => {
     // 현재 세션 즉시 저장 후 교체
-    if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, learningMode, conversation, notes });
+    if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, learningMode, conversation, notes, analysisResult });
 
     const session = loadSession(savedTopic);
     if (!session) return;
@@ -62,7 +62,7 @@ export default function Home() {
     setGradeLevel(session.gradeLevel ?? 'high');
     setLearningMode(session.learningMode ?? 'understand');
     setConversation(session.conversation?.length > 0 ? session.conversation : [INIT_MSG]);
-    setAnalysisResult(EMPTY_ANALYSIS);
+    setAnalysisResult(session.analysisResult ?? EMPTY_ANALYSIS);
     setQuizResult(null);
     setQuizKey(k => k + 1);
     // notes는 useStudentNotes가 topic 변경 시 자동으로 localStorage에서 읽어옴
@@ -71,6 +71,7 @@ export default function Home() {
   const [chatInput, setChatInput] = useState('');
   const chatBoxRef = useRef(null);
   const chatInputRef = useRef(null);
+  const chatSectionRef = useRef(null);
   const quizRef = useRef(null);
   const evaluationRef = useRef(null);
   const teacherRef = useRef(null);
@@ -519,7 +520,14 @@ export default function Home() {
                   <button
                     key={`${q}-${idx}`}
                     style={{ ...styles.questionButton, ...(isMobile ? styles.questionButtonMobile : {}) }}
-                    onClick={() => handleFollowUpChat(q)}
+                    onClick={() => {
+                      handleFollowUpChat(q);
+                      setTimeout(() => {
+                        if (!chatSectionRef.current) return;
+                        const top = chatSectionRef.current.getBoundingClientRect().top + window.pageYOffset - 16;
+                        window.scrollTo({ top, behavior: 'smooth' });
+                      }, 150);
+                    }}
                     disabled={isChatLoading}
                   >
                     {q}
@@ -725,6 +733,7 @@ export default function Home() {
             </div>
 
             <div style={{ ...styles.rightColumn, ...(isMobile ? styles.rightColumnMobile : {}) }}>
+              <div ref={chatSectionRef}>
               <SectionCard title="후속 질문 대화창" icon="💬" isMobile={isMobile}>
                 <div ref={chatBoxRef} style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
                   {conversation.map((msg, idx) => (
@@ -788,6 +797,7 @@ export default function Home() {
                   ))}
                 </div>
               </SectionCard>
+              </div>
 
               {analysisResult.quiz && (
                 <div ref={quizRef}>
