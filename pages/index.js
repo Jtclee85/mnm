@@ -9,7 +9,7 @@ import ChatBubble from '../components/ChatBubble';
 import QuizCard from '../components/QuizCard';
 import ModeBadge from '../components/ModeBadge';
 
-import { createSystemMessage, createChatSystemMessage } from '../lib/systemPrompt';
+import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, copyText, modeMap } from '../lib/parseResponse';
 
 /** =========================
@@ -199,6 +199,9 @@ export default function Home() {
   const buildChatSystem = () =>
     createChatSystemMessage({ topic, sourceText, gradeLevel });
 
+  const buildEvaluationSystem = () =>
+    createEvaluationSystemMessage({ topic, gradeLevel });
+
   const handleAnalyze = async () => {
     const trimmedTopic = topic.trim();
     const trimmedSource = sourceText.trim();
@@ -251,12 +254,12 @@ export default function Home() {
   };
 
   // 퀴즈/요약/평가/교과평어에 공통으로 쓰이는 단일 핸들러
-  const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey }) => {
+  const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey, buildSystem }) => {
     if (!sourceText.trim()) { alert('먼저 자료를 분석해 주세요.'); return; }
 
     setIsAnalyzing(true);
     setLoadingTool(toolKey ?? null);
-    const systemMsg = buildBaseSystem();
+    const systemMsg = buildSystem ? buildSystem() : buildBaseSystem();
     const userMsg = { role: 'user', content: promptText };
     const messages = withHistory
       ? [systemMsg, ...conversation, userMsg]
@@ -299,6 +302,7 @@ export default function Home() {
       promptText: '나 어땠어?',
       toolKey: 'evaluation',
       withHistory: true,
+      buildSystem: buildEvaluationSystem,
       onDone: (parsed) => {
         setAnalysisResult((prev) => ({
           ...prev,
