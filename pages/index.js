@@ -254,22 +254,35 @@ export default function Home() {
     setIsAnalyzing(false);
   };
 
-  // 퀴즈/요약/평가/교과평어에 공통으로 쓰이는 단일 핸들러
-  const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey, buildSystem }) => {
+  // requestStream을 Promise로 감싸는 헬퍼 — retry 로직에서 사용
+  const streamOnce = (messages) =>
+    new Promise((resolve, reject) => {
+      requestStream(messages, { onDone: resolve, onError: reject });
+    });
+
+  // 퀴즈/요약/교과평어에 공통으로 쓰이는 단일 핸들러
+  // retryTag 지정 시 해당 태그 미검출이면 1회 자동 재시도
+  const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey, buildSystem, retryTag }) => {
     if (!sourceText.trim()) { alert('먼저 자료를 분석해 주세요.'); return; }
 
     setIsAnalyzing(true);
     setLoadingTool(toolKey ?? null);
+
     const systemMsg = buildSystem ? buildSystem() : buildBaseSystem();
     const userMsg = { role: 'user', content: promptText };
     const messages = withHistory
       ? [systemMsg, ...conversation, userMsg]
       : [systemMsg, userMsg];
 
-    await requestStream(messages, {
-      onDone: (fullText) => onDone(parseSectionedResponse(fullText)),
-      onError: (msg) => alert(msg || '처리 중 오류가 발생했습니다.')
-    });
+    try {
+      let fullText = await streamOnce(messages);
+      if (retryTag && !extractTagBlock(fullText, retryTag)) {
+        fullText = await streamOnce(messages);
+      }
+      onDone(parseSectionedResponse(fullText));
+    } catch (errorMsg) {
+      alert(typeof errorMsg === 'string' ? errorMsg : '처리 중 오류가 발생했습니다.');
+    }
 
     setIsAnalyzing(false);
     setLoadingTool(null);
@@ -279,6 +292,7 @@ export default function Home() {
     handleSpecialRequest({
       promptText: '퀴즈풀기',
       toolKey: 'quiz',
+      retryTag: 'quiz',
       onDone: (parsed) => {
         setAnalysisResult((prev) => ({ ...prev, quiz: parsed.quiz || '퀴즈를 만들지 못했어요.' }));
         setQuizKey((prev) => prev + 1);
@@ -310,16 +324,20 @@ export default function Home() {
     const chatHistory = conversation[0]?.role === 'assistant' ? conversation.slice(1) : conversation;
     const messages = [systemMsg, ...chatHistory, { role: 'user', content: '나 어땠어?' }];
 
-    await requestStream(messages, {
-      onDone: (fullText) => {
-        const evaluation = extractTagBlock(fullText, 'evaluation');
-        setAnalysisResult((prev) => ({
-          ...prev,
-          evaluation: evaluation || '평가 결과를 만들지 못했어요.'
-        }));
-      },
-      onError: (msg) => alert(msg || '처리 중 오류가 발생했습니다.')
-    });
+    try {
+      let fullText = await streamOnce(messages);
+      let evaluation = extractTagBlock(fullText, 'evaluation');
+      if (!evaluation) {
+        fullText = await streamOnce(messages);
+        evaluation = extractTagBlock(fullText, 'evaluation');
+      }
+      setAnalysisResult((prev) => ({
+        ...prev,
+        evaluation: evaluation || '평가 결과를 만들지 못했어요.'
+      }));
+    } catch (errorMsg) {
+      alert(typeof errorMsg === 'string' ? errorMsg : '처리 중 오류가 발생했습니다.');
+    }
 
     setIsAnalyzing(false);
     setLoadingTool(null);
