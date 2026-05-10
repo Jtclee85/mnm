@@ -213,7 +213,7 @@ export default function Home() {
   const buildEvaluationSystem = () => {
     // 분석 요청·버튼 명령을 제외한 실제 추가 질문만 추출
     const excludePatterns = [
-      /^조사주제는\s+'.+'\s*야[\.\s]*자료를\s*분석해줘/,
+      /^조사주제는\s+'.+'\s*이?야[\.\s]*자료를\s*분석해줘/,
       /^(나 어땠어\?|교과평어 만들기|퀴즈풀기|전체 요약)$/
     ];
     const followUpQuestions = conversation
@@ -249,7 +249,7 @@ export default function Home() {
 
     setConversation((prev) => [
       ...prev,
-      { role: 'user', content: `조사주제는 '${trimmedTopic}'야. 자료를 분석해줘` },
+      { role: 'user', content: `조사주제는 '${trimmedTopic}'${hasBatchim(trimmedTopic) ? '이야' : '야'}. 자료를 분석해줘` },
       { role: 'assistant', content: thinkingMsg }
     ]);
 
@@ -848,6 +848,15 @@ export default function Home() {
       </div>
     </>
   );
+}
+
+// 한글 마지막 글자의 받침 유무 판별
+// 유니코드 한글 완성형(AC00-D7A3): (코드 - AC00) % 28 === 0 이면 받침 없음
+function hasBatchim(str) {
+  if (!str) return false;
+  const last = str.trim().slice(-1);
+  const code = last.charCodeAt(0);
+  return code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
 }
 
 // 초기 대화 메시지 — 세션 불러오기 시에도 재사용
