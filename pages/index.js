@@ -10,7 +10,7 @@ import QuizCard from '../components/QuizCard';
 import ModeBadge from '../components/ModeBadge';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
-import { parseSectionedResponse, parseQuizBlock, copyText, modeMap } from '../lib/parseResponse';
+import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText, modeMap } from '../lib/parseResponse';
 
 /** =========================
  *  메인
@@ -26,6 +26,7 @@ export default function Home() {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [loadingTool, setLoadingTool] = useState(null);
   const [hoveredTool, setHoveredTool] = useState(null);
+  const [quizResult, setQuizResult] = useState(null); // 'correct' | 'incorrect' | null
   const [isMobile, setIsMobile] = useState(false);
 
   const [analysisResult, setAnalysisResult] = useState({
@@ -200,7 +201,7 @@ export default function Home() {
     createChatSystemMessage({ topic, sourceText, gradeLevel });
 
   const buildEvaluationSystem = () =>
-    createEvaluationSystemMessage({ topic, gradeLevel });
+    createEvaluationSystemMessage({ topic, gradeLevel, quizResult });
 
   const handleAnalyze = async () => {
     const trimmedTopic = topic.trim();
@@ -281,6 +282,7 @@ export default function Home() {
       onDone: (parsed) => {
         setAnalysisResult((prev) => ({ ...prev, quiz: parsed.quiz || '퀴즈를 만들지 못했어요.' }));
         setQuizKey((prev) => prev + 1);
+        setQuizResult(null); // 새 퀴즈 생성 시 이전 결과 초기화
       }
     });
 
@@ -297,19 +299,31 @@ export default function Home() {
       }
     });
 
-  const handleEvaluation = () =>
-    handleSpecialRequest({
-      promptText: '나 어땠어?',
-      toolKey: 'evaluation',
-      withHistory: true,
-      buildSystem: buildEvaluationSystem,
-      onDone: (parsed) => {
+  const handleEvaluation = async () => {
+    if (!sourceText.trim()) { alert('먼저 자료를 분석해 주세요.'); return; }
+
+    setIsAnalyzing(true);
+    setLoadingTool('evaluation');
+
+    const systemMsg = buildEvaluationSystem();
+    // conversation[0]은 항상 assistant 인사말 → OpenAI 표준(system→user→...)에 맞게 제거
+    const chatHistory = conversation[0]?.role === 'assistant' ? conversation.slice(1) : conversation;
+    const messages = [systemMsg, ...chatHistory, { role: 'user', content: '나 어땠어?' }];
+
+    await requestStream(messages, {
+      onDone: (fullText) => {
+        const evaluation = extractTagBlock(fullText, 'evaluation');
         setAnalysisResult((prev) => ({
           ...prev,
-          evaluation: parsed.evaluation || '평가 결과를 만들지 못했어요.'
+          evaluation: evaluation || '평가 결과를 만들지 못했어요.'
         }));
-      }
+      },
+      onError: (msg) => alert(msg || '처리 중 오류가 발생했습니다.')
     });
+
+    setIsAnalyzing(false);
+    setLoadingTool(null);
+  };
 
   const handleTeacherComment = () =>
     handleSpecialRequest({
@@ -685,7 +699,7 @@ export default function Home() {
               {analysisResult.quiz && (
                 <div ref={quizRef}>
                   <SectionCard title="퀴즈" icon="🎯" isMobile={isMobile}>
-                    <QuizCard key={quizKey} quizData={parsedQuiz} onReset={handleQuiz} isMobile={isMobile} />
+                    <QuizCard key={quizKey} quizData={parsedQuiz} onReset={handleQuiz} isMobile={isMobile} onResult={setQuizResult} />
                   </SectionCard>
                 </div>
               )}

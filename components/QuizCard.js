@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function QuizCard({ quizData, onReset, isMobile }) {
+export default function QuizCard({ quizData, onReset, isMobile, onResult }) {
   const [selected, setSelected] = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
@@ -63,7 +63,10 @@ export default function QuizCard({ quizData, onReset, isMobile }) {
             type="button"
             style={{ ...styles.primaryButton, ...(isMobile ? styles.primaryButtonMobile : {}) }}
             disabled={selected === null}
-            onClick={() => setSubmitted(true)}
+            onClick={() => {
+              setSubmitted(true);
+              onResult?.(selected === correctIndex ? 'correct' : 'incorrect');
+            }}
           >
             정답 확인
           </button>
