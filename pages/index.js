@@ -49,6 +49,10 @@ export default function Home() {
 
   const [quizKey, setQuizKey] = useState(0);
 
+  const [reflectionSummary, setReflectionSummary] = useState('');
+  const [reflectionNewLearning, setReflectionNewLearning] = useState('');
+  const [reflectionQuestions, setReflectionQuestions] = useState('');
+
   const [conversation, setConversation] = useState([
     {
       role: 'assistant',
@@ -475,6 +479,42 @@ export default function Home() {
 
           <SectionCard title="내가 다시 말해보기" icon="🗣️" isMobile={isMobile}>
             <BulletList items={analysisResult.reteachLines} isMobile={isMobile} />
+          </SectionCard>
+
+          <SectionCard title="내 생각 정리하기" icon="✏️" isMobile={isMobile}>
+            <div style={styles.reflectionGroup}>
+              <label style={{ ...styles.reflectionLabel, ...(isMobile ? styles.reflectionLabelMobile : {}) }}>
+                내가 이해한 내용을 한 문장으로 정리해보기
+              </label>
+              <textarea
+                style={{ ...styles.reflectionTextarea, ...(isMobile ? styles.reflectionTextareaMobile : {}) }}
+                value={reflectionSummary}
+                onChange={(e) => setReflectionSummary(e.target.value)}
+                placeholder="자료에서 가장 중요하다고 생각한 내용을 한 문장으로 써 보세요."
+              />
+            </div>
+            <div style={styles.reflectionGroup}>
+              <label style={{ ...styles.reflectionLabel, ...(isMobile ? styles.reflectionLabelMobile : {}) }}>
+                원래 자료와 비교했을 때 새롭게 알게 된 점
+              </label>
+              <textarea
+                style={{ ...styles.reflectionTextarea, ...(isMobile ? styles.reflectionTextareaMobile : {}) }}
+                value={reflectionNewLearning}
+                onChange={(e) => setReflectionNewLearning(e.target.value)}
+                placeholder="쉬운 설명을 읽고 나서 새롭게 알게 된 사실이 있나요?"
+              />
+            </div>
+            <div style={{ ...styles.reflectionGroup, marginBottom: 0 }}>
+              <label style={{ ...styles.reflectionLabel, ...(isMobile ? styles.reflectionLabelMobile : {}) }}>
+                아직 궁금한 점
+              </label>
+              <textarea
+                style={{ ...styles.reflectionTextarea, ...(isMobile ? styles.reflectionTextareaMobile : {}) }}
+                value={reflectionQuestions}
+                onChange={(e) => setReflectionQuestions(e.target.value)}
+                placeholder="더 알고 싶거나 이해가 잘 되지 않는 점을 자유롭게 써 보세요."
+              />
+            </div>
           </SectionCard>
         </>
       );
@@ -969,5 +1009,33 @@ grid: { display: 'grid', gridTemplateColumns: '1.4fr 0.9fr', gap: 20 },
     borderLeft: '7px solid transparent',
     borderRight: '7px solid transparent',
     borderBottom: '7px solid #1e3a8a'
-  }
+  },
+  reflectionGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    marginBottom: 16
+  },
+  reflectionLabel: {
+    fontWeight: 700,
+    color: '#374151',
+    fontSize: 14,
+    lineHeight: 1.5
+  },
+  reflectionLabelMobile: { fontSize: 13 },
+  reflectionTextarea: {
+    width: '100%',
+    minHeight: 72,
+    border: '1.5px solid #c7d2fe',
+    borderRadius: 12,
+    padding: '11px 14px',
+    fontSize: 15,
+    lineHeight: 1.7,
+    resize: 'vertical',
+    outline: 'none',
+    boxSizing: 'border-box',
+    background: '#fafbff',
+    color: '#1f2937'
+  },
+  reflectionTextareaMobile: { minHeight: 64, fontSize: 14, padding: '10px 12px' }
 };
