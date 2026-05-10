@@ -5,7 +5,27 @@
  * 따뜻한 노란 배경 + 점선 테두리로 디자인
  */
 
-export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, isMobile }) {
+import { useState } from 'react';
+
+export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, onShare, isMobile }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleShareClick = async () => {
+    if (!onShare) return;
+    const url = onShare();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // 클립보드 권한 없을 때 새 탭으로 열기
+      window.open(url, '_blank');
+    }
+  };
+
+  // 작성된 내용이 하나라도 있을 때만 공유 버튼 표시
+  const hasAnyNote = fields.some(f => notes[f.key]?.trim());
+
   return (
     <div style={{ ...s.card, ...(isMobile ? s.cardMobile : {}) }}>
       <div style={{ ...s.header, ...(isMobile ? s.headerMobile : {}) }}>
@@ -15,7 +35,18 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, is
             내가 생각해보기
           </span>
         </div>
-        <SaveBadge status={saveStatus} />
+        <div style={s.headerRight}>
+          {onShare && hasAnyNote && (
+            <button
+              onClick={handleShareClick}
+              style={{ ...s.shareBtn, ...(copied ? s.shareBtnCopied : {}) }}
+              title="성찰 내용 공유 링크 복사"
+            >
+              {copied ? '✓ 링크 복사됨!' : '🔗 공유하기'}
+            </button>
+          )}
+          <SaveBadge status={saveStatus} />
+        </div>
       </div>
 
       <div style={{ ...s.body, ...(isMobile ? s.bodyMobile : {}) }}>
@@ -77,9 +108,27 @@ const s = {
   },
   headerMobile: { padding: '11px 14px' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 8 },
+  headerRight: { display: 'flex', alignItems: 'center', gap: 8 },
   pencil: { fontSize: 18 },
   title: { fontSize: 16, fontWeight: 800, color: '#92400e' },
   titleMobile: { fontSize: 15 },
+  shareBtn: {
+    border: '1px solid #d97706',
+    background: '#fef3c7',
+    color: '#92400e',
+    fontWeight: 700,
+    fontSize: 11,
+    padding: '3px 9px',
+    borderRadius: 20,
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    whiteSpace: 'nowrap'
+  },
+  shareBtnCopied: {
+    background: '#d1fae5',
+    border: '1px solid #059669',
+    color: '#065f46'
+  },
   body: { padding: 18 },
   bodyMobile: { padding: 14 },
   fieldGroup: { marginBottom: 16 },
