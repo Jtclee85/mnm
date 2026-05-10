@@ -326,14 +326,12 @@ export default function Home() {
 
     try {
       let fullText = await streamOnce(messages);
-      let evaluation = extractTagBlock(fullText, 'evaluation');
-      if (!evaluation) {
-        fullText = await streamOnce(messages);
-        evaluation = extractTagBlock(fullText, 'evaluation');
+      if (!fullText.trim()) {
+        fullText = await streamOnce(messages); // 응답이 비었으면 1회 재시도
       }
       setAnalysisResult((prev) => ({
         ...prev,
-        evaluation: evaluation || '평가 결과를 만들지 못했어요.'
+        evaluation: fullText.trim() || '평가 결과를 만들지 못했어요.'
       }));
     } catch (errorMsg) {
       alert(typeof errorMsg === 'string' ? errorMsg : '처리 중 오류가 발생했습니다.');
