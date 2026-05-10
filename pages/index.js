@@ -765,7 +765,7 @@ export default function Home() {
 
 const toolTips = {
   quiz:       '학습 내용으로 퀴즈를\n만들어 풀어볼 수 있어요.',
-  evaluation: '대화와 퀴즈 활동을\n돌아보고 한마디 해줘요.',
+  evaluation: '지금까지 공부과정과\n조사활동을 돌아봐요.',
   teacher:    '교과 세부능력 특기사항\n예시문을 만들어 줘요.'
 };
 
