@@ -9,6 +9,7 @@ import ChatBubble from '../components/ChatBubble';
 import QuizCard from '../components/QuizCard';
 import ModeBadge from '../components/ModeBadge';
 import ReflectionCard from '../components/ReflectionCard';
+import WritingOutlineCard from '../components/WritingOutlineCard';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText, modeMap } from '../lib/parseResponse';
@@ -439,7 +440,9 @@ export default function Home() {
     '',
     '[발표 제목]', analysisResult.presentationTitle || '',
     '',
-    '[발표용 3문장]', ...(analysisResult.presentationScriptLines || [])
+    '[발표용 3문장]', ...(analysisResult.presentationScriptLines || []),
+    '',
+    '[설명문 개요]', analysisResult.writingOutline || ''
   ].join('\n');
 
   // analysisResult.quiz가 바뀔 때만 파싱·셔플 — 렌더마다 실행되면 hoveredTool 변경 시마다 리셋됨
@@ -586,6 +589,50 @@ export default function Home() {
 
           <ReflectionCard
             fields={REFLECTION_FIELDS.presentation}
+            notes={notes}
+            onUpdate={updateNote}
+            saveStatus={saveStatus}
+            onShare={handleShare}
+            isMobile={isMobile}
+          />
+        </>
+      );
+    }
+
+    if (learningMode === 'writing') {
+      return (
+        <>
+          <SectionCard
+            title="설명문 개요 (처음-가운데-끝)"
+            icon="✏️"
+            isMobile={isMobile}
+            actions={
+              analysisResult.writingOutline ? (
+                <button
+                  style={{ ...styles.smallButton, ...(isMobile ? styles.smallButtonMobile : {}) }}
+                  onClick={async () => {
+                    try { await copyText(analysisResult.writingOutline); alert('개요를 복사했어요.'); }
+                    catch { alert('복사에 실패했어요.'); }
+                  }}
+                >
+                  복사
+                </button>
+              ) : null
+            }
+          >
+            <WritingOutlineCard outline={analysisResult.writingOutline} isMobile={isMobile} />
+          </SectionCard>
+
+          <SectionCard title="핵심 내용 3줄" icon="📝" isMobile={isMobile}>
+            <BulletList items={analysisResult.summaryLines} isMobile={isMobile} />
+          </SectionCard>
+
+          <SectionCard title="어려운 낱말 풀이" icon="📚" isMobile={isMobile}>
+            <BulletList items={analysisResult.vocabularyLines} isMobile={isMobile} />
+          </SectionCard>
+
+          <ReflectionCard
+            fields={REFLECTION_FIELDS.writing}
             notes={notes}
             onUpdate={updateNote}
             saveStatus={saveStatus}
@@ -869,7 +916,8 @@ const EMPTY_ANALYSIS = {
   easy: '', summaryLines: [], keywordLines: [], vocabularyLines: [],
   questionLines: [], searchLines: [], reteachLines: [], furtherLines: [],
   presentationTitle: '', presentationScriptLines: [], presentationOrderLines: [],
-  expectedQuestionLines: [], teacher: '', quiz: '', evaluation: ''
+  expectedQuestionLines: [], teacher: '', quiz: '', evaluation: '',
+  writingOutline: ''
 };
 
 const toolTips = {
@@ -879,15 +927,17 @@ const toolTips = {
 };
 
 const modeOptions = [
-  { value: 'understand', label: '이해 모드',    icon: '🧒' },
-  { value: 'inquiry',    label: '탐구 모드',    icon: '🔍' },
-  { value: 'presentation', label: '발표 준비', icon: '🎤' }
+  { value: 'understand',   label: '이해 모드',  icon: '🧒' },
+  { value: 'inquiry',      label: '탐구 모드',  icon: '🔍' },
+  { value: 'presentation', label: '발표 준비',  icon: '🎤' },
+  { value: 'writing',      label: '글쓰기',     icon: '✏️' }
 ];
 
 const modeTips = {
   understand: '어려운 설명을 먼저 쉽게 이해할 때 써요.\n쉬운 설명, 낱말 풀이, 핵심 내용 중심으로 정리해요.\n처음 자료를 읽을 때 가장 먼저 사용하면 좋아요.',
   inquiry: '이해한 내용을 바탕으로 더 조사할 때 써요.\n질문, 검색어, 더 조사할 거리를 보여줘요.\n탐구 주제 확장에 가장 잘 맞아요.',
-  presentation: '조사한 내용을 친구들 앞에서 발표할 때 써요.\n발표 제목, 발표용 3문장, 발표 순서를 정리해요.\n발표문 초안 만들기에 좋아요.'
+  presentation: '조사한 내용을 친구들 앞에서 발표할 때 써요.\n발표 제목, 발표용 3문장, 발표 순서를 정리해요.\n발표문 초안 만들기에 좋아요.',
+  writing: '조사한 내용을 바탕으로 설명문을 쓸 때 써요.\n처음-가운데-끝 개요를 만들어 줘요.\n글쓰기 전 계획 세우기에 가장 잘 맞아요.'
 };
 
 /** =========================
