@@ -6,6 +6,9 @@ export const config = {
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// 접근 불가 시 'gpt-5-mini' 또는 기존 'gpt-4o-mini'로 폴백 가능
+const MODEL = "gpt-5.4-mini";
+
 // 한국어 기준 약 7,500 토큰 이내로 제어 (시스템 프롬프트 포함)
 const MAX_TOTAL_CHARS = 15000;
 
@@ -32,9 +35,35 @@ export default async function handler(req) {
     );
   }
 
+  // 마지막 user 메시지만 검사 (시스템 프롬프트·이전 대화는 이미 통제된 내용)
+  const lastUserMsg = [...messages].reverse().find(m => m.role === 'user');
+  const inputText = typeof lastUserMsg?.content === 'string' ? lastUserMsg.content : '';
+
+  if (inputText.length >= 2) {
+    try {
+      const modResult = await openai.moderations.create({
+        model: 'omni-moderation-latest',
+        input: inputText,
+      });
+
+      if (modResult.results[0]?.flagged) {
+        return new Response(
+          JSON.stringify({
+            error: '앗, 이 내용은 학습 도우미가 다루기 어려운 내용이에요. 조사 주제나 자료를 다시 한 번 확인해 줄래?',
+          }),
+          { status: 400 }
+        );
+      }
+    } catch (modError) {
+      // fail-open: moderation 호출 실패 시 수업 흐름을 멈추지 않고 통과.
+      // 보안을 강화하려면 여기서 400을 반환하는 fail-closed로 변경할 것.
+      console.error("Moderation API 호출 오류 (통과 처리):", modError);
+    }
+  }
+
   try {
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: MODEL,
       messages,
       stream: true,
     });
