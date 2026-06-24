@@ -3,10 +3,10 @@ export default function SectionCard({ title, icon, children, actions, isMobile }
     <div style={{ ...styles.sectionCard, ...(isMobile ? styles.sectionCardMobile : {}) }}>
       <div style={{ ...styles.sectionHeader, ...(isMobile ? styles.sectionHeaderMobile : {}) }}>
         <div style={{ ...styles.sectionTitle, ...(isMobile ? styles.sectionTitleMobile : {}) }}>
-          <span style={{ marginRight: 8 }}>{icon}</span>
+          {icon ? <span style={{ marginRight: 8 }}>{icon}</span> : null}
           {title}
         </div>
-        {actions ? <div>{actions}</div> : null}
+        {actions ? <div style={styles.sectionActions}>{actions}</div> : null}
       </div>
       <div style={{ ...styles.sectionBody, ...(isMobile ? styles.sectionBodyMobile : {}) }}>
         {children}
@@ -28,13 +28,15 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
     padding: '16px 18px',
     borderBottom: '1px solid #eef2f7',
     background: '#fcfcff'
   },
   sectionHeaderMobile: { padding: '13px 14px' },
-  sectionTitle: { fontSize: 18, fontWeight: 800, color: '#111827' },
+  sectionTitle: { fontSize: 18, fontWeight: 800, color: '#111827', flexShrink: 0 },
   sectionTitleMobile: { fontSize: 16 },
+  sectionActions: { minWidth: 0, flex: '1 1 auto', display: 'flex', justifyContent: 'flex-end' },
   sectionBody: { padding: 18 },
   sectionBodyMobile: { padding: 14 }
 };

@@ -35,7 +35,7 @@ const Banner = () => {
           사회과 조사학습 AI코스웨어
         </p>
         <p style={{ fontSize: '0.9rem', color: '#555', margin: '3px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>
-          자료조사, 탐구, 발표준비 도우미
+          자료조사, 탐구, 발표준비, 글쓰기 도우미
         </p>
       </div>
     </div>

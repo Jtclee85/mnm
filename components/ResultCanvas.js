@@ -303,7 +303,7 @@ const s = {
     fontWeight: 800, fontSize: 11, whiteSpace: 'nowrap',
   },
   tip: {
-    position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%',
+    position: 'absolute', top: 'calc(100% + 6px)', left: '50%',
     transform: 'translateX(-50%)',
     background: '#1e3a8a', color: '#fff', borderRadius: 10,
     padding: '7px 10px', fontSize: 11, lineHeight: 1.6,
@@ -311,10 +311,10 @@ const s = {
     boxShadow: '0 4px 14px rgba(30,58,138,0.25)', minWidth: 130,
   },
   tipArrow: {
-    position: 'absolute', bottom: -6, left: 'calc(50% - 6px)',
+    position: 'absolute', top: -6, left: 'calc(50% - 6px)',
     width: 0, height: 0,
     borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
-    borderTop: '6px solid #1e3a8a',
+    borderBottom: '6px solid #1e3a8a',
   },
   closeBtn: {
     border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280',

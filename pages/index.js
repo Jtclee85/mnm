@@ -39,6 +39,7 @@ export default function Home() {
   const [loadingTool,  setLoadingTool]  = useState(null);
 
   const [isMobile, setIsMobile] = useState(false);
+  const [leftPanelTab, setLeftPanelTab] = useState('source');
 
   const { notes, updateNote, saveStatus } = useStudentNotes(topic);
   const { savedTopics, triggerSave, saveNow, loadSession } = useSessionSave();
@@ -91,7 +92,7 @@ export default function Home() {
     setSourceText(session.sourceText ?? '');
     setGradeLevel(session.gradeLevel ?? 'high');
     setActiveMode(session.activeMode ?? 'understand');
-    setConversation(session.conversation?.length > 0 ? session.conversation : [INIT_MSG]);
+    setConversation(cleanConversation(session.conversation));
     setAnalysisByMode(session.analysisByMode ?? INIT_BY_MODE());
     setToolResults(session.toolResults ?? EMPTY_TOOLS);
     setQuizResult(null);
@@ -103,6 +104,7 @@ export default function Home() {
         r?.presentationTitle || r?.writingOutline
       );
     setCanvasOpen(!!anyResult);
+    setLeftPanelTab(anyResult ? 'chat' : 'source');
   };
 
   // ── SSE 스트리밍 ──
@@ -215,15 +217,13 @@ export default function Home() {
     if (!trimmedTopic)              { alert('조사 주제를 먼저 입력해 주세요.'); return; }
     if (trimmedSource.length < 50)  { alert('조사자료를 조금 더 길게 넣어 주세요.'); return; }
 
+    setLeftPanelTab('chat');
+
     const thinkingMsg = trimmedSource.length > 3000
       ? '자료가 너무 길어서 조금 오래 생각하는 중입니다. 잠시만 기다려 줘!'
       : '분석 중이야, 잠깐만 기다려 줘!';
 
-    setConversation(prev => [
-      ...prev,
-      { role: 'user',      content: `조사주제는 '${trimmedTopic}'${hasBatchim(trimmedTopic) ? '이야' : '야'}. 자료를 분석해줘` },
-      { role: 'assistant', content: thinkingMsg }
-    ]);
+    setConversation([{ role: 'assistant', content: thinkingMsg }]);
 
     // 이전 결과 초기화 후 캔버스 열기
     setAnalysisByMode(INIT_BY_MODE());
@@ -240,7 +240,7 @@ export default function Home() {
         updated[last] = {
           ...updated[last],
           content: ok
-            ? '좋아! 이해 탭에 결과를 정리했어. 다른 탭도 눌러서 탐구·발표·글쓰기 결과도 받아봐!'
+            ? INIT_MSG.content
             : '앗, 분석 중 문제가 생겼어. 다시 한 번 눌러 줘!'
         };
       }
@@ -326,6 +326,33 @@ export default function Home() {
       }
     });
 
+  const checkChatRelevance = async (userText) => {
+    try {
+      const res = await fetch('/api/relevance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic,
+          sourceText: sourceText.slice(0, 6000),
+          userText,
+          conversation: conversation.slice(-6),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      return {
+        relevant: res.ok && data.relevant === true,
+        redirect: data.redirect || '그 질문은 지금 조사 주제와는 조금 멀어 보여. 오른쪽 결과에서 궁금한 낱말이나 사건을 골라 물어봐!',
+      };
+    } catch (error) {
+      console.error('Relevance check failed:', error);
+      return {
+        relevant: false,
+        redirect: '질문을 확인하는 중 문제가 생겼어. 조사 주제와 관련된 질문으로 다시 물어봐 줘.',
+      };
+    }
+  };
+
   // ── 후속 질문 채팅 ──
   const handleFollowUpChat = async (customPrompt) => {
     const userText = (customPrompt ?? chatInput).trim();
@@ -336,6 +363,18 @@ export default function Home() {
 
     setChatInput('');
     setIsChatLoading(true);
+
+    const relevance = await checkChatRelevance(userText);
+    if (!relevance.relevant) {
+      setConversation(prev => [
+        ...prev,
+        userMessage,
+        { role: 'assistant', content: relevance.redirect },
+      ]);
+      setIsChatLoading(false);
+      return;
+    }
+
     setConversation(prev => [...prev, userMessage, assistantPlaceholder]);
 
     await requestStream([buildChatSystem(), ...conversation, userMessage], {
@@ -369,6 +408,7 @@ export default function Home() {
 
   // ── 탐구 탭 질문 버튼 클릭 → 채팅으로 ──
   const handleQuestionAsk = (q) => {
+    setLeftPanelTab('chat');
     handleFollowUpChat(q);
     setTimeout(() => {
       if (!chatSectionRef.current) return;
@@ -416,6 +456,41 @@ export default function Home() {
     r?.presentationTitle || r?.writingOutline
   );
 
+  const renderLeftPanelTabs = () => (
+    <div style={styles.leftPanelTabs}>
+      <button
+        style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'source' ? styles.leftPanelTabActive : {}) }}
+        onClick={() => setLeftPanelTab('source')}
+      >
+        조사자료
+      </button>
+      <button
+        style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'chat' ? styles.leftPanelTabActive : {}) }}
+        onClick={() => setLeftPanelTab('chat')}
+      >
+        대화
+      </button>
+    </div>
+  );
+
+  const renderSavedTopicChips = () => (
+    savedTopics.length > 0 ? (
+      <div style={styles.chipsWrap}>
+        <span style={{ fontSize: 13, flexShrink: 0 }}>📂</span>
+        {savedTopics.map(({ topic: t }) => (
+          <button
+            key={t}
+            style={{ ...styles.chip, ...(t === topic ? styles.chipActive : {}) }}
+            onClick={() => handleLoadSession(t)}
+            title={`"${t}" 불러오기`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+    ) : null
+  );
+
   // ── 레이아웃 ──
   const layoutStyle = (canvasOpen && !isMobile)
     ? styles.splitLayout
@@ -431,33 +506,20 @@ export default function Home() {
 
       <div style={{ ...styles.page, ...(isMobile ? styles.pageMobile : {}) }}>
         <div style={styles.container}>
-          <Banner />
+          {!canvasOpen && !hasAnyResult && <Banner />}
 
           <div style={layoutStyle}>
             {/* ══ 왼쪽: 입력 + 채팅 ══ */}
             <div style={styles.leftCol}>
 
               {/* 기본 설정 카드 */}
+              {leftPanelTab === 'source' && (
               <SectionCard
-                title="기본 설정" icon="🛠️" isMobile={isMobile}
-                actions={
-                  savedTopics.length > 0 ? (
-                    <div style={styles.chipsWrap}>
-                      <span style={{ fontSize: 13, flexShrink: 0 }}>📂</span>
-                      {savedTopics.slice(0, 6).map(({ topic: t }) => (
-                        <button
-                          key={t}
-                          style={{ ...styles.chip, ...(t === topic ? styles.chipActive : {}) }}
-                          onClick={() => handleLoadSession(t)}
-                          title={`"${t}" 불러오기`}
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null
-                }
+                title="무얼 조사했냐면..." icon="" isMobile={isMobile}
+                actions={renderSavedTopicChips()}
               >
+                {renderLeftPanelTabs()}
+
                 {/* 조사 주제 */}
                 <div style={styles.formGroup}>
                   <label style={styles.label}>조사 주제</label>
@@ -516,10 +578,17 @@ export default function Home() {
                   )}
                 </div>
               </SectionCard>
+              )}
 
               {/* 후속 질문 채팅 */}
+              {leftPanelTab === 'chat' && (
               <div ref={chatSectionRef}>
-                <SectionCard title="후속 질문 대화창" icon="💬" isMobile={isMobile}>
+                <SectionCard
+                  title="무얼 조사했냐면..." icon="" isMobile={isMobile}
+                  actions={renderSavedTopicChips()}
+                >
+                  {renderLeftPanelTabs()}
+
                   <div ref={chatBoxRef} style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
                     {conversation.map((msg, idx) => (
                       <ChatBubble
@@ -553,6 +622,7 @@ export default function Home() {
                   </div>
                 </SectionCard>
               </div>
+              )}
             </div>
 
             {/* ══ 오른쪽: 결과 캔버스 ══ */}
@@ -596,10 +666,25 @@ function hasBatchim(str) {
   return code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
 }
 
+function cleanConversation(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return [INIT_MSG];
+
+  const cleaned = messages.filter(msg => {
+    const content = msg?.content || '';
+    if (content.includes('나는 조사자료를 쉽게 바꿔 주는 사회과 학습 도우미')) return false;
+    if (content.includes('지금 선택한 모드에 맞게 결과를 정리했어')) return false;
+    if (content.includes('이해 탭에 결과를 정리했어')) return false;
+    if (/^조사주제는\s+'.+'\s*이?야[\.\s]*자료를\s*분석해줘/.test(content)) return false;
+    return true;
+  });
+
+  return cleaned.length > 0 ? cleaned : [INIT_MSG];
+}
+
 // ── 상수 ──
 const INIT_MSG = {
   role: 'assistant',
-  content: '안녕? 나는 조사자료를 쉽게 바꿔 주는 사회과 학습 도우미 [뭐냐면]이야. 먼저 조사 주제와 자료를 넣고, "분석 시작" 버튼을 눌러 줘!'
+  content: '조사자료를 정리했어! 오른쪽 창을 보며 공부해보자. 궁금한 게 있으면 얼마든지 물어봐!'
 };
 
 const EMPTY_MODE_RESULT = {
@@ -630,6 +715,20 @@ const styles = {
   splitLayout:    { display: 'grid', gridTemplateColumns: '1fr 1.25fr', gap: 20, alignItems: 'start' },
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
+  leftPanelTabs: {
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
+    background: '#f1f5f9', border: '1px solid #e2e8f0',
+    borderRadius: 12, padding: 4, marginBottom: 18,
+  },
+  leftPanelTab: {
+    border: 'none', background: 'transparent', color: '#64748b',
+    borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
+    fontWeight: 800, fontSize: 14,
+  },
+  leftPanelTabActive: {
+    background: '#ffffff', color: '#1d4ed8',
+    boxShadow: '0 1px 4px rgba(15,23,42,0.10)',
+  },
 
   formGroup: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
   label:     { fontWeight: 700, color: '#374151', fontSize: 14 },
@@ -668,7 +767,11 @@ const styles = {
   chatTextarea:       { width: '100%', minHeight: 90, maxHeight: 200, border: '1px solid #cbd5e1', borderRadius: 14, padding: '12px 14px', fontSize: 15, lineHeight: 1.6, resize: 'vertical', outline: 'none', boxSizing: 'border-box' },
   chatTextareaMobile: { minHeight: 80, fontSize: 16, padding: '12px' },
 
-  chipsWrap: { display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap', overflowX: 'auto', maxWidth: 320 },
+  chipsWrap: {
+    display: 'flex', alignItems: 'center', gap: 5,
+    flexWrap: 'nowrap', overflowX: 'auto',
+    width: '100%', maxWidth: 520, paddingBottom: 2,
+  },
   chip: {
     border: '1.5px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8',
     fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
