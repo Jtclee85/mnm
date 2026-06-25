@@ -5,6 +5,7 @@ import Banner from '../components/Banner';
 import SectionCard from '../components/SectionCard';
 import ChatBubble from '../components/ChatBubble';
 import ResultCanvas from '../components/ResultCanvas';
+import RecommendedSources from '../components/RecommendedSources';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
@@ -109,6 +110,22 @@ export default function Home() {
       );
     setCanvasOpen(!!anyResult);
     setLeftPanelTab(anyResult ? 'chat' : 'source');
+  };
+
+  // ── 처음으로 돌아가기 ──
+  const handleGoHome = () => {
+    if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults });
+
+    setTopic('');
+    setSourceText('');
+    setActiveMode('understand');
+    setAnalysisByMode(INIT_BY_MODE());
+    setToolResults(EMPTY_TOOLS);
+    setQuizResult(null);
+    setQuizKey(k => k + 1);
+    setConversation([makeInitialMessage(getUiText(language))]);
+    setCanvasOpen(false);
+    setLeftPanelTab('source');
   };
 
   const buildLanguageReminder = () => getLanguageReminder(language);
@@ -475,6 +492,9 @@ export default function Home() {
     r?.presentationTitle || r?.writingOutline
   );
 
+  // 아직 분석을 시작하지 않은 진짜 첫 랜딩 상태 — 추천 원본자료 사이드바를 보여줄 시점
+  const showLanding = !canvasOpen && !hasAnyResult;
+
   const renderLeftPanelTabs = () => (
     <div style={styles.leftPanelTabs}>
       <button
@@ -510,61 +530,54 @@ export default function Home() {
     ) : null
   );
 
+  const renderHeaderActions = () => (
+    <div style={styles.headerActions}>
+      {renderSavedTopicChips()}
+      <button style={styles.goHomeBtn} onClick={handleGoHome}>
+        {t.goHome}
+      </button>
+    </div>
+  );
+
   // ── 레이아웃 ──
   const layoutStyle = (canvasOpen && !isMobile)
     ? styles.splitLayout
     : styles.centeredLayout;
 
-  return (
-    <>
-      <Head>
-        <title>{t.appTitle}</title>
-        <meta name="description" content={t.appDescription} />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      </Head>
-
-      <div
-        dir={isRtl ? 'rtl' : 'ltr'}
-        lang={language}
-        style={{ ...styles.page, ...(isRtl ? styles.pageRtl : {}), ...(isMobile ? styles.pageMobile : {}) }}
-      >
-        <div style={styles.container}>
-          {!canvasOpen && !hasAnyResult && <Banner t={t} />}
-
-          <div style={{ ...styles.languageBar, ...(isMobile ? styles.languageBarMobile : {}) }}>
-            <label style={styles.languageBarLabel}>{t.languageLabel}</label>
-            <select
-              style={{ ...styles.languageBarSelect, ...(isMobile ? styles.inputMobile : {}) }}
-              value={language}
-              onChange={e => handleLanguageChange(e.target.value)}
-            >
-              {LANGUAGE_OPTIONS.map(option => (
-                <option key={option.code} value={option.code}>{option.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={layoutStyle}>
-            {/* ══ 왼쪽: 입력 + 채팅 ══ */}
-            <div style={styles.leftCol}>
+  const leftColEl = (
+    <div style={styles.leftCol}>
 
               {/* 기본 설정 카드 */}
               {leftPanelTab === 'source' && (
               <SectionCard
                 title={t.mainCardTitle} icon="" isMobile={isMobile}
-                actions={renderSavedTopicChips()}
+                actions={renderHeaderActions()}
               >
-                {renderLeftPanelTabs()}
+                {!showLanding && renderLeftPanelTabs()}
 
-                {/* 조사 주제 */}
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>{t.topicLabel}</label>
-                  <input
-                    style={{ ...styles.input, ...(isMobile ? styles.inputMobile : {}) }}
-                    value={topic}
-                    onChange={e => setTopic(e.target.value)}
-                    placeholder={t.topicPlaceholder}
-                  />
+                {/* 조사 주제 + 언어 선택 */}
+                <div style={isMobile ? styles.topicRowMobile : styles.topicRow}>
+                  <div style={styles.topicCol}>
+                    <label style={styles.label}>{t.topicLabel}</label>
+                    <input
+                      style={{ ...styles.input, ...(isMobile ? styles.inputMobile : {}) }}
+                      value={topic}
+                      onChange={e => setTopic(e.target.value)}
+                      placeholder={t.topicPlaceholder}
+                    />
+                  </div>
+                  <div style={styles.languageInlineCol}>
+                    <label style={styles.label}>language</label>
+                    <select
+                      style={{ ...styles.languageBarSelect, width: '100%', ...(isMobile ? styles.inputMobile : {}) }}
+                      value={language}
+                      onChange={e => handleLanguageChange(e.target.value)}
+                    >
+                      {LANGUAGE_OPTIONS.map(option => (
+                        <option key={option.code} value={option.code}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* 조사자료 */}
@@ -607,7 +620,7 @@ export default function Home() {
               <div ref={chatSectionRef}>
                 <SectionCard
                   title={t.mainCardTitle} icon="" isMobile={isMobile}
-                  actions={renderSavedTopicChips()}
+                  actions={renderHeaderActions()}
                 >
                   {renderLeftPanelTabs()}
 
@@ -646,35 +659,67 @@ export default function Home() {
               </div>
               )}
             </div>
+  );
 
-            {/* ══ 오른쪽: 결과 캔버스 ══ */}
-            {canvasOpen && (
-              <ResultCanvas
-                activeMode={activeMode}
-                onTabClick={handleTabClick}
-                onClose={() => setCanvasOpen(false)}
-                analysisByMode={analysisByMode}
-                loadingMode={loadingMode}
-                toolResults={toolResults}
-                quizKey={quizKey}
-                parsedQuiz={parsedQuiz}
-                quizResult={quizResult}
-                setQuizResult={setQuizResult}
-                onQuiz={handleQuiz}
-                onEvaluation={handleEvaluation}
-                onTeacherComment={handleTeacherComment}
-                isBusy={isBusy}
-                loadingTool={loadingTool}
-                notes={notes}
-                updateNote={updateNote}
-                saveStatus={saveStatus}
-                handleShare={handleShare}
-                isMobile={isMobile}
-                onQuestionAsk={handleQuestionAsk}
-                t={t}
-              />
-            )}
-          </div>
+  const resultCanvasEl = canvasOpen && (
+    <ResultCanvas
+      activeMode={activeMode}
+      onTabClick={handleTabClick}
+      onClose={() => setCanvasOpen(false)}
+      analysisByMode={analysisByMode}
+      loadingMode={loadingMode}
+      toolResults={toolResults}
+      quizKey={quizKey}
+      parsedQuiz={parsedQuiz}
+      quizResult={quizResult}
+      setQuizResult={setQuizResult}
+      onQuiz={handleQuiz}
+      onEvaluation={handleEvaluation}
+      onTeacherComment={handleTeacherComment}
+      isBusy={isBusy}
+      loadingTool={loadingTool}
+      notes={notes}
+      updateNote={updateNote}
+      saveStatus={saveStatus}
+      handleShare={handleShare}
+      isMobile={isMobile}
+      onQuestionAsk={handleQuestionAsk}
+      t={t}
+      language={language}
+      onLanguageChange={handleLanguageChange}
+    />
+  );
+
+  return (
+    <>
+      <Head>
+        <title>{t.appTitle}</title>
+        <meta name="description" content={t.appDescription} />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      </Head>
+
+      <div
+        dir={isRtl ? 'rtl' : 'ltr'}
+        lang={language}
+        style={{ ...styles.page, ...(isRtl ? styles.pageRtl : {}), ...(isMobile ? styles.pageMobile : {}) }}
+      >
+        <div style={styles.container}>
+          {showLanding ? (
+            <>
+              <Banner t={t} />
+              <div style={isMobile ? styles.landingStackMobile : styles.landingRow}>
+                <RecommendedSources isMobile={isMobile} />
+                <div style={styles.landingFormCol}>
+                  {leftColEl}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div style={layoutStyle}>
+              {leftColEl}
+              {resultCanvasEl}
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -733,13 +778,7 @@ const styles = {
   page:      { minHeight: '100vh', background: 'linear-gradient(180deg,#f8fafc 0%,#eef2ff 45%,#f8fafc 100%)', padding: '24px 16px 48px' },
   pageRtl:   { textAlign: 'right' },
   pageMobile: { padding: '16px 10px 32px' },
-  container: { maxWidth: 1440, margin: '0 auto' },
-  languageBar: {
-    maxWidth: 760, margin: '0 auto 14px', display: 'flex', justifyContent: 'flex-end',
-    alignItems: 'center', gap: 10,
-  },
-  languageBarMobile: { justifyContent: 'stretch', alignItems: 'stretch', flexDirection: 'column', gap: 6 },
-  languageBarLabel: { fontWeight: 800, color: '#334155', fontSize: 13 },
+  container: { maxWidth: 1680, margin: '0 auto' },
   languageBarSelect: {
     minWidth: 180, border: '1px solid #cbd5e1', borderRadius: 12,
     padding: '10px 12px', fontSize: 14, outline: 'none', background: '#fff', boxSizing: 'border-box',
@@ -747,6 +786,11 @@ const styles = {
 
   centeredLayout: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
   splitLayout:    { display: 'grid', gridTemplateColumns: '1fr 1.25fr', gap: 20, alignItems: 'start' },
+
+  // 랜딩 화면 전용 — 추천 원본자료 사이드바 + 자료입력 폼
+  landingRow:         { display: 'flex', gap: 28, alignItems: 'flex-start', justifyContent: 'center' },
+  landingStackMobile: { display: 'flex', flexDirection: 'column', gap: 18 },
+  landingFormCol:     { flex: '0 1 860px', minWidth: 0 },
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftPanelTabs: {
@@ -766,6 +810,12 @@ const styles = {
 
   formGroup: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
   label:     { fontWeight: 700, color: '#374151', fontSize: 14 },
+
+  // 조사 주제 입력칸 + 언어 선택 — 같은 줄에 나란히 배치
+  topicRow:          { display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'flex-end', marginBottom: 16 },
+  topicRowMobile:    { display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 },
+  topicCol:          { display: 'flex', flexDirection: 'column', gap: 8, flex: 1, minWidth: 0 },
+  languageInlineCol: { display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, minWidth: 160 },
 
   input: {
     width: '100%', border: '1px solid #cbd5e1', borderRadius: 12,
@@ -812,4 +862,11 @@ const styles = {
     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s'
   },
   chipActive: { background: '#2563eb', border: '1.5px solid #2563eb', color: '#fff' },
+
+  headerActions: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
+  goHomeBtn: {
+    border: '1.5px solid #cbd5e1', background: '#fff', color: '#475569',
+    fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
+    cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s',
+  },
 };

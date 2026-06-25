@@ -7,7 +7,7 @@ import ReflectionCard from './ReflectionCard';
 import WritingOutlineCard from './WritingOutlineCard';
 import { copyText } from '../lib/parseResponse';
 import { getReflectionFields } from '../lib/reflectionFields';
-import { getUiText } from '../lib/i18n';
+import { getUiText, LANGUAGE_OPTIONS } from '../lib/i18n';
 
 export const TAB_OPTIONS = [
   { value: 'understand',   labelKey: 'modeUnderstand',   icon: '🧒' },
@@ -30,6 +30,7 @@ export default function ResultCanvas({
   isBusy, loadingTool,
   notes, updateNote, saveStatus, handleShare,
   isMobile, onQuestionAsk, t = getUiText('ko'),
+  language, onLanguageChange,
 }) {
   const REFLECTION_FIELDS = getReflectionFields(t);
   const [hoveredTool, setHoveredTool] = useState(null);
@@ -194,6 +195,19 @@ export default function ResultCanvas({
       <div style={s.header}>
         <span style={s.headerTitle}>{t.resultTitle}</span>
 
+        {onLanguageChange && (
+          <select
+            aria-label="language"
+            style={s.headerLanguageSelect}
+            value={language}
+            onChange={e => onLanguageChange(e.target.value)}
+          >
+            {LANGUAGE_OPTIONS.map(option => (
+              <option key={option.code} value={option.code}>{option.label}</option>
+            ))}
+          </select>
+        )}
+
         <div style={s.toolBar}>
           {TOOL_CONFIG.map(({ key, labelKey, tipKey }) => (
             <div key={key} style={{ position: 'relative', zIndex: hoveredTool === key ? 10 : 1 }}>
@@ -298,6 +312,11 @@ const s = {
     background: '#fcfcff', flexShrink: 0,
   },
   headerTitle: { fontWeight: 800, fontSize: 14, color: '#111827', flex: 1 },
+  headerLanguageSelect: {
+    border: '1px solid #dbeafe', background: '#f8fbff', color: '#1e3a8a',
+    borderRadius: 9, padding: '5px 6px', fontSize: 11, fontWeight: 800,
+    outline: 'none', cursor: 'pointer', width: 96, flexShrink: 0,
+  },
   toolBar: { display: 'flex', gap: 5, alignItems: 'center' },
   toolBtn: {
     border: '1px solid #dbeafe', background: '#f8fbff', color: '#1e3a8a',
