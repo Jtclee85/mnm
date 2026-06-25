@@ -517,6 +517,19 @@ export default function Home() {
         <div style={styles.container}>
           {!canvasOpen && !hasAnyResult && <Banner t={t} />}
 
+          <div style={{ ...styles.languageBar, ...(isMobile ? styles.languageBarMobile : {}) }}>
+            <label style={styles.languageBarLabel}>{t.languageLabel}</label>
+            <select
+              style={{ ...styles.languageBarSelect, ...(isMobile ? styles.inputMobile : {}) }}
+              value={language}
+              onChange={e => setLanguage(e.target.value)}
+            >
+              {LANGUAGE_OPTIONS.map(option => (
+                <option key={option.code} value={option.code}>{option.label}</option>
+              ))}
+            </select>
+          </div>
+
           <div style={layoutStyle}>
             {/* ══ 왼쪽: 입력 + 채팅 ══ */}
             <div style={styles.leftCol}>
@@ -551,19 +564,6 @@ export default function Home() {
                     <option value="low">{t.levelLow}</option>
                     <option value="high">{t.levelHigh}</option>
                     <option value="발표">{t.levelPresentation}</option>
-                  </select>
-                </div>
-
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>{t.languageLabel}</label>
-                  <select
-                    style={{ ...styles.select, ...(isMobile ? styles.inputMobile : {}) }}
-                    value={language}
-                    onChange={e => setLanguage(e.target.value)}
-                  >
-                    {LANGUAGE_OPTIONS.map(option => (
-                      <option key={option.code} value={option.code}>{option.label}</option>
-                    ))}
                   </select>
                 </div>
 
@@ -734,6 +734,16 @@ const styles = {
   pageRtl:   { textAlign: 'right' },
   pageMobile: { padding: '16px 10px 32px' },
   container: { maxWidth: 1440, margin: '0 auto' },
+  languageBar: {
+    maxWidth: 760, margin: '0 auto 14px', display: 'flex', justifyContent: 'flex-end',
+    alignItems: 'center', gap: 10,
+  },
+  languageBarMobile: { justifyContent: 'stretch', alignItems: 'stretch', flexDirection: 'column', gap: 6 },
+  languageBarLabel: { fontWeight: 800, color: '#334155', fontSize: 13 },
+  languageBarSelect: {
+    minWidth: 180, border: '1px solid #cbd5e1', borderRadius: 12,
+    padding: '10px 12px', fontSize: 14, outline: 'none', background: '#fff', boxSizing: 'border-box',
+  },
 
   centeredLayout: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
   splitLayout:    { display: 'grid', gridTemplateColumns: '1fr 1.25fr', gap: 20, alignItems: 'start' },
