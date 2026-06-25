@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { playCorrect, playWrong } from '../lib/sounds';
+import { getUiText } from '../lib/i18n';
 
-export default function QuizCard({ quizData, onReset, isMobile, onResult }) {
+export default function QuizCard({ quizData, onReset, isMobile, onResult, t = getUiText('ko') }) {
   const [selected, setSelected] = useState(null);
   const [submitted, setSubmitted] = useState(false);
 
   if (!quizData) {
     return (
       <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>
-        퀴즈가 아직 없습니다.
+        {t.noQuiz}
       </p>
     );
   }
@@ -19,7 +20,7 @@ export default function QuizCard({ quizData, onReset, isMobile, onResult }) {
   return (
     <div>
       <div style={{ ...styles.quizQuestion, ...(isMobile ? styles.quizQuestionMobile : {}) }}>
-        {quizData.question || '문제가 없습니다.'}
+        {quizData.question || t.noQuestion}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
@@ -71,7 +72,7 @@ export default function QuizCard({ quizData, onReset, isMobile, onResult }) {
               if (correct) playCorrect(); else playWrong();
             }}
           >
-            정답 확인
+            {t.checkAnswer}
           </button>
         ) : (
           <button
@@ -79,7 +80,7 @@ export default function QuizCard({ quizData, onReset, isMobile, onResult }) {
             style={{ ...styles.secondaryButton, ...(isMobile ? styles.secondaryButtonMobile : {}) }}
             onClick={onReset}
           >
-            새 퀴즈 만들기
+            {t.newQuiz}
           </button>
         )}
       </div>
@@ -97,10 +98,10 @@ export default function QuizCard({ quizData, onReset, isMobile, onResult }) {
           }}
         >
           <div style={{ fontWeight: 800, marginBottom: 6 }}>
-            {isCorrect ? '정답이야! 잘했어 👏' : '아쉽지만 다시 보자!'}
+            {isCorrect ? t.correctMessage : t.incorrectMessage}
           </div>
           <div style={{ lineHeight: 1.7 }}>
-            정답은 <strong>{correctIndex + 1}번</strong>이야.
+            {t.correctAnswerPrefix} <strong>{correctIndex + 1}{t.correctAnswerSuffix}</strong>
             {quizData.explanation ? ` ${quizData.explanation}` : ''}
           </div>
         </div>

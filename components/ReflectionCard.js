@@ -6,8 +6,9 @@
  */
 
 import { useState } from 'react';
+import { getUiText } from '../lib/i18n';
 
-export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, onShare, isMobile }) {
+export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, onShare, isMobile, t = getUiText('ko') }) {
   const [copied, setCopied] = useState(false);
 
   const handleShareClick = async () => {
@@ -28,7 +29,7 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, on
         <div style={s.headerLeft}>
           <span style={s.pencil}>✍️</span>
           <span style={{ ...s.title, ...(isMobile ? s.titleMobile : {}) }}>
-            내가 생각해보기
+            {t.reflectionTitle}
           </span>
         </div>
         <div style={s.headerRight}>
@@ -36,12 +37,12 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, on
             <button
               onClick={handleShareClick}
               style={{ ...s.shareBtn, ...(copied ? s.shareBtnCopied : {}) }}
-              title="성찰 내용 공유 링크 복사"
+              title={t.shareTitle}
             >
-              {copied ? '✓ 링크 복사됨!' : '🔗 공유하기'}
+              {copied ? t.copiedLink : t.share}
             </button>
           )}
-          <SaveBadge status={saveStatus} isMobile={isMobile} />
+          <SaveBadge status={saveStatus} isMobile={isMobile} t={t} />
         </div>
       </div>
 
@@ -67,12 +68,12 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, on
   );
 }
 
-function SaveBadge({ status, isMobile }) {
+function SaveBadge({ status, isMobile, t }) {
   const cfg = {
-    idle:   { text: '자동으로 저장됩니다.', color: '#6b7280', bg: 'transparent', border: 'none' },
-    saving: { text: '자동저장 중...',       color: '#92400e', bg: '#fef3c7',     border: '1px solid #fde68a' },
-    saved:  { text: '✓ 자동 저장됨',       color: '#065f46', bg: '#d1fae5',     border: '1px solid #6ee7b7' },
-  }[status] ?? { text: '자동으로 저장됩니다.', color: '#6b7280', bg: 'transparent', border: 'none' };
+    idle:   { text: t.saveIdle,   color: '#6b7280', bg: 'transparent', border: 'none' },
+    saving: { text: t.saveSaving, color: '#92400e', bg: '#fef3c7',     border: '1px solid #fde68a' },
+    saved:  { text: t.saveSaved,  color: '#065f46', bg: '#d1fae5',     border: '1px solid #6ee7b7' },
+  }[status] ?? { text: t.saveIdle, color: '#6b7280', bg: 'transparent', border: 'none' };
 
   return (
     <div style={{

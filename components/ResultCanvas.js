@@ -7,18 +7,19 @@ import ReflectionCard from './ReflectionCard';
 import WritingOutlineCard from './WritingOutlineCard';
 import { copyText } from '../lib/parseResponse';
 import { REFLECTION_FIELDS } from '../lib/reflectionFields';
+import { getUiText } from '../lib/i18n';
 
 export const TAB_OPTIONS = [
-  { value: 'understand',   label: '이해',   icon: '🧒' },
-  { value: 'inquiry',      label: '탐구',   icon: '🔍' },
-  { value: 'presentation', label: '발표',   icon: '🎤' },
-  { value: 'writing',      label: '글쓰기', icon: '✏️' },
+  { value: 'understand',   labelKey: 'modeUnderstand',   icon: '🧒' },
+  { value: 'inquiry',      labelKey: 'modeInquiry',      icon: '🔍' },
+  { value: 'presentation', labelKey: 'modePresentation', icon: '🎤' },
+  { value: 'writing',      labelKey: 'modeWriting',      icon: '✏️' },
 ];
 
 const TOOL_CONFIG = [
-  { key: 'quiz',       label: '💡 퀴즈',      tip: '학습 내용으로 퀴즈를\n만들어 풀어볼 수 있어요.' },
-  { key: 'evaluation', label: '🌟 나 어땠어?', tip: '지금까지 공부과정과\n조사활동을 돌아봐요.' },
-  { key: 'teacher',    label: '✍️ 교과평어',  tip: '교과 세부능력 특기사항\n예시문을 만들어 줘요.' },
+  { key: 'quiz',       labelKey: 'quizTool',       tipKey: 'quizTip' },
+  { key: 'evaluation', labelKey: 'evaluationTool', tipKey: 'evaluationTip' },
+  { key: 'teacher',    labelKey: 'teacherTool',    tipKey: 'teacherTip' },
 ];
 
 export default function ResultCanvas({
@@ -28,7 +29,7 @@ export default function ResultCanvas({
   onQuiz, onEvaluation, onTeacherComment,
   isBusy, loadingTool,
   notes, updateNote, saveStatus, handleShare,
-  isMobile, onQuestionAsk,
+  isMobile, onQuestionAsk, t = getUiText('ko'),
 }) {
   const [hoveredTool, setHoveredTool] = useState(null);
   const canvasRef    = useRef(null);
@@ -72,7 +73,7 @@ export default function ResultCanvas({
       return (
         <div style={s.loadingState}>
           <div style={s.loadingSpinner} />
-          <p style={s.loadingText}>분석 중이야, 잠깐만 기다려 줘!</p>
+          <p style={s.loadingText}>{t.loadingResult}</p>
         </div>
       );
     }
@@ -80,39 +81,39 @@ export default function ResultCanvas({
     if (activeMode === 'understand') return (
       <>
         <SectionCard
-          title="쉬운 설명" icon="🧒" isMobile={isMobile}
+          title={t.easyTitle} icon="🧒" isMobile={isMobile}
           actions={result.easy ? (
             <button style={s.smallBtn} onClick={async () => {
-              try { await copyText(result.easy); alert('쉬운 설명을 복사했어요.'); }
-              catch { alert('복사에 실패했어요.'); }
-            }}>복사</button>
+              try { await copyText(result.easy); alert(t.easyCopied); }
+              catch { alert(t.copyFailed); }
+            }}>{t.copy}</button>
           ) : null}
         >
           {result.easy
             ? <div style={s.md}><ReactMarkdown>{result.easy}</ReactMarkdown></div>
-            : <p style={s.empty}>분석하면 여기에 쉬운 설명이 나타납니다.</p>}
+            : <p style={s.empty}>{t.noEasy}</p>}
         </SectionCard>
-        <SectionCard title="어려운 낱말 풀이" icon="📚" isMobile={isMobile}>
-          <BulletList items={result.vocabularyLines} isMobile={isMobile} />
+        <SectionCard title={t.vocabularyTitle} icon="📚" isMobile={isMobile}>
+          <BulletList items={result.vocabularyLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <SectionCard title="핵심 내용 3줄" icon="📝" isMobile={isMobile}>
-          <BulletList items={result.summaryLines} isMobile={isMobile} />
+        <SectionCard title={t.summaryTitle} icon="📝" isMobile={isMobile}>
+          <BulletList items={result.summaryLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <SectionCard title="내가 다시 말해보기" icon="🗣️" isMobile={isMobile}>
-          <BulletList items={result.reteachLines} isMobile={isMobile} />
+        <SectionCard title={t.reteachTitle} icon="🗣️" isMobile={isMobile}>
+          <BulletList items={result.reteachLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <ReflectionCard fields={REFLECTION_FIELDS.understand} notes={notes}
+        <ReflectionCard fields={REFLECTION_FIELDS.understand} notes={notes} t={t}
           onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
     );
 
     if (activeMode === 'inquiry') return (
       <>
-        <SectionCard title="핵심 개념" icon="🧠" isMobile={isMobile}>
-          <BulletList items={result.keywordLines} isMobile={isMobile} />
+        <SectionCard title={t.keywordsTitle} icon="🧠" isMobile={isMobile}>
+          <BulletList items={result.keywordLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <SectionCard title="탐구 질문" icon="❓" isMobile={isMobile}>
-          <BulletList items={result.questionLines} isMobile={isMobile} />
+        <SectionCard title={t.questionsTitle} icon="❓" isMobile={isMobile}>
+          <BulletList items={result.questionLines} isMobile={isMobile} emptyText={t.noGenerated} />
           {result.questionLines?.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
               {result.questionLines.map((q, idx) => (
@@ -123,34 +124,34 @@ export default function ResultCanvas({
             </div>
           )}
         </SectionCard>
-        <ReflectionCard fields={REFLECTION_FIELDS.inquiry} notes={notes}
+        <ReflectionCard fields={REFLECTION_FIELDS.inquiry} notes={notes} t={t}
           onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
-        <SectionCard title="추천 검색어" icon="🔎" isMobile={isMobile}>
-          <BulletList items={result.searchLines} isMobile={isMobile} />
+        <SectionCard title={t.searchesTitle} icon="🔎" isMobile={isMobile}>
+          <BulletList items={result.searchLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <SectionCard title="더 조사할 거리" icon="🧭" isMobile={isMobile}>
-          <BulletList items={result.furtherLines} isMobile={isMobile} />
+        <SectionCard title={t.furtherTitle} icon="🧭" isMobile={isMobile}>
+          <BulletList items={result.furtherLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
       </>
     );
 
     if (activeMode === 'presentation') return (
       <>
-        <SectionCard title="발표 제목" icon="🏷️" isMobile={isMobile}>
+        <SectionCard title={t.presentationTitle} icon="🏷️" isMobile={isMobile}>
           {result.presentationTitle
             ? <div style={s.bigTitle}>{result.presentationTitle}</div>
-            : <p style={s.empty}>분석하면 여기에 발표 제목이 나타납니다.</p>}
+            : <p style={s.empty}>{t.noPresentationTitle}</p>}
         </SectionCard>
-        <SectionCard title="발표용 3문장" icon="🎤" isMobile={isMobile}>
-          <BulletList items={result.presentationScriptLines} isMobile={isMobile} />
+        <SectionCard title={t.presentationScriptTitle} icon="🎤" isMobile={isMobile}>
+          <BulletList items={result.presentationScriptLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <SectionCard title="발표 순서" icon="📍" isMobile={isMobile}>
-          <BulletList items={result.presentationOrderLines} isMobile={isMobile} />
+        <SectionCard title={t.presentationOrderTitle} icon="📍" isMobile={isMobile}>
+          <BulletList items={result.presentationOrderLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <SectionCard title="예상 질문" icon="🙋" isMobile={isMobile}>
-          <BulletList items={result.expectedQuestionLines} isMobile={isMobile} />
+        <SectionCard title={t.expectedQuestionsTitle} icon="🙋" isMobile={isMobile}>
+          <BulletList items={result.expectedQuestionLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <ReflectionCard fields={REFLECTION_FIELDS.presentation} notes={notes}
+        <ReflectionCard fields={REFLECTION_FIELDS.presentation} notes={notes} t={t}
           onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
     );
@@ -158,23 +159,23 @@ export default function ResultCanvas({
     if (activeMode === 'writing') return (
       <>
         <SectionCard
-          title="설명문 개요 (처음-가운데-끝)" icon="✏️" isMobile={isMobile}
+          title={t.writingOutlineTitle} icon="✏️" isMobile={isMobile}
           actions={result.writingOutline ? (
             <button style={s.smallBtn} onClick={async () => {
-              try { await copyText(result.writingOutline); alert('개요를 복사했어요.'); }
-              catch { alert('복사에 실패했어요.'); }
-            }}>복사</button>
+              try { await copyText(result.writingOutline); alert(t.outlineCopied); }
+              catch { alert(t.copyFailed); }
+            }}>{t.copy}</button>
           ) : null}
         >
-          <WritingOutlineCard outline={result.writingOutline} isMobile={isMobile} />
+          <WritingOutlineCard outline={result.writingOutline} isMobile={isMobile} t={t} />
         </SectionCard>
-        <SectionCard title="핵심 내용 3줄" icon="📝" isMobile={isMobile}>
-          <BulletList items={result.summaryLines} isMobile={isMobile} />
+        <SectionCard title={t.summaryTitle} icon="📝" isMobile={isMobile}>
+          <BulletList items={result.summaryLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <SectionCard title="어려운 낱말 풀이" icon="📚" isMobile={isMobile}>
-          <BulletList items={result.vocabularyLines} isMobile={isMobile} />
+        <SectionCard title={t.vocabularyTitle} icon="📚" isMobile={isMobile}>
+          <BulletList items={result.vocabularyLines} isMobile={isMobile} emptyText={t.noGenerated} />
         </SectionCard>
-        <ReflectionCard fields={REFLECTION_FIELDS.writing} notes={notes}
+        <ReflectionCard fields={REFLECTION_FIELDS.writing} notes={notes} t={t}
           onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
     );
@@ -190,10 +191,10 @@ export default function ResultCanvas({
 
       {/* ── Header ── */}
       <div style={s.header}>
-        <span style={s.headerTitle}>📊 분석 결과</span>
+        <span style={s.headerTitle}>{t.resultTitle}</span>
 
         <div style={s.toolBar}>
-          {TOOL_CONFIG.map(({ key, label, tip }) => (
+          {TOOL_CONFIG.map(({ key, labelKey, tipKey }) => (
             <div key={key} style={{ position: 'relative', zIndex: hoveredTool === key ? 10 : 1 }}>
               <button
                 style={{ ...s.toolBtn, position: 'relative', overflow: 'hidden' }}
@@ -203,24 +204,24 @@ export default function ResultCanvas({
                 onMouseLeave={() => setHoveredTool(null)}
               >
                 {loadingTool === key && <span className="tool-fill-bar" />}
-                {label}
+                {t[labelKey]}
               </button>
               {hoveredTool === key && (
                 <div style={s.tip}>
                   <div style={s.tipArrow} />
-                  {tip}
+                  {t[tipKey]}
                 </div>
               )}
             </div>
           ))}
         </div>
 
-        <button onClick={onClose} style={s.closeBtn} title="닫기">✕</button>
+        <button onClick={onClose} style={s.closeBtn} title={t.close}>✕</button>
       </div>
 
       {/* ── Tabs ── */}
       <div style={s.tabBar}>
-        {TAB_OPTIONS.map(({ value, label, icon }) => (
+        {TAB_OPTIONS.map(({ value, labelKey, icon }) => (
           <button
             key={value}
             style={{ ...s.tab, ...(activeMode === value ? s.tabActive : {}) }}
@@ -228,7 +229,7 @@ export default function ResultCanvas({
             disabled={loadingMode !== null && loadingMode !== value}
           >
             <span style={{ fontSize: 14 }}>{icon}</span>
-            {label}
+            {t[labelKey]}
             {loadingMode === value && <span style={s.tabSpinner} />}
           </button>
         ))}
@@ -241,16 +242,16 @@ export default function ResultCanvas({
 
           {toolResults.quiz && (
             <div ref={quizCardRef}>
-              <SectionCard title="퀴즈" icon="🎯" isMobile={isMobile}>
+              <SectionCard title={t.quizTitle} icon="🎯" isMobile={isMobile}>
                 <QuizCard key={quizKey} quizData={parsedQuiz} onReset={onQuiz}
-                  isMobile={isMobile} onResult={setQuizResult} />
+                  isMobile={isMobile} onResult={setQuizResult} t={t} />
               </SectionCard>
             </div>
           )}
 
           {toolResults.evaluation && (
             <div ref={evalCardRef}>
-              <SectionCard title="학습 평가" icon="🌟" isMobile={isMobile}>
+              <SectionCard title={t.evaluationTitle} icon="🌟" isMobile={isMobile}>
                 <div style={s.md}><ReactMarkdown>{toolResults.evaluation}</ReactMarkdown></div>
               </SectionCard>
             </div>
@@ -259,12 +260,12 @@ export default function ResultCanvas({
           {toolResults.teacher && (
             <div ref={teacherCardRef}>
               <SectionCard
-                title="교과평어 예시" icon="🧾" isMobile={isMobile}
+                title={t.teacherTitle} icon="🧾" isMobile={isMobile}
                 actions={
                   <button style={s.smallBtn} onClick={async () => {
-                    try { await copyText(toolResults.teacher); alert('교과평어를 복사했어요.'); }
-                    catch { alert('복사에 실패했어요.'); }
-                  }}>복사</button>
+                    try { await copyText(toolResults.teacher); alert(t.teacherCopied); }
+                    catch { alert(t.copyFailed); }
+                  }}>{t.copy}</button>
                 }
               >
                 <div style={s.md}><ReactMarkdown>{toolResults.teacher}</ReactMarkdown></div>

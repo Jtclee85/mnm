@@ -1,8 +1,8 @@
-export default function BulletList({ items, isMobile }) {
+export default function BulletList({ items, isMobile, emptyText = '아직 생성된 내용이 없습니다.' }) {
   if (!items || items.length === 0) {
     return (
       <p style={{ ...styles.emptyText, ...(isMobile ? styles.emptyTextMobile : {}) }}>
-        아직 생성된 내용이 없습니다.
+        {emptyText}
       </p>
     );
   }

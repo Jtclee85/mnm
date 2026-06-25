@@ -1,7 +1,8 @@
 import Image from 'next/image';
 import bannerImage from '../public/banner-background.png';
+import { getUiText } from '../lib/i18n';
 
-const Banner = () => {
+const Banner = ({ t = getUiText('ko') }) => {
   return (
     <div style={{
       position: 'relative',
@@ -15,7 +16,7 @@ const Banner = () => {
     }}>
       <Image
         src={bannerImage}
-        alt="뭐냐면 챗봇 배너"
+        alt={t.bannerAlt}
         fill
         style={{ objectFit: 'cover' }}
         priority
@@ -30,12 +31,12 @@ const Banner = () => {
         alignItems: 'center',
         height: '100%'
       }}>
-        <h1 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 'bold', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>뭐냐면</h1>
+        <h1 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 'bold', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>{t.brandName}</h1>
         <p style={{ fontSize: '1rem', color: '#444', margin: '6px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)', fontWeight: 700 }}>
-          사회과 조사학습 AI코스웨어
+          {t.bannerSubtitle}
         </p>
         <p style={{ fontSize: '0.9rem', color: '#555', margin: '3px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>
-          자료조사, 탐구, 발표준비, 글쓰기 도우미
+          {t.bannerDescription}
         </p>
       </div>
     </div>

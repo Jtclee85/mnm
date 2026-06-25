@@ -11,6 +11,7 @@ import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } fro
 import { useStudentNotes } from '../lib/useStudentNotes';
 import { useSessionSave } from '../lib/useSessionSave';
 import { encodeShareData } from '../lib/shareUtils';
+import { LANGUAGE_OPTIONS, getUiText } from '../lib/i18n';
 
 /** =========================
  *  메인
@@ -20,6 +21,9 @@ export default function Home() {
   const [topic,       setTopic]       = useState('');
   const [sourceText,  setSourceText]  = useState('');
   const [gradeLevel,  setGradeLevel]  = useState('high');
+  const [language,    setLanguage]    = useState('ko');
+  const t = getUiText(language);
+  const isRtl = language === 'ar';
 
   // 캔버스 / 탭 상태
   const [canvasOpen,  setCanvasOpen]  = useState(false);
@@ -78,12 +82,12 @@ export default function Home() {
   // ── 자동 세션 저장 ──
   useEffect(() => {
     if (!topic.trim()) return;
-    triggerSave({ topic, sourceText, gradeLevel, activeMode, conversation, notes, analysisByMode, toolResults });
-  }, [topic, sourceText, gradeLevel, activeMode, conversation, notes, analysisByMode, toolResults, triggerSave]);
+    triggerSave({ topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults });
+  }, [topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults, triggerSave]);
 
   // ── 이전 조사 불러오기 ──
   const handleLoadSession = (savedTopic) => {
-    if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, activeMode, conversation, notes, analysisByMode, toolResults });
+    if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults });
 
     const session = loadSession(savedTopic);
     if (!session) return;
@@ -91,6 +95,7 @@ export default function Home() {
     setTopic(session.topic ?? '');
     setSourceText(session.sourceText ?? '');
     setGradeLevel(session.gradeLevel ?? 'high');
+    setLanguage(session.language ?? 'ko');
     setActiveMode(session.activeMode ?? 'understand');
     setConversation(cleanConversation(session.conversation));
     setAnalysisByMode(session.analysisByMode ?? INIT_BY_MODE());
@@ -117,13 +122,13 @@ export default function Home() {
       });
 
       if (!res.ok) {
-        let errMsg = '오류가 발생했습니다. 다시 시도해 주세요.';
+        let errMsg = t.processFailed;
         try { const body = await res.json(); if (body.error) errMsg = body.error; } catch {}
         onError?.(errMsg);
         return;
       }
 
-      if (!res.body) throw new Error('서버 응답에 문제가 있습니다.');
+      if (!res.body) throw new Error(t.processFailed);
 
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
@@ -164,10 +169,10 @@ export default function Home() {
 
   // ── 시스템 프롬프트 빌더 ──
   const buildBaseSystem = (mode = activeMode) =>
-    createSystemMessage({ topic, sourceText, gradeLevel, learningMode: mode });
+    createSystemMessage({ topic, sourceText, gradeLevel, learningMode: mode, language });
 
   const buildChatSystem = () =>
-    createChatSystemMessage({ topic, sourceText, gradeLevel });
+    createChatSystemMessage({ topic, sourceText, gradeLevel, language });
 
   const buildEvaluationSystem = () => {
     const excludePatterns = [
@@ -178,14 +183,14 @@ export default function Home() {
       .filter(msg => msg.role === 'user')
       .map(msg => msg.content.trim())
       .filter(content => !excludePatterns.some(re => re.test(content)));
-    return createEvaluationSystemMessage({ topic, gradeLevel, quizResult, followUpQuestions, studentNotes: notes });
+    return createEvaluationSystemMessage({ topic, gradeLevel, quizResult, followUpQuestions, studentNotes: notes, language });
   };
 
   // ── 모드별 분석 (공통) ──
   const analyzeForMode = async (mode) => {
     setLoadingMode(mode);
 
-    const sysMsg = createSystemMessage({ topic: topic.trim(), sourceText: sourceText.trim(), gradeLevel, learningMode: mode });
+    const sysMsg = createSystemMessage({ topic: topic.trim(), sourceText: sourceText.trim(), gradeLevel, learningMode: mode, language });
 
     let success = false;
     await new Promise(resolve => {
@@ -214,14 +219,14 @@ export default function Home() {
     const trimmedTopic  = topic.trim();
     const trimmedSource = sourceText.trim();
 
-    if (!trimmedTopic)              { alert('조사 주제를 먼저 입력해 주세요.'); return; }
-    if (trimmedSource.length < 50)  { alert('조사자료를 조금 더 길게 넣어 주세요.'); return; }
+    if (!trimmedTopic)              { alert(t.missingTopic); return; }
+    if (trimmedSource.length < 50)  { alert(t.shortSource); return; }
 
     setLeftPanelTab('chat');
 
     const thinkingMsg = trimmedSource.length > 3000
-      ? '자료가 너무 길어서 조금 오래 생각하는 중입니다. 잠시만 기다려 줘!'
-      : '분석 중이야, 잠깐만 기다려 줘!';
+      ? t.longThinking
+      : t.thinking;
 
     setConversation([{ role: 'assistant', content: thinkingMsg }]);
 
@@ -240,8 +245,8 @@ export default function Home() {
         updated[last] = {
           ...updated[last],
           content: ok
-            ? INIT_MSG.content
-            : '앗, 분석 중 문제가 생겼어. 다시 한 번 눌러 줘!'
+            ? t.initialMessage
+            : t.analysisFailed
         };
       }
       return updated;
@@ -264,7 +269,7 @@ export default function Home() {
 
   // ── 도구 공통 핸들러 ──
   const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey, buildSystem, retryTag }) => {
-    if (!sourceText.trim()) { alert('먼저 자료를 분석해 주세요.'); return; }
+    if (!sourceText.trim()) { alert(t.missingAnalysis); return; }
 
     setIsAnalyzing(true);
     setLoadingTool(toolKey ?? null);
@@ -280,7 +285,7 @@ export default function Home() {
       }
       onDone(parseSectionedResponse(fullText));
     } catch (errorMsg) {
-      alert(typeof errorMsg === 'string' ? errorMsg : '처리 중 오류가 발생했습니다.');
+      alert(typeof errorMsg === 'string' ? errorMsg : t.processFailed);
     }
 
     setIsAnalyzing(false);
@@ -291,14 +296,14 @@ export default function Home() {
     handleSpecialRequest({
       promptText: '퀴즈풀기', toolKey: 'quiz', retryTag: 'quiz',
       onDone: (parsed) => {
-        setToolResults(prev => ({ ...prev, quiz: parsed.quiz || '퀴즈를 만들지 못했어요.' }));
+        setToolResults(prev => ({ ...prev, quiz: parsed.quiz || t.quizFailed }));
         setQuizKey(prev => prev + 1);
         setQuizResult(null);
       }
     });
 
   const handleEvaluation = async () => {
-    if (!sourceText.trim()) { alert('먼저 자료를 분석해 주세요.'); return; }
+    if (!sourceText.trim()) { alert(t.missingAnalysis); return; }
     setIsAnalyzing(true);
     setLoadingTool('evaluation');
 
@@ -309,9 +314,9 @@ export default function Home() {
     try {
       let fullText = await streamOnce(messages);
       if (!fullText.trim()) fullText = await streamOnce(messages);
-      setToolResults(prev => ({ ...prev, evaluation: fullText.trim() || '평가 결과를 만들지 못했어요.' }));
+      setToolResults(prev => ({ ...prev, evaluation: fullText.trim() || t.evaluationFailed }));
     } catch (errorMsg) {
-      alert(typeof errorMsg === 'string' ? errorMsg : '처리 중 오류가 발생했습니다.');
+      alert(typeof errorMsg === 'string' ? errorMsg : t.processFailed);
     }
 
     setIsAnalyzing(false);
@@ -322,7 +327,7 @@ export default function Home() {
     handleSpecialRequest({
       promptText: '교과평어 만들기', toolKey: 'teacher', withHistory: true,
       onDone: (parsed) => {
-        setToolResults(prev => ({ ...prev, teacher: parsed.teacher || '교과평어를 만들지 못했어요.' }));
+        setToolResults(prev => ({ ...prev, teacher: parsed.teacher || t.teacherFailed }));
       }
     });
 
@@ -342,13 +347,13 @@ export default function Home() {
       const data = await res.json().catch(() => ({}));
       return {
         relevant: res.ok && data.relevant === true,
-        redirect: data.redirect || '그 질문은 지금 조사 주제와는 조금 멀어 보여. 오른쪽 결과에서 궁금한 낱말이나 사건을 골라 물어봐!',
+        redirect: data.redirect || t.irrelevantRedirect,
       };
     } catch (error) {
       console.error('Relevance check failed:', error);
       return {
         relevant: false,
-        redirect: '질문을 확인하는 중 문제가 생겼어. 조사 주제와 관련된 질문으로 다시 물어봐 줘.',
+        redirect: t.relevanceFailed,
       };
     }
   };
@@ -394,7 +399,7 @@ export default function Home() {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
           if (updated[lastIdx]?.role === 'assistant') {
-            updated[lastIdx] = { ...updated[lastIdx], content: msg || '앗, 답변을 가져오는 중 문제가 생겼어요.' };
+            updated[lastIdx] = { ...updated[lastIdx], content: msg || t.chatFailed };
           }
           return updated;
         });
@@ -420,7 +425,7 @@ export default function Home() {
   // ── 공유 URL 생성 ──
   const handleShare = () => {
     const shareData = {
-      topic: topic || '(제목 없음)',
+      topic: topic || t.untitled,
       notes,
       sharedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
     };
@@ -437,16 +442,16 @@ export default function Home() {
     const p = analysisByMode.presentation  || {};
     const w = analysisByMode.writing       || {};
     return [
-      `조사 주제: ${topic}`, '',
-      '[쉬운 설명]',        u.easy || '',        '',
-      '[핵심 내용 3줄]',    ...(u.summaryLines   || []), '',
-      '[핵심 개념]',        ...(i.keywordLines   || []), '',
-      '[어려운 낱말 풀이]', ...(u.vocabularyLines || []), '',
-      '[탐구 질문]',        ...(i.questionLines  || []), '',
-      '[추천 검색어]',      ...(i.searchLines    || []), '',
-      '[발표 제목]',         p.presentationTitle  || '',  '',
-      '[발표용 3문장]',     ...(p.presentationScriptLines || []), '',
-      '[설명문 개요]',       w.writingOutline     || ''
+      `${t.topicLabel}: ${topic}`, '',
+      `[${t.easyTitle}]`,        u.easy || '',        '',
+      `[${t.summaryTitle}]`,    ...(u.summaryLines   || []), '',
+      `[${t.keywordsTitle}]`,        ...(i.keywordLines   || []), '',
+      `[${t.vocabularyTitle}]`, ...(u.vocabularyLines || []), '',
+      `[${t.questionsTitle}]`,        ...(i.questionLines  || []), '',
+      `[${t.searchesTitle}]`,      ...(i.searchLines    || []), '',
+      `[${t.presentationTitle}]`,         p.presentationTitle  || '',  '',
+      `[${t.presentationScriptTitle}]`,     ...(p.presentationScriptLines || []), '',
+      `[${t.writingOutlineTitle}]`,       w.writingOutline     || ''
     ].join('\n');
   };
 
@@ -462,13 +467,13 @@ export default function Home() {
         style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'source' ? styles.leftPanelTabActive : {}) }}
         onClick={() => setLeftPanelTab('source')}
       >
-        조사자료
+        {t.sourceTab}
       </button>
       <button
         style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'chat' ? styles.leftPanelTabActive : {}) }}
         onClick={() => setLeftPanelTab('chat')}
       >
-        대화
+        {t.chatTab}
       </button>
     </div>
   );
@@ -482,7 +487,7 @@ export default function Home() {
             key={t}
             style={{ ...styles.chip, ...(t === topic ? styles.chipActive : {}) }}
             onClick={() => handleLoadSession(t)}
-            title={`"${t}" 불러오기`}
+            title={`"${t}" ${getUiText(language).loadTitle}`}
           >
             {t}
           </button>
@@ -499,14 +504,18 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>뭐냐면 - 조사자료 난이도 조절 웹앱</title>
-        <meta name="description" content="전시물, 안내문, 조사자료를 초등학생 눈높이에 맞게 쉽게 바꾸고 탐구를 확장하는 AI 웹앱" />
+        <title>{t.appTitle}</title>
+        <meta name="description" content={t.appDescription} />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       </Head>
 
-      <div style={{ ...styles.page, ...(isMobile ? styles.pageMobile : {}) }}>
+      <div
+        dir={isRtl ? 'rtl' : 'ltr'}
+        lang={language}
+        style={{ ...styles.page, ...(isRtl ? styles.pageRtl : {}), ...(isMobile ? styles.pageMobile : {}) }}
+      >
         <div style={styles.container}>
-          {!canvasOpen && !hasAnyResult && <Banner />}
+          {!canvasOpen && !hasAnyResult && <Banner t={t} />}
 
           <div style={layoutStyle}>
             {/* ══ 왼쪽: 입력 + 채팅 ══ */}
@@ -515,44 +524,57 @@ export default function Home() {
               {/* 기본 설정 카드 */}
               {leftPanelTab === 'source' && (
               <SectionCard
-                title="무얼 조사했냐면..." icon="" isMobile={isMobile}
+                title={t.mainCardTitle} icon="" isMobile={isMobile}
                 actions={renderSavedTopicChips()}
               >
                 {renderLeftPanelTabs()}
 
                 {/* 조사 주제 */}
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>조사 주제</label>
+                  <label style={styles.label}>{t.topicLabel}</label>
                   <input
                     style={{ ...styles.input, ...(isMobile ? styles.inputMobile : {}) }}
                     value={topic}
                     onChange={e => setTopic(e.target.value)}
-                    placeholder="예: 세종대왕, 불국사, 독도, 신석기 시대"
+                    placeholder={t.topicPlaceholder}
                   />
                 </div>
 
                 {/* 학습 수준 */}
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>학습 수준</label>
+                  <label style={styles.label}>{t.levelLabel}</label>
                   <select
                     style={{ ...styles.select, ...(isMobile ? styles.inputMobile : {}) }}
                     value={gradeLevel}
                     onChange={e => setGradeLevel(e.target.value)}
                   >
-                    <option value="low">초등 저학년</option>
-                    <option value="high">초등 고학년</option>
-                    <option value="발표">발표 준비용</option>
+                    <option value="low">{t.levelLow}</option>
+                    <option value="high">{t.levelHigh}</option>
+                    <option value="발표">{t.levelPresentation}</option>
+                  </select>
+                </div>
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>{t.languageLabel}</label>
+                  <select
+                    style={{ ...styles.select, ...(isMobile ? styles.inputMobile : {}) }}
+                    value={language}
+                    onChange={e => setLanguage(e.target.value)}
+                  >
+                    {LANGUAGE_OPTIONS.map(option => (
+                      <option key={option.code} value={option.code}>{option.label}</option>
+                    ))}
                   </select>
                 </div>
 
                 {/* 조사자료 */}
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>조사자료 입력</label>
+                  <label style={styles.label}>{t.sourceLabel}</label>
                   <textarea
                     style={{ ...styles.textarea, ...(isMobile ? styles.textareaMobile : {}) }}
                     value={sourceText}
                     onChange={e => setSourceText(e.target.value)}
-                    placeholder="박물관 안내문, 전시 설명문, 조사자료를 여기에 붙여넣어 주세요."
+                    placeholder={t.sourcePlaceholder}
                   />
                 </div>
 
@@ -564,7 +586,7 @@ export default function Home() {
                     disabled={isBusy}
                   >
                     {loadingMode === 'understand' && <span className="tool-fill-bar-light" />}
-                    {loadingMode !== null ? '분석 중...' : '분석 시작'}
+                    {loadingMode !== null ? t.analyzing : t.analyze}
                   </button>
 
                   {/* 캔버스 재오픈 버튼 */}
@@ -573,7 +595,7 @@ export default function Home() {
                       style={{ ...styles.reopenBtn, ...(isMobile ? styles.primaryBtnMobile : {}) }}
                       onClick={() => setCanvasOpen(true)}
                     >
-                      📊 결과 보기 ▶
+                      {t.reopenResults}
                     </button>
                   )}
                 </div>
@@ -584,7 +606,7 @@ export default function Home() {
               {leftPanelTab === 'chat' && (
               <div ref={chatSectionRef}>
                 <SectionCard
-                  title="무얼 조사했냐면..." icon="" isMobile={isMobile}
+                  title={t.mainCardTitle} icon="" isMobile={isMobile}
                   actions={renderSavedTopicChips()}
                 >
                   {renderLeftPanelTabs()}
@@ -606,7 +628,7 @@ export default function Home() {
                       style={{ ...styles.chatTextarea, ...(isMobile ? styles.chatTextareaMobile : {}) }}
                       value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
-                      placeholder="분석 결과를 보고 더 궁금한 점을 물어보세요."
+                      placeholder={t.chatPlaceholder}
                       onKeyDown={e => {
                         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleFollowUpChat(); }
                       }}
@@ -617,7 +639,7 @@ export default function Home() {
                       onClick={() => handleFollowUpChat()}
                       disabled={isChatLoading}
                     >
-                      {isChatLoading ? '답변 중...' : '질문 보내기'}
+                      {isChatLoading ? t.sending : t.sendQuestion}
                     </button>
                   </div>
                 </SectionCard>
@@ -649,6 +671,7 @@ export default function Home() {
                 handleShare={handleShare}
                 isMobile={isMobile}
                 onQuestionAsk={handleQuestionAsk}
+                t={t}
               />
             )}
           </div>
@@ -708,6 +731,7 @@ const INIT_BY_MODE = () => ({
  *  ========================= */
 const styles = {
   page:      { minHeight: '100vh', background: 'linear-gradient(180deg,#f8fafc 0%,#eef2ff 45%,#f8fafc 100%)', padding: '24px 16px 48px' },
+  pageRtl:   { textAlign: 'right' },
   pageMobile: { padding: '16px 10px 32px' },
   container: { maxWidth: 1440, margin: '0 auto' },
 

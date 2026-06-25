@@ -1,3 +1,5 @@
+import { getUiText } from '../lib/i18n';
+
 const SECTIONS = [
   {
     key: '처음',
@@ -47,11 +49,11 @@ function parseOutlineSections(text) {
   return result;
 }
 
-export default function WritingOutlineCard({ outline, isMobile }) {
+export default function WritingOutlineCard({ outline, isMobile, t = getUiText('ko') }) {
   if (!outline) {
     return (
       <p style={{ margin: 0, color: '#6b7280', lineHeight: 1.7, fontSize: isMobile ? 14 : 15 }}>
-        자료를 분석하면 여기에 설명문 개요가 나타납니다.
+        {t.writingEmpty}
       </p>
     );
   }
@@ -68,7 +70,9 @@ export default function WritingOutlineCard({ outline, isMobile }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 12 }}>
-      {sections.map(({ key, icon, label, bg, border, titleColor, numBg, lines }) => (
+      {sections.map(({ key, icon, label, bg, border, titleColor, numBg, lines }) => {
+        const translatedLabel = key === '처음' ? t.writingFirst : key === '가운데' ? t.writingMiddle : key === '끝' ? t.writingEnd : label;
+        return (
         <div
           key={key}
           style={{
@@ -104,7 +108,7 @@ export default function WritingOutlineCard({ outline, isMobile }) {
               fontSize: isMobile ? 14 : 15,
               color: titleColor
             }}>
-              {label}
+              {translatedLabel}
             </span>
           </div>
           <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -119,7 +123,7 @@ export default function WritingOutlineCard({ outline, isMobile }) {
             ))}
           </ul>
         </div>
-      ))}
+      );})}
     </div>
   );
 }
