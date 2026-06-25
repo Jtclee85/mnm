@@ -11,7 +11,7 @@ import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } fro
 import { useStudentNotes } from '../lib/useStudentNotes';
 import { useSessionSave } from '../lib/useSessionSave';
 import { encodeShareData } from '../lib/shareUtils';
-import { LANGUAGE_OPTIONS, getLanguageOption, getUiText } from '../lib/i18n';
+import { LANGUAGE_OPTIONS, getLanguageReminder, getUiText } from '../lib/i18n';
 
 /** =========================
  *  메인
@@ -24,7 +24,6 @@ export default function Home() {
   const [language,    setLanguage]    = useState('ko');
   const t = getUiText(language);
   const isRtl = language === 'ar';
-  const targetLanguage = getLanguageOption(language).targetName;
 
   // 캔버스 / 탭 상태
   const [canvasOpen,  setCanvasOpen]  = useState(false);
@@ -112,10 +111,7 @@ export default function Home() {
     setLeftPanelTab(anyResult ? 'chat' : 'source');
   };
 
-  const buildLanguageReminder = () =>
-    language === 'ko'
-      ? ''
-      : `\n\n[Output language]\nWrite the actual learner-facing content in ${targetLanguage}. Korean is allowed only for required parser labels such as "문제:", "선택지:", "정답:", "해설:" and XML tag names.`;
+  const buildLanguageReminder = () => getLanguageReminder(language);
 
   const handleLanguageChange = (nextLanguage) => {
     setLanguage(nextLanguage);
