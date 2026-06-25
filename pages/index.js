@@ -20,7 +20,7 @@ import { LANGUAGE_OPTIONS, getUiText } from '../lib/i18n';
 export default function Home() {
   const [topic,       setTopic]       = useState('');
   const [sourceText,  setSourceText]  = useState('');
-  const [gradeLevel,  setGradeLevel]  = useState('high');
+  const gradeLevel = 'high';
   const [language,    setLanguage]    = useState('ko');
   const t = getUiText(language);
   const isRtl = language === 'ar';
@@ -94,7 +94,6 @@ export default function Home() {
 
     setTopic(session.topic ?? '');
     setSourceText(session.sourceText ?? '');
-    setGradeLevel(session.gradeLevel ?? 'high');
     setLanguage(session.language ?? 'ko');
     setActiveMode(session.activeMode ?? 'understand');
     setConversation(cleanConversation(session.conversation));
@@ -340,6 +339,7 @@ export default function Home() {
           topic,
           sourceText: sourceText.slice(0, 6000),
           userText,
+          language,
           conversation: conversation.slice(-6),
         }),
       });
@@ -551,20 +551,6 @@ export default function Home() {
                     onChange={e => setTopic(e.target.value)}
                     placeholder={t.topicPlaceholder}
                   />
-                </div>
-
-                {/* 학습 수준 */}
-                <div style={styles.formGroup}>
-                  <label style={styles.label}>{t.levelLabel}</label>
-                  <select
-                    style={{ ...styles.select, ...(isMobile ? styles.inputMobile : {}) }}
-                    value={gradeLevel}
-                    onChange={e => setGradeLevel(e.target.value)}
-                  >
-                    <option value="low">{t.levelLow}</option>
-                    <option value="high">{t.levelHigh}</option>
-                    <option value="발표">{t.levelPresentation}</option>
-                  </select>
                 </div>
 
                 {/* 조사자료 */}

@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getLanguageOption } from "../../lib/i18n";
 
 export const config = {
   runtime: 'edge',
@@ -16,17 +17,18 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers: jsonHeaders });
   }
 
-  const { topic = '', sourceText = '', userText = '', conversation = [] } = await req.json();
+  const { topic = '', sourceText = '', userText = '', language = 'ko', conversation = [] } = await req.json();
   const trimmedTopic = String(topic).trim();
   const trimmedSource = String(sourceText).trim();
   const trimmedUserText = String(userText).trim();
+  const targetLanguage = getLanguageOption(language).targetName;
 
   if (!trimmedTopic || !trimmedSource || !trimmedUserText) {
     return new Response(
       JSON.stringify({
         relevant: false,
         reason: 'missing_context',
-        redirect: '먼저 조사 주제와 자료를 확인한 뒤, 조사 주제와 관련된 질문을 해 줘.',
+        redirect: '',
       }),
       { status: 200, headers: jsonHeaders }
     );
@@ -43,7 +45,7 @@ export default async function handler(req) {
         JSON.stringify({
           relevant: false,
           reason: 'moderation_flagged',
-          redirect: '그 내용은 학습 대화로 이어가기 어려워. 조사 주제와 자료를 바탕으로 다시 질문해 줘.',
+          redirect: '',
         }),
         { status: 200, headers: jsonHeaders }
       );
@@ -54,7 +56,7 @@ export default async function handler(req) {
       JSON.stringify({
         relevant: false,
         reason: 'moderation_unavailable',
-        redirect: '질문을 안전하게 확인하는 중 문제가 생겼어. 잠시 뒤 조사 주제와 관련된 질문으로 다시 물어봐 줘.',
+        redirect: '',
       }),
       { status: 200, headers: jsonHeaders }
     );
@@ -83,6 +85,7 @@ export default async function handler(req) {
             '차단: K-POP, 연예인, 게임, 만화, 친구 이야기, 잡담, 현재 조사 주제와 연결되지 않는 다른 주제.',
             '애매하지만 학생이 조사 주제와 연결하려는 의도가 보이면 relevant=true로 판정한다.',
             '차단할 때 redirect는 다정하고 짧게, 조사 주제로 돌아오도록 안내한다.',
+            `redirect는 반드시 ${targetLanguage}로 작성한다.`,
           ].join('\n'),
         },
         {
@@ -92,6 +95,7 @@ export default async function handler(req) {
             `[원본 자료 발췌]\n${sourceExcerpt}`,
             `[최근 대화]\n${recentConversation || '없음'}`,
             `[학생 질문]\n${trimmedUserText}`,
+            `[출력 언어]\n${targetLanguage}`,
             '위 학생 질문이 현재 조사학습과 관련 있으면 relevant=true, 아니면 false로 판정해라.',
           ].join('\n\n'),
         },
@@ -124,7 +128,7 @@ export default async function handler(req) {
         reason: typeof parsed.reason === 'string' ? parsed.reason : '',
         redirect: typeof parsed.redirect === 'string' && parsed.redirect.trim()
           ? parsed.redirect
-          : '그 질문은 지금 조사 주제와는 조금 멀어 보여. 오른쪽 결과에서 궁금한 낱말이나 사건을 골라 물어봐!',
+          : '',
       }),
       { status: 200, headers: jsonHeaders }
     );
@@ -134,7 +138,7 @@ export default async function handler(req) {
       JSON.stringify({
         relevant: false,
         reason: 'relevance_check_failed',
-        redirect: '질문이 조사 주제와 관련 있는지 확인하지 못했어. 오른쪽 결과와 관련된 질문으로 다시 물어봐 줘.',
+        redirect: '',
       }),
       { status: 200, headers: jsonHeaders }
     );
