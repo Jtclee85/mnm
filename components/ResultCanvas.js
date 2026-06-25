@@ -6,7 +6,7 @@ import QuizCard from './QuizCard';
 import ReflectionCard from './ReflectionCard';
 import WritingOutlineCard from './WritingOutlineCard';
 import { copyText } from '../lib/parseResponse';
-import { REFLECTION_FIELDS } from '../lib/reflectionFields';
+import { getReflectionFields } from '../lib/reflectionFields';
 import { getUiText } from '../lib/i18n';
 
 export const TAB_OPTIONS = [
@@ -31,6 +31,7 @@ export default function ResultCanvas({
   notes, updateNote, saveStatus, handleShare,
   isMobile, onQuestionAsk, t = getUiText('ko'),
 }) {
+  const REFLECTION_FIELDS = getReflectionFields(t);
   const [hoveredTool, setHoveredTool] = useState(null);
   const canvasRef    = useRef(null);
   const canvasBodyRef = useRef(null);
