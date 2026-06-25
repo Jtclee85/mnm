@@ -11,7 +11,7 @@ import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } fro
 import { useStudentNotes } from '../lib/useStudentNotes';
 import { useSessionSave } from '../lib/useSessionSave';
 import { encodeShareData } from '../lib/shareUtils';
-import { LANGUAGE_OPTIONS, getUiText } from '../lib/i18n';
+import { LANGUAGE_OPTIONS, getLanguageOption, getUiText } from '../lib/i18n';
 
 /** =========================
  *  메인
@@ -24,6 +24,7 @@ export default function Home() {
   const [language,    setLanguage]    = useState('ko');
   const t = getUiText(language);
   const isRtl = language === 'ar';
+  const targetLanguage = getLanguageOption(language).targetName;
 
   // 캔버스 / 탭 상태
   const [canvasOpen,  setCanvasOpen]  = useState(false);
@@ -48,7 +49,7 @@ export default function Home() {
   const { notes, updateNote, saveStatus } = useStudentNotes(topic);
   const { savedTopics, triggerSave, saveNow, loadSession } = useSessionSave();
 
-  const [conversation, setConversation] = useState([INIT_MSG]);
+  const [conversation, setConversation] = useState([makeInitialMessage(getUiText('ko'))]);
   const [chatInput,    setChatInput]    = useState('');
 
   const chatBoxRef    = useRef(null);
@@ -109,6 +110,23 @@ export default function Home() {
       );
     setCanvasOpen(!!anyResult);
     setLeftPanelTab(anyResult ? 'chat' : 'source');
+  };
+
+  const buildLanguageReminder = () =>
+    language === 'ko'
+      ? ''
+      : `\n\n[Output language]\nWrite the actual learner-facing content in ${targetLanguage}. Korean is allowed only for required parser labels such as "문제:", "선택지:", "정답:", "해설:" and XML tag names.`;
+
+  const handleLanguageChange = (nextLanguage) => {
+    setLanguage(nextLanguage);
+    const nextText = getUiText(nextLanguage);
+    setAnalysisByMode(INIT_BY_MODE());
+    setToolResults(EMPTY_TOOLS);
+    setQuizResult(null);
+    setQuizKey(k => k + 1);
+    setConversation([makeInitialMessage(nextText)]);
+    setCanvasOpen(false);
+    setLeftPanelTab('source');
   };
 
   // ── SSE 스트리밍 ──
@@ -274,7 +292,7 @@ export default function Home() {
     setLoadingTool(toolKey ?? null);
 
     const systemMsg = buildSystem ? buildSystem() : buildBaseSystem();
-    const userMsg   = { role: 'user', content: promptText };
+    const userMsg   = { role: 'user', content: `${promptText}${buildLanguageReminder()}` };
     const messages  = withHistory ? [systemMsg, ...conversation, userMsg] : [systemMsg, userMsg];
 
     try {
@@ -308,7 +326,7 @@ export default function Home() {
 
     const systemMsg  = buildEvaluationSystem();
     const chatHistory = conversation[0]?.role === 'assistant' ? conversation.slice(1) : conversation;
-    const messages   = [systemMsg, ...chatHistory, { role: 'user', content: '나 어땠어?' }];
+    const messages   = [systemMsg, ...chatHistory, { role: 'user', content: `나 어땠어?${buildLanguageReminder()}` }];
 
     try {
       let fullText = await streamOnce(messages);
@@ -522,7 +540,7 @@ export default function Home() {
             <select
               style={{ ...styles.languageBarSelect, ...(isMobile ? styles.inputMobile : {}) }}
               value={language}
-              onChange={e => setLanguage(e.target.value)}
+              onChange={e => handleLanguageChange(e.target.value)}
             >
               {LANGUAGE_OPTIONS.map(option => (
                 <option key={option.code} value={option.code}>{option.label}</option>
@@ -676,7 +694,7 @@ function hasBatchim(str) {
 }
 
 function cleanConversation(messages) {
-  if (!Array.isArray(messages) || messages.length === 0) return [INIT_MSG];
+  if (!Array.isArray(messages) || messages.length === 0) return [makeInitialMessage(getUiText('ko'))];
 
   const cleaned = messages.filter(msg => {
     const content = msg?.content || '';
@@ -687,14 +705,14 @@ function cleanConversation(messages) {
     return true;
   });
 
-  return cleaned.length > 0 ? cleaned : [INIT_MSG];
+  return cleaned.length > 0 ? cleaned : [makeInitialMessage(getUiText('ko'))];
 }
 
 // ── 상수 ──
-const INIT_MSG = {
+const makeInitialMessage = (t) => ({
   role: 'assistant',
-  content: '조사자료를 정리했어! 오른쪽 창을 보며 공부해보자. 궁금한 게 있으면 얼마든지 물어봐!'
-};
+  content: t.initialMessage
+});
 
 const EMPTY_MODE_RESULT = {
   easy: '', summaryLines: [], keywordLines: [], vocabularyLines: [],
