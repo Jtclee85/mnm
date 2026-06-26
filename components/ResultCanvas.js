@@ -239,6 +239,9 @@ export default function ResultCanvas({
         {TAB_OPTIONS.map(({ value, labelKey, icon }) => (
           <button
             key={value}
+            data-testid={`mode-tab-${value}`}
+            role="tab"
+            aria-selected={activeMode === value}
             style={{ ...s.tab, ...(activeMode === value ? s.tabActive : {}) }}
             onClick={() => onTabClick(value)}
             disabled={loadingMode !== null && loadingMode !== value}

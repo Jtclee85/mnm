@@ -560,6 +560,8 @@ export default function Home() {
                   <div style={styles.topicCol}>
                     <label style={styles.label}>{t.topicLabel}</label>
                     <input
+                      data-testid="topic-input"
+                      aria-label={t.topicLabel}
                       style={{ ...styles.input, ...(isMobile ? styles.inputMobile : {}) }}
                       value={topic}
                       onChange={e => setTopic(e.target.value)}
@@ -584,6 +586,8 @@ export default function Home() {
                 <div style={styles.formGroup}>
                   <label style={styles.label}>{t.sourceLabel}</label>
                   <textarea
+                    data-testid="source-textarea"
+                    aria-label={t.sourceLabel}
                     style={{ ...styles.textarea, ...(isMobile ? styles.textareaMobile : {}) }}
                     value={sourceText}
                     onChange={e => setSourceText(e.target.value)}
@@ -594,6 +598,7 @@ export default function Home() {
                 {/* 버튼 행 */}
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button
+                    data-testid="analyze-button"
                     style={{ ...styles.primaryBtn, ...(isMobile ? styles.primaryBtnMobile : {}), position: 'relative', overflow: 'hidden' }}
                     onClick={handleAnalyze}
                     disabled={isBusy}
