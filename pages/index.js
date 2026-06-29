@@ -8,6 +8,7 @@ import ChatBubble from '../components/ChatBubble';
 import ResultCanvas from '../components/ResultCanvas';
 import RecommendedSources from '../components/RecommendedSources';
 import HelpPanel from '../components/HelpPanel';
+import SignTextReader from '../components/SignTextReader';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
@@ -117,6 +118,15 @@ export default function Home() {
     setCanvasOpen(!!anyResult);
     setLeftPanelTab(anyResult ? 'chat' : 'source');
     setLastAnalyzedTopic(anyResult ? (session.topic ?? '') : '');
+  };
+
+  // ── 안내판 사진에서 추출한 텍스트를 조사자료 입력창에 삽입 ──
+  // 기존 입력 내용이 있으면 보존하고 줄바꿈으로 이어 붙인다.
+  const handleSignTextExtracted = (extractedText) => {
+    setSourceText(prev => {
+      const trimmedPrev = prev.trim();
+      return trimmedPrev ? `${prev}\n\n${extractedText}` : extractedText;
+    });
   };
 
   // ── 처음으로 돌아가기 ──
@@ -620,7 +630,10 @@ export default function Home() {
 
                 {/* 조사자료 */}
                 <div style={styles.formGroup}>
-                  <label style={styles.label}>{t.sourceLabel}</label>
+                  <div style={styles.sourceLabelRow}>
+                    <label style={styles.label}>{t.sourceLabel}</label>
+                    <SignTextReader isMobile={isMobile} onExtracted={handleSignTextExtracted} t={t} />
+                  </div>
                   <textarea
                     data-testid="source-textarea"
                     aria-label={t.sourceLabel}
@@ -814,7 +827,7 @@ const styles = {
   container: { maxWidth: 1680, margin: '0 auto' },
   languageBarSelect: {
     minWidth: 180, border: '1px solid var(--color-border)', borderRadius: 12,
-    padding: '10px 12px', fontSize: 14, outline: 'none', background: 'var(--color-surface)', boxSizing: 'border-box',
+    padding: '12px 14px', fontSize: 18, outline: 'none', background: 'var(--color-surface)', boxSizing: 'border-box',
   },
 
   centeredLayout: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
@@ -834,7 +847,7 @@ const styles = {
   leftPanelTab: {
     border: 'none', background: 'transparent', color: 'var(--color-text-sub)',
     borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
-    fontWeight: 800, fontSize: 14,
+    fontWeight: 800, fontSize: 18,
   },
   leftPanelTabActive: {
     background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
@@ -843,6 +856,7 @@ const styles = {
 
   formGroup: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
   label:     { fontWeight: 700, color: 'var(--color-text)', fontSize: 14 },
+  sourceLabelRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
 
   // 조사 주제 입력칸 + 언어 선택 — 같은 줄에 나란히 배치
   topicRow:          { display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'flex-end', marginBottom: 16 },
@@ -869,14 +883,14 @@ const styles = {
   primaryBtn: {
     border: 'none', background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
     color: 'var(--color-surface)', fontWeight: 800, padding: '12px 20px', borderRadius: 12,
-    cursor: 'pointer', boxShadow: '0 10px 24px rgba(var(--color-primary-rgb),0.22)', fontSize: 15,
+    cursor: 'pointer', boxShadow: '0 10px 24px rgba(var(--color-primary-rgb),0.22)', fontSize: 18,
   },
-  primaryBtnMobile: { width: '100%', fontSize: 15, padding: '13px 14px' },
+  primaryBtnMobile: { width: '100%', fontSize: 16, padding: '13px 14px' },
 
   reopenBtn: {
     border: '2px solid var(--color-primary)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
     fontWeight: 800, padding: '12px 20px', borderRadius: 12,
-    cursor: 'pointer', fontSize: 14,
+    cursor: 'pointer', fontSize: 18,
   },
 
   chatBox:       { height: 460, overflowY: 'auto', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 14, marginBottom: 12 },
@@ -891,7 +905,7 @@ const styles = {
   },
   chip: {
     border: '1.5px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
-    fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
+    fontSize: 18, fontWeight: 800, padding: '7px 14px', borderRadius: 20,
     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s'
   },
   chipActive: { background: 'var(--color-primary)', border: '1.5px solid var(--color-primary)', color: 'var(--color-surface)' },
@@ -899,7 +913,7 @@ const styles = {
   headerActions: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
   goHomeBtn: {
     border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-sub)',
-    fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
+    fontSize: 18, fontWeight: 800, padding: '7px 14px', borderRadius: 20,
     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s',
   },
 };
