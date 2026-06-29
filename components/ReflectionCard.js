@@ -70,10 +70,11 @@ export default function ReflectionCard({ fields, notes, onUpdate, saveStatus, on
 
 function SaveBadge({ status, isMobile, t }) {
   const cfg = {
-    idle:   { text: t.saveIdle,   color: '#6b7280', bg: 'transparent', border: 'none' },
-    saving: { text: t.saveSaving, color: '#92400e', bg: '#fef3c7',     border: '1px solid #fde68a' },
+    idle:   { text: t.saveIdle,   color: 'var(--color-text-sub)', bg: 'transparent', border: 'none' },
+    saving: { text: t.saveSaving, color: 'var(--color-text)',     bg: 'color-mix(in srgb, var(--color-gold) 30%, var(--color-surface))', border: '1px solid rgba(var(--color-gold-rgb),0.6)' },
+    // 정답/저장 완료의 초록은 의미 전달용이라 그대로 유지
     saved:  { text: t.saveSaved,  color: '#065f46', bg: '#d1fae5',     border: '1px solid #6ee7b7' },
-  }[status] ?? { text: t.saveIdle, color: '#6b7280', bg: 'transparent', border: 'none' };
+  }[status] ?? { text: t.saveIdle, color: 'var(--color-text-sub)', bg: 'transparent', border: 'none' };
 
   return (
     <div style={{
@@ -94,8 +95,8 @@ function SaveBadge({ status, isMobile, t }) {
 
 const s = {
   card: {
-    background: '#fffdf5',
-    border: '2px dashed #f59e0b',
+    background: 'color-mix(in srgb, var(--color-gold) 6%, var(--color-surface))',
+    border: '2px dashed var(--color-gold)',
     borderRadius: 20,
     overflow: 'hidden'
   },
@@ -105,19 +106,19 @@ const s = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '14px 18px',
-    background: '#fef9ee',
-    borderBottom: '1px dashed #fde68a'
+    background: 'color-mix(in srgb, var(--color-gold) 14%, var(--color-surface))',
+    borderBottom: '1px dashed rgba(var(--color-gold-rgb),0.7)'
   },
   headerMobile: { padding: '11px 14px' },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 8 },
   headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
   pencil: { fontSize: 18 },
-  title: { fontSize: 16, fontWeight: 800, color: '#92400e' },
+  title: { fontSize: 16, fontWeight: 800, color: 'var(--color-text)' },
   titleMobile: { fontSize: 15 },
   shareBtn: {
-    border: '1.5px solid #d97706',
-    background: '#fef3c7',
-    color: '#92400e',
+    border: '1.5px solid color-mix(in srgb, var(--color-gold) 70%, var(--color-text))',
+    background: 'color-mix(in srgb, var(--color-gold) 30%, var(--color-surface))',
+    color: 'var(--color-text)',
     fontWeight: 800,
     fontSize: 13,
     padding: '6px 14px',
@@ -126,6 +127,7 @@ const s = {
     transition: 'all 0.2s',
     whiteSpace: 'nowrap'
   },
+  // 복사 완료(성공) 초록은 의미 전달용이라 그대로 유지
   shareBtnCopied: {
     background: '#d1fae5',
     border: '1.5px solid #059669',
@@ -138,7 +140,7 @@ const s = {
     display: 'block',
     fontWeight: 700,
     fontSize: 14,
-    color: '#78350f',
+    color: 'var(--color-text)',
     marginBottom: 6,
     lineHeight: 1.5
   },
@@ -146,7 +148,7 @@ const s = {
   textarea: {
     width: '100%',
     minHeight: 80,
-    border: '1.5px solid #fde68a',
+    border: '1.5px solid rgba(var(--color-gold-rgb),0.7)',
     borderRadius: 12,
     padding: '11px 14px',
     fontSize: 15,
@@ -154,8 +156,8 @@ const s = {
     resize: 'vertical',
     outline: 'none',
     boxSizing: 'border-box',
-    background: '#ffffff',
-    color: '#1f2937',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text)',
     fontFamily: 'inherit',
     transition: 'border-color 0.15s'
   },

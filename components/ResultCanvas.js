@@ -85,7 +85,7 @@ export default function ResultCanvas({
         <SectionCard
           title={t.easyTitle} icon="🧒" isMobile={isMobile}
           actions={result.easy ? (
-            <button style={s.smallBtn} onClick={async () => {
+            <button data-testid="copy-easy-button" style={s.smallBtn} onClick={async () => {
               try { await copyText(result.easy); alert(t.easyCopied); }
               catch { alert(t.copyFailed); }
             }}>{t.copy}</button>
@@ -163,7 +163,7 @@ export default function ResultCanvas({
         <SectionCard
           title={t.writingOutlineTitle} icon="✏️" isMobile={isMobile}
           actions={result.writingOutline ? (
-            <button style={s.smallBtn} onClick={async () => {
+            <button data-testid="copy-outline-button" style={s.smallBtn} onClick={async () => {
               try { await copyText(result.writingOutline); alert(t.outlineCopied); }
               catch { alert(t.copyFailed); }
             }}>{t.copy}</button>
@@ -188,7 +188,7 @@ export default function ResultCanvas({
   const toolHandlers = { quiz: onQuiz, evaluation: onEvaluation, teacher: onTeacherComment };
 
   return (
-    <div ref={canvasRef} style={isMobile ? s.canvasMobile : s.canvas}>
+    <div ref={canvasRef} data-testid="result-canvas" style={isMobile ? s.canvasMobile : s.canvas}>
       <style>{`@keyframes cv-spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* ── Header ── */}
@@ -212,6 +212,7 @@ export default function ResultCanvas({
           {TOOL_CONFIG.map(({ key, labelKey, tipKey }) => (
             <div key={key} style={{ position: 'relative', zIndex: hoveredTool === key ? 10 : 1 }}>
               <button
+                data-testid={`tool-${key}`}
                 style={{ ...s.toolBtn, position: 'relative', overflow: 'hidden' }}
                 onClick={toolHandlers[key]}
                 disabled={isBusy}
@@ -299,68 +300,68 @@ export default function ResultCanvas({
 const s = {
   canvas: {
     display: 'flex', flexDirection: 'column',
-    background: '#ffffff', border: '1px solid #e5e7eb',
-    borderRadius: 20, boxShadow: '0 10px 30px rgba(15,23,42,0.08)',
+    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+    borderRadius: 20, boxShadow: '0 10px 30px rgba(var(--color-text-rgb),0.08)',
     overflow: 'hidden',
     height: 'calc(100vh - 48px)', position: 'sticky', top: 24, alignSelf: 'start',
   },
   canvasMobile: {
     position: 'fixed', inset: 0, zIndex: 200, borderRadius: 0,
     display: 'flex', flexDirection: 'column',
-    background: '#ffffff', overflow: 'hidden',
+    background: 'var(--color-surface)', overflow: 'hidden',
   },
   header: {
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '12px 14px', borderBottom: '1px solid #eef2f7',
-    background: '#fcfcff', flexShrink: 0,
+    padding: '12px 14px', borderBottom: '1px solid var(--color-border)',
+    background: 'var(--color-surface-alt)', flexShrink: 0,
   },
-  headerTitle: { fontWeight: 800, fontSize: 14, color: '#111827', flex: 1 },
+  headerTitle: { fontWeight: 800, fontSize: 14, color: 'var(--color-text)', flex: 1 },
   headerLanguageSelect: {
-    border: '1px solid #dbeafe', background: '#f8fbff', color: '#1e3a8a',
+    border: '1px solid rgba(var(--color-primary-rgb),0.25)', background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
     borderRadius: 9, padding: '5px 6px', fontSize: 11, fontWeight: 800,
     outline: 'none', cursor: 'pointer', width: 96, flexShrink: 0,
   },
   toolBar: { display: 'flex', gap: 5, alignItems: 'center' },
   toolBtn: {
-    border: '1px solid #dbeafe', background: '#f8fbff', color: '#1e3a8a',
+    border: '1px solid rgba(var(--color-primary-rgb),0.25)', background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
     padding: '5px 8px', borderRadius: 9, cursor: 'pointer',
     fontWeight: 800, fontSize: 11, whiteSpace: 'nowrap',
   },
   tip: {
     position: 'absolute', top: 'calc(100% + 6px)', left: '50%',
     transform: 'translateX(-50%)',
-    background: '#1e3a8a', color: '#fff', borderRadius: 10,
+    background: 'var(--color-primary-dark)', color: 'var(--color-surface)', borderRadius: 10,
     padding: '7px 10px', fontSize: 11, lineHeight: 1.6,
     zIndex: 100, whiteSpace: 'pre-line', textAlign: 'center',
-    boxShadow: '0 4px 14px rgba(30,58,138,0.25)', minWidth: 130,
+    boxShadow: '0 4px 14px rgba(var(--color-primary-dark-rgb),0.25)', minWidth: 130,
   },
   tipArrow: {
     position: 'absolute', top: -6, left: 'calc(50% - 6px)',
     width: 0, height: 0,
     borderLeft: '6px solid transparent', borderRight: '6px solid transparent',
-    borderBottom: '6px solid #1e3a8a',
+    borderBottom: '6px solid var(--color-primary-dark)',
   },
   closeBtn: {
-    border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280',
+    border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-sub)',
     borderRadius: 8, width: 28, height: 28, cursor: 'pointer',
     fontWeight: 700, fontSize: 13, flexShrink: 0,
     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
   },
   tabBar: {
-    display: 'flex', borderBottom: '1px solid #e5e7eb',
-    background: '#f8fafc', flexShrink: 0,
+    display: 'flex', borderBottom: '1px solid var(--color-border)',
+    background: 'var(--color-bg)', flexShrink: 0,
   },
   tab: {
     flex: 1, border: 'none', background: 'transparent',
-    color: '#6b7280', fontWeight: 700, fontSize: 12,
+    color: 'var(--color-text-sub)', fontWeight: 700, fontSize: 12,
     padding: '9px 4px', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
     borderBottom: '2px solid transparent', transition: 'all 0.15s ease',
   },
-  tabActive: { color: '#2563eb', borderBottom: '2px solid #2563eb', background: '#fff' },
+  tabActive: { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-surface)' },
   tabSpinner: {
     display: 'inline-block', width: 9, height: 9,
-    border: '2px solid #e5e7eb', borderTop: '2px solid #7c3aed',
+    border: '2px solid var(--color-border)', borderTop: '2px solid var(--color-primary-dark)',
     borderRadius: '50%', animation: 'cv-spin 0.8s linear infinite',
     marginLeft: 3, verticalAlign: 'middle',
   },
@@ -372,22 +373,23 @@ const s = {
   },
   loadingSpinner: {
     width: 36, height: 36,
-    border: '4px solid #e5e7eb', borderTop: '4px solid #2563eb',
+    border: '4px solid var(--color-border)', borderTop: '4px solid var(--color-primary)',
     borderRadius: '50%', animation: 'cv-spin 1s linear infinite',
   },
-  loadingText: { color: '#6b7280', fontSize: 14, fontWeight: 600, margin: 0 },
-  empty: { margin: 0, color: '#9ca3af', fontSize: 14, lineHeight: 1.6 },
-  md: { color: '#1f2937', lineHeight: 1.8, fontSize: 15 },
+  loadingText: { color: 'var(--color-text-sub)', fontSize: 14, fontWeight: 600, margin: 0 },
+  empty: { margin: 0, color: 'var(--color-text-sub)', fontSize: 14, lineHeight: 1.6 },
+  md: { color: 'var(--color-text)', lineHeight: 1.8, fontSize: 15 },
   smallBtn: {
-    border: '1px solid #d1d5db', background: '#fff', color: '#374151',
+    border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)',
     fontWeight: 700, padding: '7px 11px', borderRadius: 9, cursor: 'pointer', fontSize: 13,
   },
   bigTitle: {
-    fontSize: 19, fontWeight: 900, color: '#5b21b6', background: '#f5f3ff',
-    border: '1px solid #ddd6fe', borderRadius: 14, padding: '15px 17px', lineHeight: 1.6,
+    fontSize: 19, fontWeight: 900, color: 'var(--color-text)',
+    background: 'color-mix(in srgb, var(--color-gold) 22%, var(--color-surface))',
+    border: '1px solid rgba(var(--color-gold-rgb),0.6)', borderRadius: 14, padding: '15px 17px', lineHeight: 1.6,
   },
   qBtn: {
-    border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8',
+    border: '1px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.06)', color: 'var(--color-primary-dark)',
     padding: '9px 12px', borderRadius: 12, cursor: 'pointer',
     fontWeight: 700, textAlign: 'left', fontSize: 14,
   },

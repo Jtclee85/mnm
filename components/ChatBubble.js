@@ -13,17 +13,17 @@ export default function ChatBubble({ role, content, isMobile }) {
       <div
         style={{
           maxWidth: isMobile ? '92%' : '85%',
-          background: isUser ? '#2563eb' : '#ffffff',
-          color: isUser ? '#ffffff' : '#1f2937',
-          border: `1px solid ${isUser ? '#2563eb' : '#d1d5db'}`,
+          background: isUser ? 'var(--color-primary)' : 'var(--color-surface)',
+          color: isUser ? 'var(--color-surface)' : 'var(--color-text)',
+          border: `1px solid ${isUser ? 'var(--color-primary)' : 'var(--color-border)'}`,
           borderRadius: 16,
           padding: isMobile ? '10px 12px' : '12px 14px',
           whiteSpace: 'pre-wrap',
           lineHeight: 1.6,
           fontSize: isMobile ? 14 : 15,
           boxShadow: isUser
-            ? '0 6px 18px rgba(37,99,235,0.16)'
-            : '0 6px 18px rgba(0,0,0,0.06)'
+            ? '0 6px 18px rgba(var(--color-primary-rgb),0.16)'
+            : '0 6px 18px rgba(var(--color-text-rgb),0.06)'
         }}
       >
         <ReactMarkdown

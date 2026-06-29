@@ -28,7 +28,7 @@ export default function SharePage() {
         <style>{`
           @media print {
             .no-print { display: none !important; }
-            body { background: #fff !important; }
+            body { background: var(--color-surface) !important; }
           }
         `}</style>
       </Head>
@@ -79,7 +79,7 @@ function ShareContent({ data }) {
 
       {activeModes.length === 0 ? (
         <div style={s.emptyNote}>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>
+          <p style={{ margin: 0, color: 'var(--color-text-sub)', fontSize: 15 }}>
             작성된 성찰 내용이 없습니다.
           </p>
         </div>
@@ -136,12 +136,13 @@ function ModeSection({ modeKey, modeLabel, modeIcon, notes }) {
 }
 
 function ErrorView() {
+  // 오류 상태(빨강)는 의미 전달용이라 그대로 유지
   return (
     <div style={s.errorBox}>
       <p style={{ margin: 0, fontSize: 16, color: '#b91c1c', fontWeight: 700 }}>
         😅 링크를 읽을 수 없어요.
       </p>
-      <p style={{ margin: '8px 0 0', fontSize: 14, color: '#6b7280' }}>
+      <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--color-text-sub)' }}>
         공유 링크가 올바른지 확인해 주세요.
       </p>
     </div>
@@ -151,12 +152,12 @@ function ErrorView() {
 const s = {
   page: {
     minHeight: '100vh',
-    background: '#fafaf8',
+    background: 'var(--color-bg)',
     paddingBottom: 48
   },
   header: {
-    background: '#fff',
-    borderBottom: '1px solid #e5e7eb',
+    background: 'var(--color-surface)',
+    borderBottom: '1px solid var(--color-border)',
     padding: '14px 20px',
     marginBottom: 28
   },
@@ -170,12 +171,12 @@ const s = {
   logo: {
     fontSize: 20,
     fontWeight: 900,
-    color: '#1d4ed8'
+    color: 'var(--color-primary-dark)'
   },
   badge: {
-    background: '#fef3c7',
-    color: '#92400e',
-    border: '1px solid #fde68a',
+    background: 'color-mix(in srgb, var(--color-gold) 30%, var(--color-surface))',
+    color: 'var(--color-text)',
+    border: '1px solid rgba(var(--color-gold-rgb),0.6)',
     borderRadius: 20,
     padding: '3px 12px',
     fontSize: 12,
@@ -188,7 +189,7 @@ const s = {
   },
   loading: {
     textAlign: 'center',
-    color: '#6b7280',
+    color: 'var(--color-text-sub)',
     fontSize: 15,
     marginTop: 60
   },
@@ -203,23 +204,23 @@ const s = {
   topicLabel: {
     fontSize: 11,
     fontWeight: 700,
-    color: '#9ca3af',
+    color: 'var(--color-text-sub)',
     letterSpacing: '0.05em',
     marginBottom: 4
   },
   topicValue: {
     fontSize: 22,
     fontWeight: 900,
-    color: '#111827'
+    color: 'var(--color-text)'
   },
   dateText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: 'var(--color-text-sub)',
     fontWeight: 600
   },
   modeCard: {
-    background: '#fffdf5',
-    border: '2px solid #fde68a',
+    background: 'color-mix(in srgb, var(--color-gold) 6%, var(--color-surface))',
+    border: '2px solid rgba(var(--color-gold-rgb),0.6)',
     borderRadius: 16,
     overflow: 'hidden',
     marginBottom: 16
@@ -229,14 +230,14 @@ const s = {
     alignItems: 'center',
     gap: 8,
     padding: '12px 18px',
-    background: '#fef9ee',
-    borderBottom: '1px solid #fde68a'
+    background: 'color-mix(in srgb, var(--color-gold) 14%, var(--color-surface))',
+    borderBottom: '1px solid rgba(var(--color-gold-rgb),0.6)'
   },
   modeIcon: { fontSize: 18 },
   modeLabel: {
     fontSize: 15,
     fontWeight: 800,
-    color: '#92400e'
+    color: 'var(--color-text)'
   },
   modeBody: {
     padding: '14px 18px',
@@ -248,15 +249,15 @@ const s = {
   fieldLabel: {
     fontSize: 12,
     fontWeight: 700,
-    color: '#b45309',
+    color: 'var(--color-text-sub)',
     marginBottom: 5
   },
   fieldValue: {
     fontSize: 15,
-    color: '#1f2937',
+    color: 'var(--color-text)',
     lineHeight: 1.75,
-    background: '#fff',
-    border: '1px solid #fde68a',
+    background: 'var(--color-surface)',
+    border: '1px solid rgba(var(--color-gold-rgb),0.6)',
     borderRadius: 10,
     padding: '10px 14px',
     whiteSpace: 'pre-wrap'
@@ -272,9 +273,9 @@ const s = {
     marginBottom: 12
   },
   printBtn: {
-    border: '1.5px solid #d97706',
-    background: '#fef3c7',
-    color: '#92400e',
+    border: '1.5px solid color-mix(in srgb, var(--color-gold) 70%, var(--color-text))',
+    background: 'color-mix(in srgb, var(--color-gold) 30%, var(--color-surface))',
+    color: 'var(--color-text)',
     fontWeight: 800,
     fontSize: 14,
     padding: '10px 20px',
@@ -282,9 +283,9 @@ const s = {
     cursor: 'pointer'
   },
   backBtn: {
-    border: '1.5px solid #d1d5db',
-    background: '#fff',
-    color: '#374151',
+    border: '1.5px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text)',
     fontWeight: 700,
     fontSize: 14,
     padding: '10px 20px',
@@ -293,15 +294,16 @@ const s = {
   },
   notice: {
     fontSize: 11,
-    color: '#9ca3af',
+    color: 'var(--color-text-sub)',
     textAlign: 'center',
     marginTop: 8
   },
+  // 오류 상태(빨강)는 의미 전달용이라 그대로 유지
   errorBox: {
     marginTop: 60,
     textAlign: 'center',
     padding: '32px',
-    background: '#fff',
+    background: 'var(--color-surface)',
     border: '1px solid #fca5a5',
     borderRadius: 16
   }

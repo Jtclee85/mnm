@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>역사 탐정이 되어 볼까?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&family=Gaegu:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#fdf6ea;
+    --card:#fffdf8;
+    --ink:#4a3f35;
+    --ink-soft:#83715f;
+    --orange:#ef8b4f;
+    --orange-soft:#fce0cb;
+    --green:#5fab74;
+    --green-soft:#dcefdf;
+    --teal:#3fa2a4;
+    --teal-soft:#d6ecec;
+    --yellow:#f4c84e;
+    --line:#ecdcc4;
+    --shadow:0 10px 26px -16px rgba(74,63,53,.45);
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Gowun Dodum","Pretendard",system-ui,sans-serif;
+    font-size:17px;line-height:1.8;-webkit-font-smoothing:antialiased;
+  }
+  .jua{font-family:"Jua",sans-serif;font-weight:400}
+  .hand{font-family:"Gaegu",cursive;font-weight:700}
+  .wrap{max-width:820px;margin:0 auto;padding:0 20px}
+
+  /* ---- HERO ---- */
+  header.hero{
+    text-align:center;padding:54px 0 46px;position:relative;overflow:hidden;
+    background:
+      radial-gradient(80% 60% at 80% 0%, rgba(63,162,164,.16), transparent 60%),
+      radial-gradient(80% 60% at 10% 100%, rgba(239,139,79,.16), transparent 60%);
+    border-bottom:3px dashed var(--line);
+  }
+  .badge{
+    display:inline-block;font-size:15px;color:#2e7e80;
+    background:var(--teal-soft);border-radius:999px;padding:6px 18px;margin-bottom:18px;
+  }
+  h1.title{
+    font-family:"Jua",sans-serif;
+    font-size:clamp(34px,7vw,54px);line-height:1.25;margin:0 0 16px;
+  }
+  h1.title .pop{color:var(--orange)}
+  h1.title .pop2{color:var(--teal)}
+  .hero p{font-size:clamp(16px,2.6vw,19px);color:var(--ink-soft);max-width:30ch;margin:0 auto}
+  .mag{font-size:48px;display:block;margin-bottom:8px}
+
+  /* ---- SECTION ---- */
+  section{padding:48px 0}
+  .step-tab{
+    display:inline-flex;align-items:center;gap:10px;
+    font-family:"Jua",sans-serif;font-size:18px;color:#fff;
+    padding:7px 18px 7px 14px;border-radius:999px;margin-bottom:14px;
+  }
+  .step-tab .num{
+    background:rgba(255,255,255,.35);border-radius:50%;
+    width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:16px;
+  }
+  .t-orange{background:var(--orange)}
+  .t-teal{background:var(--teal)}
+  .t-green{background:var(--green)}
+  h2{font-family:"Jua",sans-serif;font-size:clamp(23px,4.4vw,30px);margin:0 0 6px;line-height:1.3}
+  .say{font-size:16px;color:var(--ink-soft);margin:0 0 26px}
+
+  /* ---- speech bubble helper ---- */
+  .bubble{
+    background:var(--card);border:2px solid var(--line);border-radius:18px;
+    padding:16px 20px;box-shadow:var(--shadow);font-size:16.5px;
+  }
+  .bubble .who{font-family:"Gaegu",cursive;font-size:18px;color:var(--orange);margin-right:6px}
+
+  /* ---- KEYWORD CARDS ---- */
+  .kw{display:grid;gap:16px;margin-top:22px}
+  .kw-card{
+    background:var(--card);border:2px solid var(--line);border-radius:20px;
+    padding:18px 20px;box-shadow:var(--shadow);
+  }
+  .kw-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .kw-box{flex:1 1 200px;min-width:190px;border-radius:14px;padding:13px 16px}
+  .kw-no{background:#fbeee6;border:2px dashed #e8b89a}
+  .kw-yes{background:var(--green-soft);border:2px solid #aedab8}
+  .kw-tag{font-family:"Gaegu",cursive;font-size:16px;display:block;margin-bottom:2px}
+  .kw-no .kw-tag{color:#cf6a3a}
+  .kw-yes .kw-tag{color:#3a8a52}
+  .kw-word{font-family:"Jua",sans-serif;font-size:19px}
+  .kw-word small{display:block;font-family:"Gowun Dodum",sans-serif;font-size:13.5px;color:var(--ink-soft);font-weight:400;margin-top:3px;line-height:1.5}
+  .kw-go{font-size:30px;color:var(--orange);text-align:center;flex:none}
+  .kw-tip{
+    margin-top:24px;background:var(--orange-soft);border-radius:18px;
+    padding:16px 20px;font-size:16.5px;text-align:center;
+  }
+  .kw-tip b{color:#c7611f}
+  .pill{display:inline-block;background:#fff;border:2px solid #f0c5a3;border-radius:10px;padding:2px 11px;margin:3px;font-family:"Jua",sans-serif;font-size:15px}
+
+  /* ---- CHECK 3 QUESTIONS ---- */
+  .q3{display:grid;gap:16px;margin-top:8px}
+  .q-card{
+    background:var(--card);border:2px solid var(--line);border-radius:20px;
+    padding:18px 20px;box-shadow:var(--shadow);display:flex;gap:16px;
+  }
+  .q-emoji{font-size:34px;flex:none;line-height:1}
+  .q-card h3{font-family:"Jua",sans-serif;font-size:20px;margin:0 0 4px}
+  .q-card p{margin:0;font-size:15.5px;color:var(--ink-soft)}
+  .q-card .twist{
+    margin-top:10px;background:var(--teal-soft);border-radius:12px;
+    padding:9px 13px;font-size:14.5px;color:#266f70;
+  }
+  .q-card .twist b{color:#1d5a5b}
+
+  /* ---- TRUSTED PLACES ---- */
+  .places-h{font-family:"Jua",sans-serif;font-size:21px;margin:34px 0 6px}
+  .places-s{font-size:15px;color:var(--ink-soft);margin:0 0 16px}
+  .places{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+  .place{
+    display:block;text-decoration:none;color:inherit;position:relative;
+    background:var(--card);border:2px solid var(--line);border-radius:16px;
+    padding:14px 42px 14px 15px;box-shadow:var(--shadow);
+    transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;
+  }
+  .place:hover,.place:focus-visible{
+    transform:translateY(-3px);border-color:var(--teal);outline:none;
+    box-shadow:0 16px 28px -14px rgba(63,162,164,.5);
+  }
+  .place .nm{font-family:"Jua",sans-serif;font-size:17px;color:var(--ink)}
+  .place .ds{font-size:14px;color:var(--ink-soft);margin-top:3px;line-height:1.55}
+  .place .ds b{color:var(--teal)}
+  .place .go{
+    position:absolute;right:14px;top:50%;transform:translateY(-50%);
+    color:var(--teal);font-family:"Jua",sans-serif;font-size:18px;
+    transition:transform .15s ease;
+  }
+  .place:hover .go{transform:translateY(-50%) translateX(3px)}
+  .careful{
+    margin-top:20px;background:#fbeee6;border:2px dashed #e8b89a;border-radius:18px;
+    padding:16px 20px;font-size:16px;
+  }
+  .careful .big{font-family:"Jua",sans-serif;color:#cf6a3a;font-size:18px}
+
+  /* ---- BRIDGE / PART3 ---- */
+  .bridge{
+    background:var(--card);border:2px solid var(--line);border-radius:22px;
+    padding:22px 18px 16px;box-shadow:var(--shadow);margin:6px 0 26px;
+  }
+  .bridge svg{width:100%;height:auto;display:block}
+  .bridge .cap{text-align:center;font-size:15px;color:var(--ink-soft);margin-top:8px}
+  .bridge .cap b{color:var(--green)}
+
+  .secret{display:grid;gap:14px}
+  .secret-item{
+    background:var(--card);border:2px solid var(--line);border-radius:18px;
+    padding:16px 18px;box-shadow:var(--shadow);display:flex;gap:15px;
+  }
+  .secret-item .ico{font-size:30px;flex:none;line-height:1}
+  .secret-item h3{font-family:"Jua",sans-serif;font-size:18px;margin:1px 0 4px}
+  .secret-item p{margin:0;font-size:15px;color:var(--ink-soft)}
+  .secret-item p b{color:var(--ink)}
+
+  /* ---- CHECKLIST ---- */
+  .check{
+    background:var(--teal);color:#fff;border-radius:24px;padding:28px 24px;margin-top:6px;
+  }
+  .check h3{font-family:"Jua",sans-serif;font-size:24px;margin:0 0 6px}
+  .check .lead{margin:0 0 18px;font-size:15.5px;color:#e6f5f5}
+  .check ul{list-style:none;margin:0;padding:0;display:grid;gap:11px}
+  .check li{display:flex;gap:12px;align-items:flex-start;font-size:16px}
+  .check li .bx{
+    flex:none;width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.25);
+    display:flex;align-items:center;justify-content:center;font-size:14px;margin-top:2px;
+  }
+  .check li b{color:#fff}
+
+  footer{text-align:center;padding:30px 0 46px;color:var(--ink-soft);font-size:14px}
+  footer .hand{color:var(--orange);font-size:17px}
+
+  .rv{opacity:0;transform:translateY(14px);transition:opacity .55s ease,transform .55s ease}
+  .rv.in{opacity:1;transform:none}
+  @media (prefers-reduced-motion:reduce){.rv{opacity:1;transform:none;transition:none}}
+
+  @media (max-width:640px){
+    .places{grid-template-columns:1fr}
+    .kw-go{transform:rotate(90deg)}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="mag">🔎</span>
+    <span class="badge">역사 탐정 출동!</span>
+    <h1 class="title jua">진짜 <span class="pop">역사 자료</span>를<br>찾아내는 <span class="pop2">방법</span></h1>
+    <p>인터넷에는 정보가 너무 많아요. 그중에서 <b>진짜</b>를 찾아내는 비법을 배워 볼까요?</p>
+  </div>
+</header>
+
+<!-- STEP 1 -->
+<section>
+  <div class="wrap">
+    <span class="step-tab t-orange rv jua"><span class="num">1</span> 검색어를 똑똑하게!</span>
+    <h2 class="rv">검색창에 뭐라고 쓸까?</h2>
+    <p class="say rv">짧게 한 낱말만 쓰면 엉뚱한 게 잔뜩 나와요. <b>언제 + 누구·무엇 + 알고 싶은 것</b>을 붙여서 길게 써 보세요.</p>
+
+    <div class="bubble rv">
+      <span class="who">탐정 팁!</span>검색창은 내가 쓴 낱말이랑 비슷한 걸 다 찾아 줘요. 그래서 낱말이 너무 넓으면 필요 없는 게 우르르 나온답니다.
+    </div>
+
+    <div class="kw">
+      <div class="kw-card rv">
+        <div class="kw-row">
+          <div class="kw-box kw-no"><span class="kw-tag">이렇게 쓰면 ✕</span><span class="kw-word">조선</span></div>
+          <div class="kw-go">➜</div>
+          <div class="kw-box kw-yes"><span class="kw-tag">이렇게 쓰면 ◎</span><span class="kw-word">조선 시대 사람들의 생활<small>시대 + 알고 싶은 것</small></span></div>
+        </div>
+      </div>
+      <div class="kw-card rv">
+        <div class="kw-row">
+          <div class="kw-box kw-no"><span class="kw-tag">이렇게 쓰면 ✕</span><span class="kw-word">전쟁</span></div>
+          <div class="kw-go">➜</div>
+          <div class="kw-box kw-yes"><span class="kw-tag">이렇게 쓰면 ◎</span><span class="kw-word">임진왜란 이순신<small>사건 + 인물로 좁히기</small></span></div>
+        </div>
+      </div>
+      <div class="kw-card rv">
+        <div class="kw-row">
+          <div class="kw-box kw-no"><span class="kw-tag">이렇게 쓰면 ✕</span><span class="kw-word">세종</span></div>
+          <div class="kw-go">➜</div>
+          <div class="kw-box kw-yes"><span class="kw-tag">이렇게 쓰면 ◎</span><span class="kw-word">세종대왕이 한 일<small>인물 + 알고 싶은 것</small></span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="kw-tip rv">
+      검색 결과는 <b>종류별로</b> 나와요. 역사 공부엔 이 세 가지가 특히 좋아요!<br>
+      <span class="pill">📚 사전·백과사전</span><span class="pill">📖 책</span><span class="pill">🖼 사진(이미지)</span>
+    </div>
+  </div>
+</section>
+
+<!-- STEP 2 -->
+<section>
+  <div class="wrap">
+    <span class="step-tab t-teal rv jua"><span class="num">2</span> 진짜 자료 고르기</span>
+    <h2 class="rv">이 자료, 믿어도 될까?</h2>
+    <p class="say rv">자료를 찾았다고 끝이 아니에요. 고를 때 이렇게 세 가지를 물어보세요.</p>
+
+    <div class="q3">
+      <div class="q-card rv">
+        <div class="q-emoji">🎯</div>
+        <div>
+          <h3>① 내가 찾는 거랑 맞아?</h3>
+          <p>내 주제랑 관련이 있나요? 너무 어려운 말투성이는 아닌가요?</p>
+        </div>
+      </div>
+      <div class="q-card rv">
+        <div class="q-emoji">🧑‍🏫</div>
+        <div>
+          <h3>② 누가, 왜 만들었지?</h3>
+          <p>전문가나 믿을 만한 곳에서 만들었나요? 어디서 가져온 건지 나와 있나요? 무언가 <b>팔려고</b> 만든 글은 아닌가요?</p>
+        </div>
+      </div>
+      <div class="q-card rv">
+        <div class="q-emoji">📅</div>
+        <div>
+          <h3>③ 너무 오래돼서 틀린 건 아닐까?</h3>
+          <p>오래된 정보는 지금이랑 다를 수 있어요.</p>
+          <div class="twist">🏺 <b>하지만 역사는 달라요!</b> 그때 직접 만든 <b>옛날 기록</b>은 오래될수록 진짜 보물이에요. 다만 그걸 <b>풀어서 설명한 글</b>은 요즘 것으로 보는 게 좋아요.</div>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="places-h rv">여기부터 찾으면 안심! 🏛️</h3>
+    <p class="places-s rv">나라와 연구하는 곳에서 만든, 믿을 수 있는 누리집이에요.</p>
+    <div class="places">
+      <a class="place rv" href="https://contents.history.go.kr/front" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">우리역사넷</div><div class="ds">한국사를 <b>쉽게</b> 정리해 둔 곳. 가장 먼저 가 보기 좋아요</div></a>
+      <a class="place rv" href="https://contents.history.go.kr/front/kc/main.do" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">우리역사넷 · 한국사연대기</div><div class="ds">인물·사건·유물을 <b>시대 순서대로</b> 정리해 둔 곳</div></a>
+      <a class="place rv" href="https://sillok.history.go.kr" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">조선왕조실록</div><div class="ds">조선 시대에 <b>직접 쓴 진짜 기록</b>을 우리말 번역과 함께 볼 수 있어요</div></a>
+      <a class="place rv" href="https://encykorea.aks.ac.kr" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">한국민족문화대백과사전</div><div class="ds">인물·사건을 <b>전문가가 정리</b>해 둔 큰 사전</div></a>
+      <a class="place rv" href="https://www.heritage.go.kr" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">국가유산포털</div><div class="ds">국보·보물 같은 <b>문화유산을 검색</b>해서 찾아볼 수 있어요</div></a>
+      <a class="place rv" href="https://www.khs.go.kr" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">국가유산청</div><div class="ds">문화유산을 지키는 <b>나라 기관의 공식 누리집</b></div></a>
+      <a class="place rv" href="https://www.emuseum.go.kr" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">이뮤지엄(e뮤지엄)</div><div class="ds">전국 박물관의 <b>진짜 유물 사진</b>을 모아 둔 곳</div></a>
+      <a class="place rv" href="https://e-gonghun.mpva.go.kr" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">공훈전자사료관</div><div class="ds"><b>독립운동가</b>들의 활동과 자료를 찾아볼 수 있는 곳</div></a>
+      <a class="place rv" href="https://www.korean.go.kr" target="_blank" rel="noopener noreferrer"><span class="go">↗</span><div class="nm">국립국어원</div><div class="ds">옛날 글과 한글에 대한 <b>바른 자료</b></div></a>
+    </div>
+
+    <div class="careful rv">
+      <span class="big">⚠ 블로그·개인이 쓴 글은 조심!</span><br>
+      자기 생각만 쓴 글일 수도 있고, 뭔가 <b>팔려고</b> 쓴 글일 수도 있어요. 누가 썼는지 안 나오면 믿기 어려워요. 그럴 땐 위의 믿을 수 있는 곳에서 다시 확인해 보세요.
+    </div>
+  </div>
+</section>
+
+<!-- STEP 3 -->
+<section>
+  <div class="wrap">
+    <span class="step-tab t-green rv jua"><span class="num">3</span> 진짜 탐정의 비법</span>
+    <h2 class="rv">쉬운 자료에서 ‘진짜 기록’으로 다리 놓기</h2>
+    <p class="say rv">쉬운 책으로 먼저 이해하고, 진짜 옛날 기록으로 확인하면 진짜 역사 탐정이에요!</p>
+
+    <div class="bridge rv">
+      <svg viewBox="0 0 720 200" role="img" aria-label="쉬운 자료에서 진짜 기록으로 건너가는 다리">
+        <rect x="0" y="150" width="720" height="50" fill="#dcefdf"/>
+        <ellipse cx="115" cy="150" rx="120" ry="26" fill="#c3e2c9"/>
+        <rect x="55" y="92" width="120" height="58" rx="14" fill="#fffdf8" stroke="#aedab8" stroke-width="2"/>
+        <text x="115" y="116" text-anchor="middle" font-family="Jua,sans-serif" font-size="16" fill="#3a8a52">쉬운 책</text>
+        <text x="115" y="136" text-anchor="middle" font-family="Gowun Dodum,sans-serif" font-size="11.5" fill="#6e7a62">먼저 이해하기</text>
+        <ellipse cx="605" cy="150" rx="120" ry="26" fill="#f6dcc4"/>
+        <rect x="545" y="92" width="120" height="58" rx="14" fill="#fffdf8" stroke="#e8b89a" stroke-width="2"/>
+        <text x="605" y="116" text-anchor="middle" font-family="Jua,sans-serif" font-size="16" fill="#cf6a3a">진짜 기록</text>
+        <text x="605" y="136" text-anchor="middle" font-family="Gowun Dodum,sans-serif" font-size="11.5" fill="#a06a4e">직접 확인하기</text>
+        <path d="M175 132 Q360 70 545 132" fill="none" stroke="#b98a4a" stroke-width="6"/>
+        <line x1="235" y1="116" x2="235" y2="138" stroke="#b98a4a" stroke-width="4"/>
+        <line x1="305" y1="100" x2="305" y2="128" stroke="#b98a4a" stroke-width="4"/>
+        <line x1="360" y1="95" x2="360" y2="124" stroke="#b98a4a" stroke-width="4"/>
+        <line x1="415" y1="100" x2="415" y2="128" stroke="#b98a4a" stroke-width="4"/>
+        <line x1="485" y1="116" x2="485" y2="138" stroke="#b98a4a" stroke-width="4"/>
+        <circle cx="360" cy="80" r="15" fill="#f4c84e"/>
+        <text x="360" y="86" text-anchor="middle" font-size="16">🚶</text>
+      </svg>
+      <p class="cap"><b>다리 놓기:</b> 쉬운 책으로 알고 → 진짜 기록으로 확인!</p>
+    </div>
+
+    <div class="secret">
+      <div class="secret-item rv">
+        <div class="ico">📜</div>
+        <div><h3>‘진짜 기록’과 ‘설명한 글’은 달라요</h3><p><b>진짜 기록</b>은 그 시대에 직접 만든 거예요. <b>설명한 글</b>은 나중에 누군가가 풀어서 쓴 거고요. 둘을 구별하면 “누구의 말인지” 알 수 있어요.</p></div>
+      </div>
+      <div class="secret-item rv">
+        <div class="ico">🔁</div>
+        <div><h3>두 군데 이상에서 확인하기</h3><p>같은 내용을 <b>다른 곳에서도</b> 찾아 비교해 보세요. 한 곳에만 있는 이야기는 살짝 의심해 보는 게 안전해요.</p></div>
+      </div>
+      <div class="secret-item rv">
+        <div class="ico">✏️</div>
+        <div><h3>어디서 가져왔는지 꼭 쓰기</h3><p>사진이나 글을 가져다 쓸 땐 <b>출처</b>를 적어요. 정직한 약속이자, 내 글을 더 믿게 만드는 방법이에요.</p></div>
+      </div>
+      <div class="secret-item rv">
+        <div class="ico">🤖</div>
+        <div><h3>AI가 알려준 역사는 꼭 다시 확인!</h3><p>AI는 가끔 <b>없는 이야기를 진짜처럼</b> 지어내요. 연도·이름·사건은 믿을 수 있는 누리집에서 한 번 더 확인하세요.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CHECKLIST -->
+<section>
+  <div class="wrap">
+    <div class="check rv">
+      <h3>🕵️ 역사 탐정 점검표</h3>
+      <p class="lead">자료를 찾았다면, 아래를 하나씩 확인해 봐요!</p>
+      <ul>
+        <li><span class="bx">✓</span><div><b>검색어</b> — 시대·인물·사건이랑 알고 싶은 걸 붙여서 길게 썼나요?</div></li>
+        <li><span class="bx">✓</span><div><b>주제</b> — 내가 찾는 것과 맞고, 너무 어렵지 않나요?</div></li>
+        <li><span class="bx">✓</span><div><b>믿음</b> — 믿을 수 있는 곳에서, 출처가 분명한가요?</div></li>
+        <li><span class="bx">✓</span><div><b>다리 놓기</b> — 쉬운 책으로 이해한 뒤 진짜 기록을 봤나요?</div></li>
+        <li><span class="bx">✓</span><div><b>확인 · 출처</b> — 다른 곳에서도 확인하고, 출처를 적었나요?</div></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span class="hand">이제 너도 역사 탐정! 🔎</span>
+</footer>
+
+<script>
+  const io = new IntersectionObserver((es)=>{
+    es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+  },{threshold:.12, rootMargin:"0px 0px -40px 0px"});
+  document.querySelectorAll('.rv').forEach((el,i)=>{
+    el.style.transitionDelay = Math.min(i%5,4)*40 + 'ms';
+    io.observe(el);
+  });
+</script>
+</body>
+</html>

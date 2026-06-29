@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import Head from 'next/head';
+import Image from 'next/image';
 
-import Banner from '../components/Banner';
+import titleLogo from '../public/title-mnm.png';
 import SectionCard from '../components/SectionCard';
 import ChatBubble from '../components/ChatBubble';
 import ResultCanvas from '../components/ResultCanvas';
 import RecommendedSources from '../components/RecommendedSources';
+import HelpPanel from '../components/HelpPanel';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
@@ -13,6 +15,7 @@ import { useStudentNotes } from '../lib/useStudentNotes';
 import { useSessionSave } from '../lib/useSessionSave';
 import { encodeShareData } from '../lib/shareUtils';
 import { LANGUAGE_OPTIONS, getLanguageReminder, getUiText } from '../lib/i18n';
+import { withSubjectParticle } from '../lib/koreanParticles';
 
 /** =========================
  *  메인
@@ -45,6 +48,9 @@ export default function Home() {
 
   const [isMobile, setIsMobile] = useState(false);
   const [leftPanelTab, setLeftPanelTab] = useState('source');
+
+  // 좌측 패널 제목용 — "가장 최근 분석을 실행한" 조사주제 (입력 중인 topic과는 별개)
+  const [lastAnalyzedTopic, setLastAnalyzedTopic] = useState('');
 
   const { notes, updateNote, saveStatus } = useStudentNotes(topic);
   const { savedTopics, triggerSave, saveNow, loadSession } = useSessionSave();
@@ -110,6 +116,7 @@ export default function Home() {
       );
     setCanvasOpen(!!anyResult);
     setLeftPanelTab(anyResult ? 'chat' : 'source');
+    setLastAnalyzedTopic(anyResult ? (session.topic ?? '') : '');
   };
 
   // ── 처음으로 돌아가기 ──
@@ -126,6 +133,7 @@ export default function Home() {
     setConversation([makeInitialMessage(getUiText(language))]);
     setCanvasOpen(false);
     setLeftPanelTab('source');
+    setLastAnalyzedTopic('');
   };
 
   const buildLanguageReminder = () => getLanguageReminder(language);
@@ -140,6 +148,7 @@ export default function Home() {
     setConversation([makeInitialMessage(nextText)]);
     setCanvasOpen(false);
     setLeftPanelTab('source');
+    setLastAnalyzedTopic('');
   };
 
   // ── SSE 스트리밍 ──
@@ -252,6 +261,7 @@ export default function Home() {
     if (!trimmedTopic)              { alert(t.missingTopic); return; }
     if (trimmedSource.length < 50)  { alert(t.shortSource); return; }
 
+    setLastAnalyzedTopic(trimmedTopic);
     setLeftPanelTab('chat');
 
     const thinkingMsg = trimmedSource.length > 3000
@@ -495,6 +505,11 @@ export default function Home() {
   // 아직 분석을 시작하지 않은 진짜 첫 랜딩 상태 — 추천 원본자료 사이드바를 보여줄 시점
   const showLanding = !canvasOpen && !hasAnyResult;
 
+  // 좌측 패널 제목 — 가장 최근 분석한 조사주제 기준 (입력 중인 topic이 바뀌어도 즉시 따라가지 않음)
+  const leftPanelTitle = (language === 'ko' && lastAnalyzedTopic)
+    ? `${withSubjectParticle(lastAnalyzedTopic)} 뭐냐면...`
+    : t.mainCardTitle;
+
   const renderLeftPanelTabs = () => (
     <div style={styles.leftPanelTabs}>
       <button
@@ -544,14 +559,35 @@ export default function Home() {
     ? styles.splitLayout
     : styles.centeredLayout;
 
+  // 첫 화면(랜딩)에서만 메인 입력 카드 맨 위에 얹는 로고+설명 — 독립 상단 히어로 영역 대체
+  const cardLogoSlot = showLanding ? (
+    <div>
+      <h1 style={{ margin: 0, lineHeight: 0 }}>
+        <Image
+          src={titleLogo}
+          alt="뭐냐면"
+          priority
+          style={{ width: '100%', maxWidth: isMobile ? 200 : 240, height: 'auto', margin: '0 auto', display: 'block' }}
+        />
+      </h1>
+      <p style={{ margin: '10px 0 0', fontSize: isMobile ? 14 : 15, fontWeight: 700, color: 'var(--color-text)' }}>
+        {t.bannerSubtitle}
+      </p>
+      <p style={{ margin: '2px 0 0', fontSize: isMobile ? 12 : 13, color: 'var(--color-text-sub)' }}>
+        {t.bannerDescription}
+      </p>
+    </div>
+  ) : null;
+
   const leftColEl = (
-    <div style={styles.leftCol}>
+    <div style={styles.leftCol} data-testid="left-panel">
 
               {/* 기본 설정 카드 */}
               {leftPanelTab === 'source' && (
               <SectionCard
-                title={t.mainCardTitle} icon="" isMobile={isMobile}
+                title={leftPanelTitle} icon="" isMobile={isMobile}
                 actions={renderHeaderActions()}
+                topSlot={cardLogoSlot}
               >
                 {!showLanding && renderLeftPanelTabs()}
 
@@ -622,9 +658,9 @@ export default function Home() {
 
               {/* 후속 질문 채팅 */}
               {leftPanelTab === 'chat' && (
-              <div ref={chatSectionRef}>
+              <div ref={chatSectionRef} data-testid="followup-chat-section">
                 <SectionCard
-                  title={t.mainCardTitle} icon="" isMobile={isMobile}
+                  title={leftPanelTitle} icon="" isMobile={isMobile}
                   actions={renderHeaderActions()}
                 >
                   {renderLeftPanelTabs()}
@@ -653,6 +689,7 @@ export default function Home() {
                       disabled={isChatLoading}
                     />
                     <button
+                      data-testid="send-question-button"
                       style={{ ...styles.primaryBtn, ...(isMobile ? styles.primaryBtnMobile : {}) }}
                       onClick={() => handleFollowUpChat()}
                       disabled={isChatLoading}
@@ -710,17 +747,15 @@ export default function Home() {
       >
         <div style={styles.container}>
           {showLanding ? (
-            <>
-              <Banner t={t} />
-              <div style={isMobile ? styles.landingStackMobile : styles.landingRow}>
-                <RecommendedSources isMobile={isMobile} />
-                <div style={styles.landingFormCol}>
-                  {leftColEl}
-                </div>
+            <div style={isMobile ? styles.landingStackMobile : styles.landingRow}>
+              <RecommendedSources isMobile={isMobile} />
+              <div style={styles.landingFormCol}>
+                {leftColEl}
               </div>
-            </>
+              <HelpPanel isMobile={isMobile} />
+            </div>
           ) : (
-            <div style={layoutStyle}>
+            <div style={layoutStyle} data-testid="layout-grid">
               {leftColEl}
               {resultCanvasEl}
             </div>
@@ -732,13 +767,6 @@ export default function Home() {
 }
 
 // ── 유틸 ──
-function hasBatchim(str) {
-  if (!str) return false;
-  const last = str.trim().slice(-1);
-  const code = last.charCodeAt(0);
-  return code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
-}
-
 function cleanConversation(messages) {
   if (!Array.isArray(messages) || messages.length === 0) return [makeInitialMessage(getUiText('ko'))];
 
@@ -780,41 +808,41 @@ const INIT_BY_MODE = () => ({
  *  스타일
  *  ========================= */
 const styles = {
-  page:      { minHeight: '100vh', background: 'linear-gradient(180deg,#f8fafc 0%,#eef2ff 45%,#f8fafc 100%)', padding: '24px 16px 48px' },
+  page:      { minHeight: '100vh', background: 'linear-gradient(180deg, var(--color-bg) 0%, var(--color-surface-alt) 45%, var(--color-bg) 100%)', padding: '24px 16px 48px' },
   pageRtl:   { textAlign: 'right' },
   pageMobile: { padding: '16px 10px 32px' },
   container: { maxWidth: 1680, margin: '0 auto' },
   languageBarSelect: {
-    minWidth: 180, border: '1px solid #cbd5e1', borderRadius: 12,
-    padding: '10px 12px', fontSize: 14, outline: 'none', background: '#fff', boxSizing: 'border-box',
+    minWidth: 180, border: '1px solid var(--color-border)', borderRadius: 12,
+    padding: '10px 12px', fontSize: 14, outline: 'none', background: 'var(--color-surface)', boxSizing: 'border-box',
   },
 
   centeredLayout: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
   splitLayout:    { display: 'grid', gridTemplateColumns: '1fr 1.25fr', gap: 20, alignItems: 'start' },
 
   // 랜딩 화면 전용 — 추천 원본자료 사이드바 + 자료입력 폼
-  landingRow:         { display: 'flex', gap: 28, alignItems: 'flex-start', justifyContent: 'center' },
+  landingRow:         { display: 'flex', gap: 28, alignItems: 'stretch', justifyContent: 'center', flexWrap: 'wrap' },
   landingStackMobile: { display: 'flex', flexDirection: 'column', gap: 18 },
   landingFormCol:     { flex: '0 1 860px', minWidth: 0 },
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftPanelTabs: {
     display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
-    background: '#f1f5f9', border: '1px solid #e2e8f0',
+    background: 'var(--color-bg)', border: '1px solid var(--color-border)',
     borderRadius: 12, padding: 4, marginBottom: 18,
   },
   leftPanelTab: {
-    border: 'none', background: 'transparent', color: '#64748b',
+    border: 'none', background: 'transparent', color: 'var(--color-text-sub)',
     borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
     fontWeight: 800, fontSize: 14,
   },
   leftPanelTabActive: {
-    background: '#ffffff', color: '#1d4ed8',
-    boxShadow: '0 1px 4px rgba(15,23,42,0.10)',
+    background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
+    boxShadow: '0 1px 4px rgba(var(--color-text-rgb),0.10)',
   },
 
   formGroup: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
-  label:     { fontWeight: 700, color: '#374151', fontSize: 14 },
+  label:     { fontWeight: 700, color: 'var(--color-text)', fontSize: 14 },
 
   // 조사 주제 입력칸 + 언어 선택 — 같은 줄에 나란히 배치
   topicRow:          { display: 'flex', flexDirection: 'row', gap: 12, alignItems: 'flex-end', marginBottom: 16 },
@@ -823,37 +851,37 @@ const styles = {
   languageInlineCol: { display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0, minWidth: 160 },
 
   input: {
-    width: '100%', border: '1px solid #cbd5e1', borderRadius: 12,
+    width: '100%', border: '1px solid var(--color-border)', borderRadius: 12,
     padding: '12px 14px', fontSize: 15, outline: 'none', boxSizing: 'border-box'
   },
   inputMobile: { fontSize: 16, padding: '12px' },
   select: {
-    width: '100%', border: '1px solid #cbd5e1', borderRadius: 12,
-    padding: '12px 14px', fontSize: 15, outline: 'none', background: '#fff', boxSizing: 'border-box'
+    width: '100%', border: '1px solid var(--color-border)', borderRadius: 12,
+    padding: '12px 14px', fontSize: 15, outline: 'none', background: 'var(--color-surface)', boxSizing: 'border-box'
   },
   textarea: {
-    width: '100%', minHeight: 200, border: '1px solid #cbd5e1', borderRadius: 14,
+    width: '100%', minHeight: 200, border: '1px solid var(--color-border)', borderRadius: 14,
     padding: '14px 16px', fontSize: 15, lineHeight: 1.7, resize: 'vertical',
     outline: 'none', boxSizing: 'border-box'
   },
   textareaMobile: { minHeight: 160, fontSize: 16, padding: '12px' },
 
   primaryBtn: {
-    border: 'none', background: 'linear-gradient(135deg,#2563eb 0%,#7c3aed 100%)',
-    color: '#fff', fontWeight: 800, padding: '12px 20px', borderRadius: 12,
-    cursor: 'pointer', boxShadow: '0 10px 24px rgba(37,99,235,0.22)', fontSize: 15,
+    border: 'none', background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
+    color: 'var(--color-surface)', fontWeight: 800, padding: '12px 20px', borderRadius: 12,
+    cursor: 'pointer', boxShadow: '0 10px 24px rgba(var(--color-primary-rgb),0.22)', fontSize: 15,
   },
   primaryBtnMobile: { width: '100%', fontSize: 15, padding: '13px 14px' },
 
   reopenBtn: {
-    border: '2px solid #2563eb', background: '#eff6ff', color: '#1d4ed8',
+    border: '2px solid var(--color-primary)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
     fontWeight: 800, padding: '12px 20px', borderRadius: 12,
     cursor: 'pointer', fontSize: 14,
   },
 
-  chatBox:       { height: 460, overflowY: 'auto', background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 16, padding: 14, marginBottom: 12 },
+  chatBox:       { height: 460, overflowY: 'auto', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 14, marginBottom: 12 },
   chatBoxMobile: { height: 340, padding: 10, marginBottom: 10 },
-  chatTextarea:       { width: '100%', minHeight: 90, maxHeight: 200, border: '1px solid #cbd5e1', borderRadius: 14, padding: '12px 14px', fontSize: 15, lineHeight: 1.6, resize: 'vertical', outline: 'none', boxSizing: 'border-box' },
+  chatTextarea:       { width: '100%', minHeight: 90, maxHeight: 200, border: '1px solid var(--color-border)', borderRadius: 14, padding: '12px 14px', fontSize: 15, lineHeight: 1.6, resize: 'vertical', outline: 'none', boxSizing: 'border-box' },
   chatTextareaMobile: { minHeight: 80, fontSize: 16, padding: '12px' },
 
   chipsWrap: {
@@ -862,15 +890,15 @@ const styles = {
     width: '100%', maxWidth: 520, paddingBottom: 2,
   },
   chip: {
-    border: '1.5px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8',
+    border: '1.5px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
     fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s'
   },
-  chipActive: { background: '#2563eb', border: '1.5px solid #2563eb', color: '#fff' },
+  chipActive: { background: 'var(--color-primary)', border: '1.5px solid var(--color-primary)', color: 'var(--color-surface)' },
 
   headerActions: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
   goHomeBtn: {
-    border: '1.5px solid #cbd5e1', background: '#fff', color: '#475569',
+    border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-sub)',
     fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s',
   },

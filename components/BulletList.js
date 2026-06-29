@@ -19,10 +19,10 @@ export default function BulletList({ items, isMobile, emptyText = '아직 생성
 }
 
 const styles = {
-  bulletList: { margin: 0, paddingLeft: 20, color: '#1f2937', lineHeight: 1.8 },
+  bulletList: { margin: 0, paddingLeft: 20, color: 'var(--color-text)', lineHeight: 1.8 },
   bulletListMobile: { paddingLeft: 18, fontSize: 14, lineHeight: 1.7 },
   bulletItem: { marginBottom: 6 },
   bulletItemMobile: { marginBottom: 5 },
-  emptyText: { margin: 0, color: '#6b7280', lineHeight: 1.7 },
+  emptyText: { margin: 0, color: 'var(--color-text-sub)', lineHeight: 1.7 },
   emptyTextMobile: { fontSize: 14 }
 };

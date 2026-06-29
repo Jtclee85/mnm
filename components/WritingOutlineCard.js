@@ -5,28 +5,31 @@ const SECTIONS = [
     key: '처음',
     icon: '1',
     label: '처음',
-    bg: '#f0fdf4',
-    border: '#86efac',
-    titleColor: '#15803d',
-    numBg: '#16a34a'
+    bg: 'color-mix(in srgb, var(--color-accent-teal) 12%, var(--color-surface))',
+    border: 'rgba(var(--color-accent-teal-rgb),0.5)',
+    titleColor: 'var(--color-text)',
+    numBg: 'var(--color-accent-teal)',
+    numColor: 'var(--color-text)'
   },
   {
     key: '가운데',
     icon: '2',
     label: '가운데',
-    bg: '#eff6ff',
-    border: '#93c5fd',
-    titleColor: '#1d4ed8',
-    numBg: '#2563eb'
+    bg: 'rgba(var(--color-primary-rgb),0.08)',
+    border: 'rgba(var(--color-primary-rgb),0.4)',
+    titleColor: 'var(--color-primary-dark)',
+    numBg: 'var(--color-primary)',
+    numColor: 'var(--color-surface)'
   },
   {
     key: '끝',
     icon: '3',
     label: '끝',
-    bg: '#fdf4ff',
-    border: '#d8b4fe',
-    titleColor: '#7e22ce',
-    numBg: '#9333ea'
+    bg: 'color-mix(in srgb, var(--color-coral) 14%, var(--color-surface))',
+    border: 'rgba(var(--color-coral-rgb),0.5)',
+    titleColor: 'var(--color-text)',
+    numBg: 'var(--color-coral)',
+    numColor: 'var(--color-text)'
   }
 ];
 
@@ -52,7 +55,7 @@ function parseOutlineSections(text) {
 export default function WritingOutlineCard({ outline, isMobile, t = getUiText('ko') }) {
   if (!outline) {
     return (
-      <p style={{ margin: 0, color: '#6b7280', lineHeight: 1.7, fontSize: isMobile ? 14 : 15 }}>
+      <p style={{ margin: 0, color: 'var(--color-text-sub)', lineHeight: 1.7, fontSize: isMobile ? 14 : 15 }}>
         {t.writingEmpty}
       </p>
     );
@@ -62,7 +65,7 @@ export default function WritingOutlineCard({ outline, isMobile, t = getUiText('k
 
   if (sections.length === 0) {
     return (
-      <div style={{ color: '#374151', lineHeight: 1.8, fontSize: isMobile ? 14 : 15, whiteSpace: 'pre-line' }}>
+      <div style={{ color: 'var(--color-text)', lineHeight: 1.8, fontSize: isMobile ? 14 : 15, whiteSpace: 'pre-line' }}>
         {outline}
       </div>
     );
@@ -70,7 +73,7 @@ export default function WritingOutlineCard({ outline, isMobile, t = getUiText('k
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 12 }}>
-      {sections.map(({ key, icon, label, bg, border, titleColor, numBg, lines }) => {
+      {sections.map(({ key, icon, label, bg, border, titleColor, numBg, numColor, lines }) => {
         const translatedLabel = key === '처음' ? t.writingFirst : key === '가운데' ? t.writingMiddle : key === '끝' ? t.writingEnd : label;
         return (
         <div
@@ -93,7 +96,7 @@ export default function WritingOutlineCard({ outline, isMobile, t = getUiText('k
               height: isMobile ? 22 : 24,
               borderRadius: '50%',
               background: numBg,
-              color: '#fff',
+              color: numColor,
               fontWeight: 900,
               fontSize: isMobile ? 12 : 13,
               display: 'flex',
@@ -114,7 +117,7 @@ export default function WritingOutlineCard({ outline, isMobile, t = getUiText('k
           <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 5 }}>
             {lines.map((line, i) => (
               <li key={i} style={{
-                color: '#374151',
+                color: 'var(--color-text)',
                 lineHeight: 1.75,
                 fontSize: isMobile ? 13 : 14
               }}>

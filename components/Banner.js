@@ -1,44 +1,39 @@
 import Image from 'next/image';
-import bannerImage from '../public/banner-background.png';
+import titleLogo from '../public/title-mnm.png';
 import { getUiText } from '../lib/i18n';
 
 const Banner = ({ t = getUiText('ko') }) => {
   return (
     <div style={{
-      position: 'relative',
       width: '100%',
-      height: '200px',
       borderRadius: '12px',
-      overflow: 'hidden',
       marginBottom: '1.5rem',
       textAlign: 'center',
-      color: '#333'
+      color: 'var(--color-text)',
+      padding: '20px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
     }}>
-      <Image
-        src={bannerImage}
-        alt={t.bannerAlt}
-        fill
-        style={{ objectFit: 'cover' }}
-        priority
-      />
-      <div style={{
-        position: 'relative',
-        zIndex: 1,
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100%'
-      }}>
-        <h1 style={{ fontSize: '2.5rem', margin: 0, fontWeight: 'bold', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>{t.brandName}</h1>
-        <p style={{ fontSize: '1rem', color: '#444', margin: '6px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)', fontWeight: 700 }}>
-          {t.bannerSubtitle}
-        </p>
-        <p style={{ fontSize: '0.9rem', color: '#555', margin: '3px 0 0 0', textShadow: '1px 1px 3px rgba(255,255,255,0.5)' }}>
-          {t.bannerDescription}
-        </p>
-      </div>
+      <style>{`
+        .mnm-title-logo { width: 100%; max-width: 320px; height: auto; }
+        @media (max-width: 640px) { .mnm-title-logo { max-width: 240px; } }
+      `}</style>
+      <h1 style={{ margin: 0, lineHeight: 0 }}>
+        <Image
+          src={titleLogo}
+          alt="뭐냐면"
+          priority
+          className="mnm-title-logo"
+          sizes="(max-width: 640px) 240px, 320px"
+        />
+      </h1>
+      <p style={{ fontSize: '1rem', color: 'var(--color-text)', margin: '10px 0 0 0', fontWeight: 700 }}>
+        {t.bannerSubtitle}
+      </p>
+      <p style={{ fontSize: '0.9rem', color: 'var(--color-text-sub)', margin: '3px 0 0 0' }}>
+        {t.bannerDescription}
+      </p>
     </div>
   );
 };

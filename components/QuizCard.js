@@ -29,11 +29,12 @@ export default function QuizCard({ quizData, onReset, isMobile, onResult, t = ge
           const isAnswer = submitted && idx === correctIndex;
           const isWrongSelected = submitted && isSelected && idx !== correctIndex;
 
-          let background = '#ffffff';
-          let border = '#cbd5e1';
-          let color = '#1f2937';
+          let background = 'var(--color-surface)';
+          let border = 'var(--color-border)';
+          let color = 'var(--color-text)';
 
-          if (!submitted && isSelected) { background = '#eff6ff'; border = '#60a5fa'; color = '#1d4ed8'; }
+          // 선택(브랜드 색) — 정답/오답 피드백은 의미 전달용이라 그대로 유지
+          if (!submitted && isSelected) { background = 'rgba(var(--color-primary-rgb),0.08)'; border = 'var(--color-primary)'; color = 'var(--color-primary-dark)'; }
           if (isAnswer) { background = '#ecfdf5'; border = '#22c55e'; color = '#166534'; }
           if (isWrongSelected) { background = '#fef2f2'; border = '#ef4444'; color = '#991b1b'; }
 
@@ -111,14 +112,14 @@ export default function QuizCard({ quizData, onReset, isMobile, onResult, t = ge
 }
 
 const styles = {
-  emptyText: { margin: 0, color: '#6b7280', lineHeight: 1.7 },
+  emptyText: { margin: 0, color: 'var(--color-text-sub)', lineHeight: 1.7 },
   emptyTextMobile: { fontSize: 14 },
-  quizQuestion: { fontSize: 17, fontWeight: 800, color: '#111827', lineHeight: 1.7 },
+  quizQuestion: { fontSize: 17, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1.7 },
   quizQuestionMobile: { fontSize: 15 },
   quizOptionButton: {
     width: '100%',
     textAlign: 'left',
-    border: '1px solid #cbd5e1',
+    border: '1px solid var(--color-border)',
     borderRadius: 12,
     padding: '12px 14px',
     fontSize: 15,
@@ -127,19 +128,19 @@ const styles = {
   quizOptionButtonMobile: { fontSize: 14, padding: '11px 12px' },
   primaryButton: {
     border: 'none',
-    background: 'linear-gradient(135deg, #2563eb 0%, #7c3aed 100%)',
-    color: '#fff',
+    background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
+    color: 'var(--color-surface)',
     fontWeight: 800,
     padding: '12px 18px',
     borderRadius: 12,
     cursor: 'pointer',
-    boxShadow: '0 10px 24px rgba(37,99,235,0.22)'
+    boxShadow: '0 10px 24px rgba(var(--color-primary-rgb),0.22)'
   },
   primaryButtonMobile: { width: '100%', fontSize: 15, padding: '13px 14px' },
   secondaryButton: {
-    border: '1px solid #cbd5e1',
-    background: '#fff',
-    color: '#334155',
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text)',
     fontWeight: 700,
     padding: '12px 18px',
     borderRadius: 12,

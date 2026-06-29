@@ -1,7 +1,7 @@
 const modeConfig = {
-  understand: { label: '이해 모드', color: '#1d4ed8', bg: '#dbeafe' },
-  inquiry: { label: '탐구 모드', color: '#047857', bg: '#d1fae5' },
-  presentation: { label: '발표 준비 모드', color: '#7c3aed', bg: '#ede9fe' }
+  understand: { label: '이해 모드', color: 'var(--color-primary-dark)', bg: 'color-mix(in srgb, var(--color-primary) 14%, var(--color-surface))' },
+  inquiry: { label: '탐구 모드', color: 'var(--color-text)', bg: 'color-mix(in srgb, var(--color-accent-teal) 18%, var(--color-surface))' },
+  presentation: { label: '발표 준비 모드', color: 'var(--color-text)', bg: 'color-mix(in srgb, var(--color-coral) 18%, var(--color-surface))' }
 };
 
 export default function ModeBadge({ learningMode }) {
