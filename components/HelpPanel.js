@@ -128,7 +128,7 @@ const styles = {
 
   fullViewBtn: {
     border: '1.5px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
-    fontSize: 18, fontWeight: 800, padding: '7px 14px', borderRadius: 20,
+    fontSize: 12, fontWeight: 800, padding: '5px 10px', borderRadius: 20,
     cursor: 'pointer', whiteSpace: 'nowrap',
   },
   collapseBtn: {
@@ -141,13 +141,13 @@ const styles = {
   iframe: { width: '100%', height: '100%', border: 'none', display: 'block' },
 
   collapsedTab: {
-    width: 52, height: '100%', minHeight: 480,
+    width: 44, height: '100%', minHeight: 480,
     background: 'rgba(var(--color-primary-rgb),0.08)', border: '1.5px solid rgba(var(--color-primary-rgb),0.3)', borderRadius: 16,
-    color: 'var(--color-primary-dark)', fontWeight: 800, fontSize: 18, cursor: 'pointer',
+    color: 'var(--color-primary-dark)', fontWeight: 800, fontSize: 12, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   collapsedTabMobile: {
-    width: '100%', height: 'auto', minHeight: 0, padding: '10px 14px', fontSize: 16,
+    width: '100%', height: 'auto', minHeight: 0, padding: '10px 14px', fontSize: 12,
   },
   collapsedTabText: {
     writingMode: 'vertical-rl', textOrientation: 'mixed', letterSpacing: 1,

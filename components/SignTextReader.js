@@ -188,7 +188,7 @@ export default function SignTextReader({ isMobile, onExtracted, t = getUiText('k
 const s = {
   openBtn: {
     border: '1.5px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
-    fontSize: 18, fontWeight: 800, padding: '7px 14px', borderRadius: 20,
+    fontSize: 12, fontWeight: 800, padding: '5px 10px', borderRadius: 20,
     cursor: 'pointer', whiteSpace: 'nowrap',
   },
   openBtnMobile: { width: '100%' },

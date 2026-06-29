@@ -557,7 +557,6 @@ export default function Home() {
 
   const renderHeaderActions = () => (
     <div style={styles.headerActions}>
-      {renderSavedTopicChips()}
       <button style={styles.goHomeBtn} onClick={handleGoHome}>
         {t.goHome}
       </button>
@@ -599,6 +598,7 @@ export default function Home() {
                 actions={renderHeaderActions()}
                 topSlot={cardLogoSlot}
               >
+                {renderSavedTopicChips()}
                 {!showLanding && renderLeftPanelTabs()}
 
                 {/* 조사 주제 + 언어 선택 */}
@@ -676,6 +676,7 @@ export default function Home() {
                   title={leftPanelTitle} icon="" isMobile={isMobile}
                   actions={renderHeaderActions()}
                 >
+                  {renderSavedTopicChips()}
                   {renderLeftPanelTabs()}
 
                   <div ref={chatBoxRef} style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
@@ -827,7 +828,7 @@ const styles = {
   container: { maxWidth: 1680, margin: '0 auto' },
   languageBarSelect: {
     minWidth: 180, border: '1px solid var(--color-border)', borderRadius: 12,
-    padding: '12px 14px', fontSize: 18, outline: 'none', background: 'var(--color-surface)', boxSizing: 'border-box',
+    padding: '10px 12px', fontSize: 12, outline: 'none', background: 'var(--color-surface)', boxSizing: 'border-box',
   },
 
   centeredLayout: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
@@ -847,7 +848,7 @@ const styles = {
   leftPanelTab: {
     border: 'none', background: 'transparent', color: 'var(--color-text-sub)',
     borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
-    fontWeight: 800, fontSize: 18,
+    fontWeight: 800, fontSize: 12,
   },
   leftPanelTabActive: {
     background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
@@ -883,14 +884,14 @@ const styles = {
   primaryBtn: {
     border: 'none', background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
     color: 'var(--color-surface)', fontWeight: 800, padding: '12px 20px', borderRadius: 12,
-    cursor: 'pointer', boxShadow: '0 10px 24px rgba(var(--color-primary-rgb),0.22)', fontSize: 18,
+    cursor: 'pointer', boxShadow: '0 10px 24px rgba(var(--color-primary-rgb),0.22)', fontSize: 12,
   },
-  primaryBtnMobile: { width: '100%', fontSize: 16, padding: '13px 14px' },
+  primaryBtnMobile: { width: '100%', fontSize: 12, padding: '13px 14px' },
 
   reopenBtn: {
     border: '2px solid var(--color-primary)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
     fontWeight: 800, padding: '12px 20px', borderRadius: 12,
-    cursor: 'pointer', fontSize: 18,
+    cursor: 'pointer', fontSize: 12,
   },
 
   chatBox:       { height: 460, overflowY: 'auto', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 14, marginBottom: 12 },
@@ -900,12 +901,12 @@ const styles = {
 
   chipsWrap: {
     display: 'flex', alignItems: 'center', gap: 5,
-    flexWrap: 'nowrap', overflowX: 'auto',
-    width: '100%', maxWidth: 520, paddingBottom: 2,
+    flexWrap: 'wrap',
+    width: '100%', marginBottom: 12,
   },
   chip: {
     border: '1.5px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
-    fontSize: 18, fontWeight: 800, padding: '7px 14px', borderRadius: 20,
+    fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s'
   },
   chipActive: { background: 'var(--color-primary)', border: '1.5px solid var(--color-primary)', color: 'var(--color-surface)' },
@@ -913,7 +914,7 @@ const styles = {
   headerActions: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
   goHomeBtn: {
     border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-sub)',
-    fontSize: 18, fontWeight: 800, padding: '7px 14px', borderRadius: 20,
+    fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s',
   },
 };

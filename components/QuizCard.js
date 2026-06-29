@@ -131,22 +131,22 @@ const styles = {
     background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
     color: 'var(--color-surface)',
     fontWeight: 800,
-    fontSize: 18,
+    fontSize: 12,
     padding: '12px 18px',
     borderRadius: 12,
     cursor: 'pointer',
     boxShadow: '0 10px 24px rgba(var(--color-primary-rgb),0.22)'
   },
-  primaryButtonMobile: { width: '100%', fontSize: 16, padding: '13px 14px' },
+  primaryButtonMobile: { width: '100%', fontSize: 12, padding: '13px 14px' },
   secondaryButton: {
     border: '1px solid var(--color-border)',
     background: 'var(--color-surface)',
     color: 'var(--color-text)',
     fontWeight: 700,
-    fontSize: 18,
+    fontSize: 12,
     padding: '12px 18px',
     borderRadius: 12,
     cursor: 'pointer'
   },
-  secondaryButtonMobile: { width: '100%', fontSize: 16, padding: '13px 14px' }
+  secondaryButtonMobile: { width: '100%', fontSize: 12, padding: '13px 14px' }
 };
