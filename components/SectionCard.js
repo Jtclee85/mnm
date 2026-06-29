@@ -25,7 +25,7 @@ const styles = {
     background: 'var(--color-surface)',
     border: '1px solid var(--color-border)',
     borderRadius: 20,
-    boxShadow: '0 10px 30px rgba(var(--color-text-rgb), 0.06)',
+    boxShadow: '0 2px 8px rgba(var(--color-text-rgb), 0.08)',
     overflow: 'hidden'
   },
   sectionCardMobile: { borderRadius: 16 },

@@ -247,7 +247,7 @@ export default function ResultCanvas({
             onClick={() => onTabClick(value)}
             disabled={loadingMode !== null && loadingMode !== value}
           >
-            <span style={{ fontSize: 14 }}>{icon}</span>
+            <span style={{ fontSize: 16 }}>{icon}</span>
             {t[labelKey]}
             {loadingMode === value && <span style={s.tabSpinner} />}
           </button>
@@ -301,7 +301,7 @@ const s = {
   canvas: {
     display: 'flex', flexDirection: 'column',
     background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-    borderRadius: 20, boxShadow: '0 10px 30px rgba(var(--color-text-rgb),0.08)',
+    borderRadius: 20, boxShadow: '0 2px 8px rgba(var(--color-text-rgb),0.08)',
     overflow: 'hidden',
     height: 'calc(100vh - 48px)', position: 'sticky', top: 24, alignSelf: 'start',
   },
@@ -318,14 +318,14 @@ const s = {
   headerTitle: { fontWeight: 800, fontSize: 14, color: 'var(--color-text)', flex: 1 },
   headerLanguageSelect: {
     border: '1px solid rgba(var(--color-primary-rgb),0.25)', background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
-    borderRadius: 9, padding: '5px 6px', fontSize: 11, fontWeight: 800,
-    outline: 'none', cursor: 'pointer', width: 96, flexShrink: 0,
+    borderRadius: 9, padding: '6px 8px', fontSize: 18, fontWeight: 800,
+    outline: 'none', cursor: 'pointer', width: 140, flexShrink: 0,
   },
   toolBar: { display: 'flex', gap: 5, alignItems: 'center' },
   toolBtn: {
     border: '1px solid rgba(var(--color-primary-rgb),0.25)', background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
-    padding: '5px 8px', borderRadius: 9, cursor: 'pointer',
-    fontWeight: 800, fontSize: 11, whiteSpace: 'nowrap',
+    padding: '7px 12px', borderRadius: 9, cursor: 'pointer',
+    fontWeight: 800, fontSize: 18, whiteSpace: 'nowrap',
   },
   tip: {
     position: 'absolute', top: 'calc(100% + 6px)', left: '50%',
@@ -353,8 +353,8 @@ const s = {
   },
   tab: {
     flex: 1, border: 'none', background: 'transparent',
-    color: 'var(--color-text-sub)', fontWeight: 700, fontSize: 12,
-    padding: '9px 4px', cursor: 'pointer',
+    color: 'var(--color-text-sub)', fontWeight: 700, fontSize: 18,
+    padding: '12px 6px', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
     borderBottom: '2px solid transparent', transition: 'all 0.15s ease',
   },
@@ -381,7 +381,7 @@ const s = {
   md: { color: 'var(--color-text)', lineHeight: 1.8, fontSize: 15 },
   smallBtn: {
     border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)',
-    fontWeight: 700, padding: '7px 11px', borderRadius: 9, cursor: 'pointer', fontSize: 13,
+    fontWeight: 700, padding: '8px 14px', borderRadius: 9, cursor: 'pointer', fontSize: 18,
   },
   bigTitle: {
     fontSize: 19, fontWeight: 900, color: 'var(--color-text)',
@@ -390,7 +390,7 @@ const s = {
   },
   qBtn: {
     border: '1px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.06)', color: 'var(--color-primary-dark)',
-    padding: '9px 12px', borderRadius: 12, cursor: 'pointer',
-    fontWeight: 700, textAlign: 'left', fontSize: 14,
+    padding: '10px 14px', borderRadius: 12, cursor: 'pointer',
+    fontWeight: 700, textAlign: 'left', fontSize: 18,
   },
 };

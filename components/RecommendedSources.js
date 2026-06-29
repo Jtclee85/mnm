@@ -63,9 +63,9 @@ const styles = {
   card: {
     display: 'flex', alignItems: 'center', gap: 10,
     background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 14,
-    padding: '12px 14px', minHeight: 60, boxSizing: 'border-box',
+    padding: '12px 14px', minHeight: 68, boxSizing: 'border-box',
     textDecoration: 'none', color: 'inherit', outline: 'none',
-    boxShadow: '0 4px 14px rgba(var(--color-text-rgb),0.05)', transition: 'all 0.15s ease',
+    boxShadow: '0 2px 8px rgba(var(--color-text-rgb),0.08)', transition: 'all 0.15s ease',
   },
   cardActive: {
     border: '1px solid var(--color-primary)', boxShadow: '0 8px 20px rgba(var(--color-primary-rgb),0.14)', transform: 'translateY(-1px)',
@@ -77,7 +77,7 @@ const styles = {
     fontWeight: 800, fontSize: 15,
   },
   textCol: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
-  name: { fontSize: 14, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1.3 },
+  name: { fontSize: 18, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1.3 },
   org:  { fontSize: 12, color: 'var(--color-text-sub)', fontWeight: 600 },
   tipInline: { fontSize: 12, color: 'var(--color-text-sub)', lineHeight: 1.45, marginTop: 2 },
 

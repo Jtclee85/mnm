@@ -22,7 +22,7 @@
   --color-coral: #F47B6E;         /* 강조2: 경고/포인트 액션, 알림 (텍스트는 항상 --color-text) */
   --color-coral-rgb: 244, 123, 110;
 
-  --color-bg: #F7F3E9;            /* 페이지 배경 (아이보리) */
+  --color-bg: #F2EDDF;            /* 페이지 배경 (아이보리) — 카드(--color-surface)와의 대비를 위해 한 톤 낮춤 */
   --color-surface: #FFFFFF;       /* 카드/캔버스 배경 */
   --color-surface-rgb: 255, 255, 255;
   --color-surface-alt: #FCFBF6;   /* 카드 헤더 등 살짝 톤다운된 표면 */
@@ -93,20 +93,21 @@ body {
 
 .user-bubble {
   align-self: flex-end;
-  background-color: #DDEEFE;
-  color: #333;
+  background-color: rgba(var(--color-primary-rgb), 0.10);
+  color: var(--color-text);
 }
 
 .assistant-bubble {
   align-self: flex-start;
-  background-color: #FFFFFF;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
 }
 
 /* ✨ [수정됨] 이름표 스타일 */
 .speaker-name {
   font-size: 1.35rem; /* 0.9rem에서 1.5배 증가 */
   font-weight: bold;
-  color: #555;
+  color: var(--color-text-sub);
   margin-bottom: 4px;
   padding: 0 8px;
 }
@@ -126,7 +127,7 @@ textarea {
 
 textarea::placeholder {
   font-family: 'Pretendard', sans-serif;
-  color: #999;
+  color: var(--color-text-sub);
 }
 
 /* 프로필 사진 스타일 */
@@ -134,7 +135,7 @@ textarea::placeholder {
   width: 60px;
   height: 60px;
   border-radius: 50%;
-  background-color: #fff;
+  background-color: var(--color-surface);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -189,19 +190,19 @@ textarea::placeholder {
 
 .btn-primary {
   flex: 1;
-  background-color: #FDD835;
-  color: black;
+  background-color: var(--color-primary);
+  color: var(--color-surface);
   font-size: 1.1rem;
 }
 
 .btn-secondary {
-  background-color: #8D8741;
-  color: white;
+  background-color: var(--color-accent-teal);
+  color: var(--color-text);
 }
 
 .btn-tertiary {
-  background-color: #f0f0f0;
-  border: 1px solid #ccc;
+  background-color: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
   font-size: 0.9rem;
   padding: 8px;
   font-family: 'Pretendard', sans-serif;
