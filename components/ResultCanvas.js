@@ -36,9 +36,11 @@ export default function ResultCanvas({
   isMobile, onQuestionAsk, t = getUiText('ko'),
   language, onLanguageChange,
   topic,
+  onOpenWorksheet, isWorksheetActive,
 }) {
   const [hoveredTool, setHoveredTool] = useState(null);
-  const [isWorksheetOpen, setIsWorksheetOpen] = useState(false);
+  // 모바일 전용 — 데스크탑은 왼쪽 패널에서 워크시트를 열기 때문에(onOpenWorksheet) 이 state는 쓰지 않음
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const canvasRef    = useRef(null);
   const canvasBodyRef = useRef(null);
   const quizCardRef   = useRef(null);
@@ -316,6 +318,15 @@ export default function ResultCanvas({
 
       {/* ── Tabs + Worksheet button ── */}
       <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg)', flexShrink: 0 }}>
+        <button
+          data-testid="worksheet-toggle-button"
+          onClick={() => (isMobile ? setIsMobileSheetOpen(true) : onOpenWorksheet?.())}
+          aria-expanded={isMobile ? isMobileSheetOpen : !!isWorksheetActive}
+          aria-label="생각 워크시트 열기"
+          style={{ ...s.worksheetBtn, ...((!isMobile && isWorksheetActive) ? s.worksheetBtnActive : {}) }}
+        >
+          ✏️{!isMobile && ' 생각 워크시트'}
+        </button>
         <div style={{ display: 'flex', flex: 1 }}>
           {TAB_OPTIONS.map(({ value, labelKey, icon }) => (
             <button
@@ -333,14 +344,6 @@ export default function ResultCanvas({
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setIsWorksheetOpen(true)}
-          aria-expanded={isWorksheetOpen}
-          aria-label="생각 워크시트 열기"
-          style={s.worksheetBtn}
-        >
-          ✏️{!isMobile && ' 생각 워크시트'}
-        </button>
       </div>
 
       {/* ── Body ── */}
@@ -382,17 +385,22 @@ export default function ResultCanvas({
           )}
         </div>
       </div>
-      <ThinkingWorksheetDrawer
-        isOpen={isWorksheetOpen}
-        onClose={() => setIsWorksheetOpen(false)}
-        topic={topic}
-        activeMode={activeMode}
-        notes={notes}
-        updateNote={updateNote}
-        saveStatus={saveStatus}
-        onShare={handleShare}
-        isMobile={isMobile}
-      />
+      {/* 데스크탑은 왼쪽 패널에서 워크시트를 열기 때문에(index.js의 leftPanelTab) 여기서는
+          모바일 바텀시트만 렌더링한다 — 오른쪽 결과 카드를 가리지 않기 위함 */}
+      {isMobile && (
+        <ThinkingWorksheetDrawer
+          variant="sheet"
+          isOpen={isMobileSheetOpen}
+          onClose={() => setIsMobileSheetOpen(false)}
+          topic={topic}
+          activeMode={activeMode}
+          notes={notes}
+          updateNote={updateNote}
+          saveStatus={saveStatus}
+          onShare={handleShare}
+          isMobile={isMobile}
+        />
+      )}
     </div>
   );
 }
@@ -460,11 +468,14 @@ const s = {
   },
   tabActive: { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-surface)' },
   worksheetBtn: {
-    border: 'none', borderLeft: '1px solid var(--color-border)',
+    border: 'none', borderRight: '1px solid var(--color-border)',
     background: 'var(--color-surface-alt)', color: 'var(--color-primary-dark)',
     fontWeight: 800, fontSize: 11, padding: '8px 10px',
     cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
     transition: 'background 0.15s',
+  },
+  worksheetBtnActive: {
+    background: 'rgba(var(--color-primary-rgb),0.12)', color: 'var(--color-primary-dark)',
   },
   tabSpinner: {
     display: 'inline-block', width: 9, height: 9,

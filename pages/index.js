@@ -9,6 +9,7 @@ import ResultCanvas from '../components/ResultCanvas';
 import RecommendedSources from '../components/RecommendedSources';
 import HelpPanel from '../components/HelpPanel';
 import SignTextReader from '../components/SignTextReader';
+import ThinkingWorksheetDrawer from '../components/ThinkingWorksheetDrawer';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
@@ -550,6 +551,13 @@ export default function Home() {
       >
         {t.chatTab}
       </button>
+      <button
+        data-testid="left-panel-tab-worksheet"
+        style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'worksheet' ? styles.leftPanelTabActive : {}) }}
+        onClick={() => setLeftPanelTab('worksheet')}
+      >
+        ✏️ 생각 워크시트
+      </button>
     </div>
   );
 
@@ -730,6 +738,26 @@ export default function Home() {
                 </SectionCard>
               </div>
               )}
+
+              {/* 생각 워크시트 — 오른쪽 분석 결과를 가리지 않도록 왼쪽 패널(대화/조사자료) 자리에 임베드 */}
+              {leftPanelTab === 'worksheet' && (
+                <div data-testid="worksheet-panel-section">
+                  {renderSavedTopicChips()}
+                  {renderLeftPanelTabs()}
+                  <ThinkingWorksheetDrawer
+                    variant="panel"
+                    isOpen={true}
+                    onClose={() => setLeftPanelTab('chat')}
+                    topic={lastAnalyzedTopic}
+                    activeMode={activeMode}
+                    notes={notes}
+                    updateNote={updateNote}
+                    saveStatus={saveStatus}
+                    onShare={handleShare}
+                    isMobile={isMobile}
+                  />
+                </div>
+              )}
             </div>
   );
 
@@ -760,6 +788,8 @@ export default function Home() {
       language={language}
       onLanguageChange={handleLanguageChange}
       topic={lastAnalyzedTopic}
+      onOpenWorksheet={() => setLeftPanelTab('worksheet')}
+      isWorksheetActive={leftPanelTab === 'worksheet'}
     />
   );
 
@@ -868,14 +898,14 @@ const styles = {
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftPanelTabs: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
+    display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: 4,
     background: 'var(--color-bg)', border: '1px solid var(--color-border)',
     borderRadius: 12, padding: 4, marginBottom: 18,
   },
   leftPanelTab: {
     border: 'none', background: 'transparent', color: 'var(--color-text-sub)',
-    borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
-    fontWeight: 800, fontSize: 12,
+    borderRadius: 8, padding: '9px 8px', cursor: 'pointer',
+    fontWeight: 800, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   leftPanelTabActive: {
     background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
