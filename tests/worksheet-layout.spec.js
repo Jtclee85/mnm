@@ -74,8 +74,8 @@ test.describe('뭐냐면 — 생각 워크시트 위치/열림 방식 (데스크
     const leftPanel = page.getByTestId('left-panel');
     await expect(leftPanel.getByText('생각 워크시트', { exact: true })).toBeVisible();
     await expect(leftPanel.getByText('기초 이해')).toBeVisible();
-    await expect(leftPanel.getByText('근거 찾기')).toBeVisible();
-    await expect(leftPanel.getByText('깊이 생각')).toBeVisible();
+    await expect(leftPanel.getByText('자료에서 증거 찾기')).toBeVisible();
+    await expect(leftPanel.getByText('생각 넓히기')).toBeVisible();
     await expect(leftPanel.getByText('발표 준비')).toBeVisible();
     await expect(leftPanel.getByText('글쓰기 개요')).toBeVisible();
   });

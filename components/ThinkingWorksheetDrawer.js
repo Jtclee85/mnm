@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 
 const ACTIVITIES = [
-  { id: 'basic',        label: '기초 이해',   icon: '🧒' },
-  { id: 'evidence',     label: '근거 찾기',   icon: '🔍' },
-  { id: 'deep',         label: '깊이 생각',   icon: '💡' },
-  { id: 'presentation', label: '발표 준비',   icon: '🎤' },
-  { id: 'writing',      label: '글쓰기 개요', icon: '✏️' },
+  { id: 'basic',        label: '기초 이해',          icon: '🧒' },
+  { id: 'evidence',     label: '자료에서 증거 찾기', icon: '🔍', desc: '내 생각을 자료 속 증거로 뒷받침해 보세요.' },
+  { id: 'deep',         label: '생각 넓히기',        icon: '💡', desc: '질문을 붙잡고, 내 생각이 어떻게 달라졌는지 정리해 보세요.' },
+  { id: 'presentation', label: '발표 준비',          icon: '🎤' },
+  { id: 'writing',      label: '글쓰기 개요',        icon: '✏️' },
 ];
 
 const MODE_RECOMMENDED = {
@@ -43,17 +43,46 @@ const ACTIVITY_FIELDS = {
     { key: 'ws_basic_learned',  label: '새롭게 알게 된 점은 무엇인가요?',     placeholder: '"아, 이건 몰랐는데!" 싶었던 점을 써 보세요.' },
     { key: 'ws_basic_confused', label: '아직 헷갈리는 점은 무엇인가요?',      placeholder: '이해가 잘 안 되거나 더 알고 싶은 점을 써 보세요.' },
   ],
+  // 주장(내 생각) → 증거(자료) → 연결(까닭) → 다시쓰기(내 문장) 구조.
+  // 자료를 베끼는 활동이 아니라, 내 생각을 자료로 뒷받침하는 활동임을 필드 순서로 보여준다.
   evidence: [
-    { key: 'ws_ev_thought', label: '내 생각',              placeholder: '이 주제에 대해 내가 생각하는 것은...' },
-    { key: 'ws_ev_reason',  label: '그렇게 생각한 까닭',   placeholder: '내가 이렇게 생각한 이유는...' },
-    { key: 'ws_ev_e1',      label: '자료에서 찾은 근거 1', placeholder: '자료에서 내 생각을 뒷받침하는 내용을 찾아보세요.' },
-    { key: 'ws_ev_e2',      label: '자료에서 찾은 근거 2', placeholder: '또 다른 근거가 있으면 써 보세요.' },
+    { key: 'ws_ev_claim',      label: '1. 내가 말하고 싶은 생각',
+      frame: '나는 __________라고 생각한다.',
+      placeholder: '예: 나는 이 유적이 옛사람들의 생활을 알려 준다고 생각한다.' },
+    { key: 'ws_ev_evidence1',  label: '2. 자료에서 찾은 증거 1',
+      frame: '자료에는 “__________”라고 나와 있다.',
+      placeholder: '자료에 나온 말이나 내용을 찾아 써 보세요.' },
+    { key: 'ws_ev_evidence2',  label: '2. 자료에서 찾은 증거 2',
+      frame: '자료에는 “__________”라고 나와 있다.',
+      placeholder: '또 다른 증거가 있다면 찾아 써 보세요.' },
+    { key: 'ws_ev_connection', label: '3. 이 증거가 내 생각과 이어지는 까닭',
+      frame: '이 말은 __________을 보여 주기 때문이다.',
+      placeholder: '이 증거가 왜 내 생각을 뒷받침하는지 써 보세요.' },
+    { key: 'ws_ev_final',      label: '4. 내 문장으로 다시 쓰기',
+      frame: '그래서 나는 __________라고 설명할 수 있다.',
+      placeholder: '내 생각과 증거를 이어서 한 문장으로 정리해 보세요.' },
   ],
+  // 탐구모드 결과를 그대로 옮겨 적는 칸이 아니라, 질문을 붙잡고 내 생각이
+  // 처음 → 자료 확인 → 깊어짐 → 불확실함 → 다음 질문으로 나아가는 과정을 쓰게 한다.
   deep: [
-    { key: 'ws_deep_question', label: '내가 고른 질문',      placeholder: '탐구 질문 중 가장 알고 싶은 질문을 써 보세요.' },
-    { key: 'ws_deep_thought',  label: '나의 생각',            placeholder: '그 질문에 대해 내가 생각하는 답이나 의견을 써 보세요.' },
-    { key: 'ws_deep_reason',   label: '그렇게 생각한 까닭',  placeholder: '왜 그렇게 생각했는지 이유를 써 보세요.' },
-    { key: 'ws_deep_further',  label: '더 알아보고 싶은 점', placeholder: '더 조사하고 싶은 것이 있다면 써 보세요.' },
+    { key: 'ws_deep_question',  label: '1. 내가 고른 질문',
+      frame: '내가 더 생각해 보고 싶은 질문은 __________이다.',
+      placeholder: '탐구하고 싶은 질문을 써 보세요.' },
+    { key: 'ws_deep_first',     label: '2. 처음 떠오른 내 생각',
+      frame: '처음에는 __________라고 생각했다.',
+      placeholder: '자료를 자세히 보기 전에 떠오른 생각을 써 보세요.' },
+    { key: 'ws_deep_learned',   label: '3. 자료를 보고 알게 된 점',
+      frame: '자료에서 __________을 알 수 있었다.',
+      placeholder: '자료에서 새롭게 확인한 내용을 써 보세요.' },
+    { key: 'ws_deep_changed',   label: '4. 생각이 더 깊어진 점',
+      frame: '그래서 이제는 __________라고 생각한다.',
+      placeholder: '자료를 보고 생각이 어떻게 달라졌거나 더 자세해졌는지 써 보세요.' },
+    { key: 'ws_deep_uncertain', label: '5. 아직 확실하지 않은 점',
+      frame: '하지만 __________은 아직 더 알아봐야 한다.',
+      placeholder: '더 찾아봐야 할 점이나 아직 헷갈리는 점을 써 보세요.' },
+    { key: 'ws_deep_next',      label: '6. 더 찾아보고 싶은 질문',
+      frame: '다음에는 __________을 더 알아보고 싶다.',
+      placeholder: '다음에 더 조사하고 싶은 질문을 써 보세요.' },
   ],
   presentation: [
     { key: 'ws_pres_core', label: '내 발표의 핵심 메시지',          placeholder: '친구들에게 꼭 전달하고 싶은 한 가지 메시지는?' },
@@ -76,6 +105,19 @@ const ACTIVITY_FIELDS = {
 function getDefaultActivity(activeMode) {
   return (MODE_RECOMMENDED[activeMode] || ['basic'])[0];
 }
+
+// 근거 찾기/깊이 생각 → 자료에서 증거 찾기/생각 넓히기 개편으로 필드 key가
+// 바뀐 항목들의 기존 저장값을 새 key로 옮긴다. 정확히 같은 의미가 아니라도
+// 가장 가까운 새 필드로 보존해 데이터가 사라지지 않게 한다.
+const LEGACY_FIELD_MIGRATIONS = [
+  ['ws_ev_thought', 'ws_ev_claim'],
+  ['ws_ev_e1', 'ws_ev_evidence1'],
+  ['ws_ev_e2', 'ws_ev_evidence2'],
+  ['ws_ev_reason', 'ws_ev_connection'],
+  ['ws_deep_thought', 'ws_deep_first'],
+  ['ws_deep_reason', 'ws_deep_changed'],
+  ['ws_deep_further', 'ws_deep_next'],
+];
 
 const REDUCED_MOTION_CSS = `
   @media (prefers-reduced-motion: reduce) {
@@ -131,6 +173,16 @@ export default function ThinkingWorksheetDrawer({
     return () => cancelAnimationFrame(id);
   }, [isOpen]);
 
+  // 기존 근거 찾기/깊이 생각 저장값을 새 필드 key로 1회 이전 (데이터 보존)
+  useEffect(() => {
+    if (!notes) return;
+    LEGACY_FIELD_MIGRATIONS.forEach(([oldKey, newKey]) => {
+      if (notes[oldKey] && !notes[newKey]) {
+        updateNote(newKey, notes[oldKey]);
+      }
+    });
+  }, [notes, updateNote]);
+
   const handleActivitySelect = (id) => {
     setSelectedActivity(id);
     updateNote('ws_selected_activity', id);
@@ -155,6 +207,7 @@ export default function ThinkingWorksheetDrawer({
   const hint = MODE_HINTS[activeMode];
   const modeLabel = MODE_LABELS[activeMode] || '';
   const isPanel = variant === 'panel';
+  const activityMeta = ACTIVITIES.find(a => a.id === selectedActivity);
 
   const body = (
     <>
@@ -275,9 +328,21 @@ export default function ThinkingWorksheetDrawer({
           </div>
         </div>
 
+        {/* Activity-specific guidance — 이 활동에서 무엇을 해야 하는지 한 줄로 안내 */}
+        {activityMeta?.desc && (
+          <p style={{
+            margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--color-primary-dark)',
+            background: 'rgba(var(--color-primary-rgb),0.08)',
+            border: '1px solid rgba(var(--color-primary-rgb),0.25)',
+            borderRadius: 8, padding: '8px 12px', lineHeight: 1.6,
+          }}>
+            {activityMeta.desc}
+          </p>
+        )}
+
         {/* Input fields */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 15, marginBottom: 24 }}>
-          {fields.map(({ key, label, placeholder }) => (
+          {fields.map(({ key, label, frame, placeholder }) => (
             <div key={key}>
               <label style={{
                 display: 'block', fontSize: 13, fontWeight: 800,
@@ -285,6 +350,14 @@ export default function ThinkingWorksheetDrawer({
               }}>
                 {label}
               </label>
+              {frame && (
+                <div style={{
+                  fontSize: 12, color: 'var(--color-text-sub)', marginBottom: 6,
+                  lineHeight: 1.5, fontStyle: 'italic',
+                }}>
+                  {frame}
+                </div>
+              )}
               <textarea
                 value={notes?.[key] || ''}
                 onChange={e => updateNote(key, e.target.value)}
