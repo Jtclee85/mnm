@@ -112,8 +112,9 @@ export default function Home() {
 
     const anyResult = session.analysisByMode &&
       Object.values(session.analysisByMode).some(r =>
-        r?.easy || r?.summaryLines?.length || r?.keywordLines?.length ||
-        r?.presentationTitle || r?.writingOutline
+        r?.easy || r?.understandingSentence || r?.summaryLines?.length || r?.keywordLines?.length ||
+        r?.inquiryQuestions ||
+        r?.presentationTitle || r?.presentationMessages || r?.writingOutline
       );
     setCanvasOpen(!!anyResult);
     setLeftPanelTab(anyResult ? 'chat' : 'source');
@@ -306,8 +307,9 @@ export default function Home() {
   // ── 탭 클릭 ──
   const hasModeResult = (mode) => {
     const r = analysisByMode[mode];
-    return !!(r?.easy || r?.summaryLines?.length || r?.keywordLines?.length ||
-      r?.presentationTitle || r?.writingOutline);
+    return !!(r?.easy || r?.understandingSentence || r?.summaryLines?.length || r?.keywordLines?.length ||
+      r?.inquiryQuestions ||
+      r?.presentationTitle || r?.presentationMessages || r?.writingOutline);
   };
 
   const handleTabClick = async (mode) => {
@@ -494,22 +496,36 @@ export default function Home() {
     const w = analysisByMode.writing       || {};
     return [
       `${t.topicLabel}: ${topic}`, '',
-      `[${t.easyTitle}]`,        u.easy || '',        '',
-      `[${t.summaryTitle}]`,    ...(u.summaryLines   || []), '',
-      `[${t.keywordsTitle}]`,        ...(i.keywordLines   || []), '',
-      `[${t.vocabularyTitle}]`, ...(u.vocabularyLines || []), '',
-      `[${t.questionsTitle}]`,        ...(i.questionLines  || []), '',
-      `[${t.searchesTitle}]`,      ...(i.searchLines    || []), '',
-      `[${t.presentationTitle}]`,         p.presentationTitle  || '',  '',
-      `[${t.presentationScriptTitle}]`,     ...(p.presentationScriptLines || []), '',
-      `[${t.writingOutlineTitle}]`,       w.writingOutline     || ''
+      `[${t.understandSentenceTitle}]`, u.understandingSentence || u.easy || '', '',
+      `[${t.understandEasyFullTitle}]`, u.easy || '', '',
+      `[${t.understandVocabularyRoleTitle}]`, u.understandingVocabulary || (u.vocabularyLines || []).join('\n'), '',
+      `[${t.understandReadingTitle}]`, u.understandingReading || (u.summaryLines || []).join('\n'), '',
+      `[${t.understandMisconceptionsTitle}]`, ...(u.understandingMisconceptionLines || []), '',
+      `[${t.understandCheckTitle}]`, ...(u.understandingCheckLines?.length > 0 ? u.understandingCheckLines : (u.reteachLines || [])), '',
+      `[${t.inquiryQuestionsTitle}]`, i.inquiryQuestions || (i.questionLines || []).join('\n'), '',
+      `[${t.inquiryQuestionGuideTitle}]`, ...(i.inquiryQuestionGuideLines?.length > 0 ? i.inquiryQuestionGuideLines : (t.inquiryQuestionGuideItems || [])), '',
+      `[${t.presentationMessagesTitle}]`, p.presentationMessages || p.presentationTitle || '',  '',
+      `[${t.presentationAudienceTitle}]`, ...(p.presentationAudienceLines || []), '',
+      `[${t.presentationFlowTitle}]`, p.presentationFlow || '', '',
+      `[${t.presentationEvidenceTitle}]`, ...(p.presentationEvidenceLines || []), '',
+      `[${t.presentationQuestionsTitle}]`, p.presentationQuestions || (p.expectedQuestionLines || []).join('\n'), '',
+      `[${t.presentationVisualPlanTitle}]`, p.presentationVisualPlan || '', '',
+      `[${t.presentationTemplatesTitle}]`, ...(p.presentationTemplateLines?.length > 0 ? p.presentationTemplateLines : (p.presentationScriptLines || [])), '',
+      `[${t.presentationChecklistTitle}]`, ...(p.presentationChecklistLines || []), '',
+      `[${t.writingTopicSentencesTitle}]`, w.writingTopicSentences || '', '',
+      `[${t.writingSupportTitle}]`, w.writingSupportDirections || '', '',
+      `[${t.writingEvidenceTitle}]`, ...(w.writingEvidenceLines || []), '',
+      `[${t.writingTemplatesTitle}]`, ...(w.writingTemplateLines || []), '',
+      `[${t.writingOutlineTitle}]`,       w.writingOutline     || '', '',
+      `[${t.writingChecklistTitle}]`, ...(w.writingChecklistLines || [])
     ].join('\n');
   };
 
   // 재오픈 버튼 표시 여부
   const hasAnyResult = Object.values(analysisByMode).some(r =>
-    r?.easy || r?.summaryLines?.length || r?.keywordLines?.length ||
-    r?.presentationTitle || r?.writingOutline
+    r?.easy || r?.understandingSentence || r?.summaryLines?.length || r?.keywordLines?.length ||
+    r?.inquiryQuestions ||
+    r?.presentationTitle || r?.presentationMessages || r?.writingOutline
   );
 
   // 아직 분석을 시작하지 않은 진짜 첫 랜딩 상태 — 추천 원본자료 사이드바를 보여줄 시점
@@ -805,8 +821,18 @@ const makeInitialMessage = (t) => ({
 const EMPTY_MODE_RESULT = {
   easy: '', summaryLines: [], keywordLines: [], vocabularyLines: [],
   questionLines: [], searchLines: [], reteachLines: [], furtherLines: [],
+  understandingSentence: '', understandingVocabulary: '', understandingReading: '',
+  understandingChecklistLines: [], understandingMisconceptionLines: [],
+  understandingCheckLines: [], inquiryQuestions: '', inquiryQuestionGuideLines: [], inquiryRefine: '',
+  inquiryClues: '', inquiryCompare: '', inquiryEvidenceInference: '',
+  inquirySearches: '', inquiryCard: '',
   presentationTitle: '', presentationScriptLines: [], presentationOrderLines: [],
-  expectedQuestionLines: [], writingOutline: ''
+  presentationMessages: '', presentationAudienceLines: [], presentationFlow: '',
+  presentationEvidenceLines: [], presentationQuestions: '', presentationVisualPlan: '',
+  presentationTemplateLines: [], presentationChecklistLines: [],
+  expectedQuestionLines: [], writingOutline: '', writingTopicSentences: '',
+  writingSupportDirections: '', writingEvidenceLines: [], writingTemplateLines: [],
+  writingChecklistLines: []
 };
 
 const EMPTY_TOOLS = { quiz: '', evaluation: '', teacher: '' };
