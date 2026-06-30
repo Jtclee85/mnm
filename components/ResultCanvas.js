@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import SectionCard from './SectionCard';
 import BulletList from './BulletList';
 import QuizCard from './QuizCard';
-import ReflectionCard from './ReflectionCard';
+import ThinkingWorksheetDrawer from './ThinkingWorksheetDrawer';
 import WritingOutlineCard from './WritingOutlineCard';
 import WritingChecklist from './WritingChecklist';
 import WritingSectionBlocks from './WritingSectionBlocks';
@@ -11,7 +11,6 @@ import PresentationBlocks from './PresentationBlocks';
 import InlineVocabularyText from './InlineVocabularyText';
 import InquiryQuestionButtons from './InquiryQuestionButtons';
 import { copyText } from '../lib/parseResponse';
-import { getReflectionFields } from '../lib/reflectionFields';
 import { getUiText, LANGUAGE_OPTIONS } from '../lib/i18n';
 
 export const TAB_OPTIONS = [
@@ -36,9 +35,10 @@ export default function ResultCanvas({
   notes, updateNote, saveStatus, handleShare,
   isMobile, onQuestionAsk, t = getUiText('ko'),
   language, onLanguageChange,
+  topic,
 }) {
-  const REFLECTION_FIELDS = getReflectionFields(t);
   const [hoveredTool, setHoveredTool] = useState(null);
+  const [isWorksheetOpen, setIsWorksheetOpen] = useState(false);
   const canvasRef    = useRef(null);
   const canvasBodyRef = useRef(null);
   const quizCardRef   = useRef(null);
@@ -135,8 +135,6 @@ export default function ResultCanvas({
         {(result.understandingSentence || result.easy) && (
           <p style={s.coachHint}>{t.understandChatHint}</p>
         )}
-        <ReflectionCard fields={REFLECTION_FIELDS.understand} notes={notes} t={t}
-          onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
     );
 
@@ -162,8 +160,6 @@ export default function ResultCanvas({
         {(result.inquiryQuestions || result.questionLines?.length > 0) && (
           <p style={s.coachHint}>{t.inquiryChatHint}</p>
         )}
-        <ReflectionCard fields={REFLECTION_FIELDS.inquiry} notes={notes} t={t}
-          onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
     );
 
@@ -214,8 +210,6 @@ export default function ResultCanvas({
         {(result.presentationMessages || result.presentationFlow || result.presentationEvidenceLines?.length > 0) && (
           <p style={s.coachHint}>{t.presentationChatHint}</p>
         )}
-        <ReflectionCard fields={REFLECTION_FIELDS.presentation} notes={notes} t={t}
-          onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
     );
 
@@ -261,8 +255,6 @@ export default function ResultCanvas({
         {(result.writingTopicSentences || result.writingSupportDirections || result.writingOutline || result.writingEvidenceLines?.length > 0) && (
           <p style={s.writingChatHint}>{t.writingChatHint}</p>
         )}
-        <ReflectionCard fields={REFLECTION_FIELDS.writing} notes={notes} t={t}
-          onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
     );
 
@@ -322,23 +314,33 @@ export default function ResultCanvas({
         <button onClick={onClose} style={s.closeBtn} title={t.close}>✕</button>
       </div>
 
-      {/* ── Tabs ── */}
-      <div style={s.tabBar}>
-        {TAB_OPTIONS.map(({ value, labelKey, icon }) => (
-          <button
-            key={value}
-            data-testid={`mode-tab-${value}`}
-            role="tab"
-            aria-selected={activeMode === value}
-            style={{ ...s.tab, ...(activeMode === value ? s.tabActive : {}) }}
-            onClick={() => onTabClick(value)}
-            disabled={loadingMode !== null && loadingMode !== value}
-          >
-            <span style={{ fontSize: 14 }}>{icon}</span>
-            {t[labelKey]}
-            {loadingMode === value && <span style={s.tabSpinner} />}
-          </button>
-        ))}
+      {/* ── Tabs + Worksheet button ── */}
+      <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', flex: 1 }}>
+          {TAB_OPTIONS.map(({ value, labelKey, icon }) => (
+            <button
+              key={value}
+              data-testid={`mode-tab-${value}`}
+              role="tab"
+              aria-selected={activeMode === value}
+              style={{ ...s.tab, ...(activeMode === value ? s.tabActive : {}) }}
+              onClick={() => onTabClick(value)}
+              disabled={loadingMode !== null && loadingMode !== value}
+            >
+              <span style={{ fontSize: 14 }}>{icon}</span>
+              {t[labelKey]}
+              {loadingMode === value && <span style={s.tabSpinner} />}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setIsWorksheetOpen(true)}
+          aria-expanded={isWorksheetOpen}
+          aria-label="생각 워크시트 열기"
+          style={s.worksheetBtn}
+        >
+          ✏️{!isMobile && ' 생각 워크시트'}
+        </button>
       </div>
 
       {/* ── Body ── */}
@@ -380,6 +382,17 @@ export default function ResultCanvas({
           )}
         </div>
       </div>
+      <ThinkingWorksheetDrawer
+        isOpen={isWorksheetOpen}
+        onClose={() => setIsWorksheetOpen(false)}
+        topic={topic}
+        activeMode={activeMode}
+        notes={notes}
+        updateNote={updateNote}
+        saveStatus={saveStatus}
+        onShare={handleShare}
+        isMobile={isMobile}
+      />
     </div>
   );
 }
@@ -446,6 +459,13 @@ const s = {
     borderBottom: '2px solid transparent', transition: 'all 0.15s ease',
   },
   tabActive: { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-surface)' },
+  worksheetBtn: {
+    border: 'none', borderLeft: '1px solid var(--color-border)',
+    background: 'var(--color-surface-alt)', color: 'var(--color-primary-dark)',
+    fontWeight: 800, fontSize: 11, padding: '8px 10px',
+    cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+    transition: 'background 0.15s',
+  },
   tabSpinner: {
     display: 'inline-block', width: 9, height: 9,
     border: '2px solid var(--color-border)', borderTop: '2px solid var(--color-primary-dark)',

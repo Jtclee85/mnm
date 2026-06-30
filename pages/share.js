@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { decodeShareData } from '../lib/shareUtils';
 import { REFLECTION_FIELDS, MODES } from '../lib/reflectionFields';
+import { WS_ACTIVITIES_META, WS_ACTIVITY_FIELDS } from '../components/ThinkingWorksheetDrawer';
 
 export default function SharePage() {
   const router = useRouter();
@@ -77,22 +78,21 @@ function ShareContent({ data }) {
         )}
       </div>
 
-      {activeModes.length === 0 ? (
-        <div style={s.emptyNote}>
-          <p style={{ margin: 0, color: 'var(--color-text-sub)', fontSize: 15 }}>
-            작성된 성찰 내용이 없습니다.
-          </p>
-        </div>
-      ) : (
-        activeModes.map(({ key, label, icon }) => (
-          <ModeSection
-            key={key}
-            modeKey={key}
-            modeLabel={label}
-            modeIcon={icon}
-            notes={notes}
-          />
-        ))
+      <WorksheetSection notes={notes} />
+
+      {activeModes.length > 0 && (
+        <>
+          <div style={s.sectionDivider}>기존 성찰 메모</div>
+          {activeModes.map(({ key, label, icon }) => (
+            <ModeSection
+              key={key}
+              modeKey={key}
+              modeLabel={label}
+              modeIcon={icon}
+              notes={notes}
+            />
+          ))}
+        </>
       )}
 
       {/* 버튼 영역 */}
@@ -131,6 +131,43 @@ function ModeSection({ modeKey, modeLabel, modeIcon, notes }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function WorksheetSection({ notes = {} }) {
+  const filledActivities = WS_ACTIVITIES_META
+    .map(({ id, label, icon }) => {
+      const fields = WS_ACTIVITY_FIELDS[id] || [];
+      const filledFields = fields.filter(f => notes[f.key]?.trim());
+      return { id, label, icon, filledFields };
+    })
+    .filter(a => a.filledFields.length > 0);
+
+  if (filledActivities.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <div style={s.wsHeader}>
+        <span style={{ fontSize: 20 }}>✏️</span>
+        <span style={s.wsTitle}>생각 워크시트</span>
+      </div>
+      {filledActivities.map(({ id, label, icon, filledFields }) => (
+        <div key={id} style={s.wsCard}>
+          <div style={s.wsCardHeader}>
+            <span style={{ fontSize: 16 }}>{icon}</span>
+            <span style={s.wsCardLabel}>{label}</span>
+          </div>
+          <div style={s.modeBody}>
+            {filledFields.map(({ key, label: fieldLabel }) => (
+              <div key={key} style={s.fieldRow}>
+                <div style={s.fieldLabel}>{fieldLabel}</div>
+                <div style={s.fieldValue}>{notes[key]}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -297,6 +334,33 @@ const s = {
     color: 'var(--color-text-sub)',
     textAlign: 'center',
     marginTop: 8
+  },
+  sectionDivider: {
+    fontSize: 11, fontWeight: 700, color: 'var(--color-text-sub)',
+    letterSpacing: '0.06em', textTransform: 'uppercase',
+    padding: '4px 2px', marginBottom: 12, marginTop: 8,
+    borderTop: '1px solid var(--color-border)', paddingTop: 16,
+  },
+  wsHeader: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    marginBottom: 14, padding: '0 2px',
+  },
+  wsTitle: {
+    fontSize: 18, fontWeight: 900, color: 'var(--color-text)',
+  },
+  wsCard: {
+    background: 'var(--color-surface)',
+    border: '2px solid rgba(var(--color-primary-rgb),0.25)',
+    borderRadius: 16, overflow: 'hidden', marginBottom: 14,
+  },
+  wsCardHeader: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '11px 18px',
+    background: 'rgba(var(--color-primary-rgb),0.06)',
+    borderBottom: '1px solid rgba(var(--color-primary-rgb),0.15)',
+  },
+  wsCardLabel: {
+    fontSize: 15, fontWeight: 800, color: 'var(--color-primary-dark)',
   },
   // 오류 상태(빨강)는 의미 전달용이라 그대로 유지
   errorBox: {

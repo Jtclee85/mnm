@@ -478,7 +478,7 @@ export default function Home() {
   // ── 공유 URL 생성 ──
   const handleShare = () => {
     const shareData = {
-      topic: topic || t.untitled,
+      topic: lastAnalyzedTopic || topic || t.untitled,
       notes,
       sharedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
     };
@@ -759,6 +759,7 @@ export default function Home() {
       t={t}
       language={language}
       onLanguageChange={handleLanguageChange}
+      topic={lastAnalyzedTopic}
     />
   );
 
