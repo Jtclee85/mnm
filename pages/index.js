@@ -551,13 +551,6 @@ export default function Home() {
       >
         {t.chatTab}
       </button>
-      <button
-        data-testid="left-panel-tab-worksheet"
-        style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'worksheet' ? styles.leftPanelTabActive : {}) }}
-        onClick={() => setLeftPanelTab('worksheet')}
-      >
-        ✏️ 생각 워크시트
-      </button>
     </div>
   );
 
@@ -898,14 +891,14 @@ const styles = {
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftPanelTabs: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr 1.4fr', gap: 4,
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
     background: 'var(--color-bg)', border: '1px solid var(--color-border)',
     borderRadius: 12, padding: 4, marginBottom: 18,
   },
   leftPanelTab: {
     border: 'none', background: 'transparent', color: 'var(--color-text-sub)',
-    borderRadius: 8, padding: '9px 8px', cursor: 'pointer',
-    fontWeight: 800, fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
+    fontWeight: 800, fontSize: 12,
   },
   leftPanelTabActive: {
     background: 'var(--color-surface)', color: 'var(--color-primary-dark)',

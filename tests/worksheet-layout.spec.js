@@ -25,13 +25,31 @@ test.describe('뭐냐면 — 생각 워크시트 위치/열림 방식 (데스크
     await page.goto('/');
   });
 
-  test('[worksheet-position] 워크시트 버튼이 모드 탭보다 왼쪽에 있다', async ({ page }) => {
+  test('[worksheet-position] 워크시트 CTA가 모드 탭과 다른 행에 독립적으로 있다', async ({ page }) => {
     await runAnalysis(page);
     const worksheetBtn = page.getByTestId('worksheet-toggle-button');
     await expect(worksheetBtn).toBeVisible();
+    await expect(worksheetBtn).toHaveAccessibleName('생각 워크시트 완성하기');
+
     const wsBox = await worksheetBtn.boundingBox();
     const tab1Box = await page.getByTestId('mode-tab-understand').boundingBox();
-    expect(wsBox.x).toBeLessThan(tab1Box.x);
+    // 모드 탭과 같은 행(y)에 있지 않고, 그 위에 별도 행으로 떠 있다
+    expect(wsBox.y).toBeLessThan(tab1Box.y);
+  });
+
+  test('[worksheet-not-a-tab] 워크시트 CTA는 탭 역할이 아니고, 왼쪽 패널도 조사자료/대화 2탭만 남아있다', async ({ page }) => {
+    await runAnalysis(page);
+    const worksheetBtn = page.getByTestId('worksheet-toggle-button');
+    await expect(worksheetBtn).not.toHaveAttribute('role', 'tab');
+
+    // 모드 탭 그룹에는 4개(이해/탐구/발표/글쓰기)만 존재해야 한다
+    await expect(page.getByRole('tab')).toHaveCount(4);
+
+    // 왼쪽 패널은 조사자료/대화 2개 탭만 남아있고, 워크시트 탭은 없다
+    const leftPanel = page.getByTestId('left-panel');
+    await expect(leftPanel.getByRole('button', { name: '조사자료' })).toBeVisible();
+    await expect(leftPanel.getByRole('button', { name: '대화' })).toBeVisible();
+    await expect(leftPanel.getByTestId('left-panel-tab-worksheet')).toHaveCount(0);
   });
 
   test('[worksheet-no-cover] 워크시트를 열어도 오른쪽 결과 캔버스 위치/내용이 그대로다', async ({ page }) => {
@@ -64,7 +82,7 @@ test.describe('뭐냐면 — 생각 워크시트 위치/열림 방식 (데스크
 
   test('[worksheet-back-to-chat] 닫기를 누르면 대화 탭으로 돌아가고 대화 기록이 유지된다', async ({ page }) => {
     await runAnalysis(page);
-    await page.getByTestId('left-panel-tab-worksheet').click();
+    await page.getByTestId('worksheet-toggle-button').click();
     await expect(page.getByTestId('left-panel').getByText('기초 이해')).toBeVisible();
 
     await page.getByRole('button', { name: '생각 워크시트 닫고 대화로 돌아가기' }).click();

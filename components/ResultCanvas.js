@@ -267,7 +267,15 @@ export default function ResultCanvas({
 
   return (
     <div ref={canvasRef} data-testid="result-canvas" style={isMobile ? s.canvasMobile : s.canvas}>
-      <style>{`@keyframes cv-spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes cv-spin { to { transform: rotate(360deg); } }
+        .worksheet-cta-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(var(--color-primary-rgb),0.4); }
+        .worksheet-cta-btn:active { transform: translateY(0); }
+        @media (prefers-reduced-motion: reduce) {
+          .worksheet-cta-btn { transition: none !important; }
+          .worksheet-cta-btn:hover { transform: none !important; }
+        }
+      `}</style>
 
       {/* ── Header ── */}
       <div style={s.header}>
@@ -316,17 +324,30 @@ export default function ResultCanvas({
         <button onClick={onClose} style={s.closeBtn} title={t.close}>✕</button>
       </div>
 
-      {/* ── Tabs + Worksheet button ── */}
-      <div style={{ display: 'flex', alignItems: 'stretch', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg)', flexShrink: 0 }}>
+      {/* ── 생각 워크시트 CTA — 결과 모드 탭과 분리된 독립 산출물 제작 액션 ── */}
+      <div style={s.worksheetCtaRow}>
         <button
           data-testid="worksheet-toggle-button"
           onClick={() => (isMobile ? setIsMobileSheetOpen(true) : onOpenWorksheet?.())}
           aria-expanded={isMobile ? isMobileSheetOpen : !!isWorksheetActive}
-          aria-label="생각 워크시트 열기"
-          style={{ ...s.worksheetBtn, ...((!isMobile && isWorksheetActive) ? s.worksheetBtnActive : {}) }}
+          aria-label="생각 워크시트 완성하기"
+          className="worksheet-cta-btn"
+          style={{ ...s.worksheetCtaBtn, ...(isMobile ? s.worksheetCtaBtnMobile : {}) }}
         >
-          ✏️{!isMobile && ' 생각 워크시트'}
+          <span style={{ fontSize: 15 }}>✏️</span>
+          <span style={s.worksheetCtaTextWrap}>
+            <span style={s.worksheetCtaTitle}>
+              {isMobile ? '생각 워크시트' : '생각 워크시트 완성하기'}
+            </span>
+            {!isMobile && (
+              <span style={s.worksheetCtaSub}>AI 결과를 보고 내 생각을 정리해요</span>
+            )}
+          </span>
         </button>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div style={s.tabBar}>
         <div style={{ display: 'flex', flex: 1 }}>
           {TAB_OPTIONS.map(({ value, labelKey, icon }) => (
             <button
@@ -467,16 +488,26 @@ const s = {
     borderBottom: '2px solid transparent', transition: 'all 0.15s ease',
   },
   tabActive: { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-surface)' },
-  worksheetBtn: {
-    border: 'none', borderRight: '1px solid var(--color-border)',
-    background: 'var(--color-surface-alt)', color: 'var(--color-primary-dark)',
-    fontWeight: 800, fontSize: 11, padding: '8px 10px',
-    cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
-    transition: 'background 0.15s',
+  // 생각 워크시트 CTA — 결과 모드 탭과 분리된 독립 행. 탭처럼 보이지 않도록
+  // 둥근 필버튼 + 그라디언트 강조로 "산출물 제작" 핵심 액션임을 드러낸다.
+  worksheetCtaRow: {
+    display: 'flex', justifyContent: 'flex-end',
+    padding: '10px 14px', borderBottom: '1px solid var(--color-border)',
+    background: 'var(--color-surface)', flexShrink: 0,
   },
-  worksheetBtnActive: {
-    background: 'rgba(var(--color-primary-rgb),0.12)', color: 'var(--color-primary-dark)',
+  worksheetCtaBtn: {
+    display: 'flex', alignItems: 'center', gap: 9,
+    border: 'none', borderRadius: 14,
+    background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
+    color: 'var(--color-surface)',
+    padding: '9px 18px', cursor: 'pointer',
+    boxShadow: '0 6px 16px rgba(var(--color-primary-rgb),0.32)',
+    transition: 'transform 0.12s ease, box-shadow 0.12s ease',
   },
+  worksheetCtaBtnMobile: { width: '100%', justifyContent: 'center', padding: '11px 14px' },
+  worksheetCtaTextWrap: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.3 },
+  worksheetCtaTitle: { fontWeight: 900, fontSize: 13, whiteSpace: 'nowrap' },
+  worksheetCtaSub: { fontWeight: 600, fontSize: 10.5, opacity: 0.92, whiteSpace: 'nowrap' },
   tabSpinner: {
     display: 'inline-block', width: 9, height: 9,
     border: '2px solid var(--color-border)', borderTop: '2px solid var(--color-primary-dark)',
