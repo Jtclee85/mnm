@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 const HEADING_RE = /^###\s*(.+)$/gm;
+const TOOLTIP_W = 220;
 
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -59,22 +60,54 @@ function splitTextWithVocab(text, terms) {
   return segments;
 }
 
+// position: fixed 좌표를 계산해 overflow:hidden 부모에 잘리지 않도록 한다
+function calcTooltipPos(spanRect) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const MARGIN = 8;
+
+  // 기본: 낱말 바로 아래
+  let top = spanRect.bottom + 8;
+  let left = spanRect.left + spanRect.width / 2 - TOOLTIP_W / 2;
+
+  // 오른쪽 경계 초과 → 왼쪽으로 당기기
+  if (left + TOOLTIP_W + MARGIN > vw) left = vw - TOOLTIP_W - MARGIN;
+  // 왼쪽 경계 초과
+  if (left < MARGIN) left = MARGIN;
+
+  // 말풍선 삼각형: 낱말 중심이 툴팁 내 어느 위치인지
+  const triangleLeft = Math.max(10, Math.min(
+    spanRect.left + spanRect.width / 2 - left - 6,
+    TOOLTIP_W - 22
+  ));
+
+  // 아래 공간 부족 → 낱말 위로 뒤집기
+  const TOOLTIP_EST_H = 130;
+  const flipUp = top + TOOLTIP_EST_H > vh - MARGIN;
+  if (flipUp) top = spanRect.top - TOOLTIP_EST_H - 8;
+
+  return { top, left, triangleLeft, flipUp };
+}
+
 export default function InlineVocabularyText({ text, vocabularyText, fallbackLines = [], isMobile, emptyText }) {
-  const [openTerm, setOpenTerm] = useState(null);
+  const [tooltip, setTooltip] = useState(null); // { term, meaning, role, top, left, triangleLeft, flipUp }
   const containerRef = useRef(null);
 
   const terms = parseVocabulary(vocabularyText, fallbackLines);
   const segments = splitTextWithVocab(text, terms);
   const hasVocab = terms.length > 0 && segments.some(s => s.type === 'vocab');
 
+  // 바깥 클릭 또는 스크롤 시 말풍선 닫기
   useEffect(() => {
-    if (!openTerm) return;
-    const close = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) setOpenTerm(null);
-    };
+    if (!tooltip) return;
+    const close = () => setTooltip(null);
     document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [openTerm]);
+    document.addEventListener('scroll', close, true); // capture: 스크롤 컨테이너 포함
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('scroll', close, true);
+    };
+  }, [tooltip]);
 
   if (!text) {
     return (
@@ -86,7 +119,9 @@ export default function InlineVocabularyText({ text, vocabularyText, fallbackLin
 
   const handleTermClick = (e, term) => {
     e.stopPropagation();
-    setOpenTerm(prev => prev?.term === term.term ? null : term);
+    if (tooltip?.term === term.term) { setTooltip(null); return; }
+    const pos = calcTooltipPos(e.currentTarget.getBoundingClientRect());
+    setTooltip({ ...term, ...pos });
   };
 
   return (
@@ -111,7 +146,7 @@ export default function InlineVocabularyText({ text, vocabularyText, fallbackLin
         {segments.map((seg, idx) => {
           if (seg.type === 'text') return <span key={idx}>{seg.content}</span>;
           const term = terms[seg.termIndex];
-          const isOpen = openTerm?.term === term.term;
+          const isOpen = tooltip?.term === term.term;
           return (
             <span
               key={idx}
@@ -139,30 +174,77 @@ export default function InlineVocabularyText({ text, vocabularyText, fallbackLin
         })}
       </div>
 
-      {openTerm && (
-        <div style={{
-          marginTop: 8,
-          background: 'var(--color-surface)',
-          border: `1.5px solid var(--color-accent-teal)`,
-          borderRadius: 10,
-          padding: isMobile ? '10px 12px' : '11px 14px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 7,
-        }}>
-          <span style={{ fontWeight: 900, fontSize: isMobile ? 14 : 15, color: 'var(--color-primary-dark)' }}>
-            {openTerm.term}
+      {/* 말풍선 툴팁 — position:fixed로 overflow:hidden 부모에 잘리지 않음 */}
+      {tooltip && (
+        <div
+          onMouseDown={e => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: tooltip.top,
+            left: tooltip.left,
+            width: TOOLTIP_W,
+            background: 'var(--color-surface)',
+            border: '1.5px solid var(--color-accent-teal)',
+            borderRadius: 10,
+            padding: '11px 13px',
+            boxShadow: '0 6px 24px rgba(0,0,0,0.16)',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 7,
+          }}
+        >
+          {/* 삼각형 — 낱말 방향을 가리킴 */}
+          {!tooltip.flipUp && (
+            <>
+              <div style={{
+                position: 'absolute', top: -8, left: tooltip.triangleLeft,
+                width: 0, height: 0,
+                borderLeft: '7px solid transparent',
+                borderRight: '7px solid transparent',
+                borderBottom: '8px solid var(--color-accent-teal)',
+              }} />
+              <div style={{
+                position: 'absolute', top: -6, left: tooltip.triangleLeft + 1,
+                width: 0, height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderBottom: '7px solid var(--color-surface)',
+              }} />
+            </>
+          )}
+          {tooltip.flipUp && (
+            <>
+              <div style={{
+                position: 'absolute', bottom: -8, left: tooltip.triangleLeft,
+                width: 0, height: 0,
+                borderLeft: '7px solid transparent',
+                borderRight: '7px solid transparent',
+                borderTop: '8px solid var(--color-accent-teal)',
+              }} />
+              <div style={{
+                position: 'absolute', bottom: -6, left: tooltip.triangleLeft + 1,
+                width: 0, height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '7px solid var(--color-surface)',
+              }} />
+            </>
+          )}
+
+          <span style={{ fontWeight: 900, fontSize: 13, color: 'var(--color-primary-dark)' }}>
+            {tooltip.term}
           </span>
-          {openTerm.meaning && (
+          {tooltip.meaning && (
             <div style={{ display: 'grid', gap: 2 }}>
-              <span style={{ fontSize: isMobile ? 11 : 12, fontWeight: 900, color: 'var(--color-accent-teal)' }}>쉬운 뜻</span>
-              <span style={{ fontSize: isMobile ? 13 : 14, color: 'var(--color-text)', lineHeight: 1.65 }}>{openTerm.meaning}</span>
+              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-accent-teal)' }}>쉬운 뜻</span>
+              <span style={{ fontSize: 13, color: 'var(--color-text)', lineHeight: 1.65 }}>{tooltip.meaning}</span>
             </div>
           )}
-          {openTerm.role && (
+          {tooltip.role && (
             <div style={{ display: 'grid', gap: 2 }}>
-              <span style={{ fontSize: isMobile ? 11 : 12, fontWeight: 900, color: 'var(--color-accent-teal)' }}>자료 속 역할</span>
-              <span style={{ fontSize: isMobile ? 13 : 14, color: 'var(--color-text)', lineHeight: 1.65 }}>{openTerm.role}</span>
+              <span style={{ fontSize: 11, fontWeight: 900, color: 'var(--color-accent-teal)' }}>자료 속 역할</span>
+              <span style={{ fontSize: 13, color: 'var(--color-text)', lineHeight: 1.65 }}>{tooltip.role}</span>
             </div>
           )}
         </div>
