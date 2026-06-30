@@ -8,7 +8,7 @@ import WritingOutlineCard from './WritingOutlineCard';
 import WritingChecklist from './WritingChecklist';
 import WritingSectionBlocks from './WritingSectionBlocks';
 import PresentationBlocks from './PresentationBlocks';
-import VocabularyToggle from './VocabularyToggle';
+import InlineVocabularyText from './InlineVocabularyText';
 import InquiryQuestionButtons from './InquiryQuestionButtons';
 import { copyText } from '../lib/parseResponse';
 import { getReflectionFields } from '../lib/reflectionFields';
@@ -107,16 +107,12 @@ export default function ResultCanvas({
             }}>{t.copy}</button>
           ) : null}
         >
-          {result.easy
-            ? <div style={s.easyRewrite}>{result.easy}</div>
-            : <p style={s.empty}>{t.understandEasyFullEmpty}</p>}
-        </SectionCard>
-        <SectionCard title={t.understandVocabularyRoleTitle} icon="📚" isMobile={isMobile}>
-          <VocabularyToggle
-            text={result.understandingVocabulary}
+          <InlineVocabularyText
+            text={result.easy}
+            vocabularyText={result.understandingVocabulary}
             fallbackLines={result.vocabularyLines}
             isMobile={isMobile}
-            emptyText={t.understandVocabularyEmpty}
+            emptyText={t.understandEasyFullEmpty}
           />
         </SectionCard>
         <SectionCard title={t.understandReadingTitle} icon="🧩" isMobile={isMobile}>
