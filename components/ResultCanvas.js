@@ -280,16 +280,19 @@ export default function ResultCanvas({
         <span style={s.headerTitle}>{t.resultTitle}</span>
 
         {onLanguageChange && (
-          <select
-            aria-label="language"
-            style={s.headerLanguageSelect}
-            value={language}
-            onChange={e => onLanguageChange(e.target.value)}
-          >
-            {LANGUAGE_OPTIONS.map(option => (
-              <option key={option.code} value={option.code}>{option.label}</option>
-            ))}
-          </select>
+          <>
+            <span style={{ fontSize: 12, color: 'var(--color-text-sub)', flexShrink: 0 }}>Language</span>
+            <select
+              aria-label="language"
+              style={s.headerLanguageSelect}
+              value={language}
+              onChange={e => onLanguageChange(e.target.value)}
+            >
+              {LANGUAGE_OPTIONS.map(option => (
+                <option key={option.code} value={option.code}>{option.label}</option>
+              ))}
+            </select>
+          </>
         )}
 
         <div style={s.toolBar}>
