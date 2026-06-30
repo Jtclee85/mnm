@@ -382,7 +382,7 @@ export default function ThinkingWorksheetDrawer({
 
         {/* Footer: save status + share */}
         <div style={{
-          display: 'flex', alignItems: 'center',
+          display: 'flex', alignItems: 'center', flexWrap: 'wrap',
           justifyContent: 'space-between', gap: 10,
           paddingTop: 12,
           borderTop: '1px solid var(--color-border)',
@@ -399,12 +399,17 @@ export default function ThinkingWorksheetDrawer({
                   ? 'rgba(var(--color-accent-teal-rgb),0.1)'
                   : 'var(--color-primary)',
                 color: shareState === 'copied' ? 'var(--color-primary-dark)' : 'var(--color-surface)',
-                fontWeight: 800, fontSize: 13,
+                fontWeight: 800, fontSize: shareState === 'copied' ? 12 : 13,
                 padding: '9px 16px', borderRadius: 12,
-                cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
+                cursor: 'pointer', transition: 'all 0.2s',
+                whiteSpace: shareState === 'copied' ? 'normal' : 'nowrap',
+                textAlign: 'left', lineHeight: 1.4,
+                maxWidth: shareState === 'copied' ? 260 : 'none',
               }}
             >
-              {shareState === 'copied' ? '✓ 링크 복사됨!' : '🔗 공유용 카드 만들기'}
+              {shareState === 'copied'
+                ? '✓ 링크가 복사되었어요. 이제 패들릿이나 게시판에 붙여넣기 할 수 있습니다.'
+                : '🔗 공유용 카드 만들기'}
             </button>
           )}
         </div>
