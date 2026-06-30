@@ -5,6 +5,11 @@ import BulletList from './BulletList';
 import QuizCard from './QuizCard';
 import ReflectionCard from './ReflectionCard';
 import WritingOutlineCard from './WritingOutlineCard';
+import WritingChecklist from './WritingChecklist';
+import WritingSectionBlocks from './WritingSectionBlocks';
+import PresentationBlocks from './PresentationBlocks';
+import VocabularyToggle from './VocabularyToggle';
+import InquiryQuestionButtons from './InquiryQuestionButtons';
 import { copyText } from '../lib/parseResponse';
 import { getReflectionFields } from '../lib/reflectionFields';
 import { getUiText, LANGUAGE_OPTIONS } from '../lib/i18n';
@@ -67,6 +72,10 @@ export default function ResultCanvas({
   useEffect(() => { if (toolResults.evaluation)  scrollCanvasTo(evalCardRef);    }, [toolResults.evaluation]);
   useEffect(() => { if (toolResults.teacher)     scrollCanvasTo(teacherCardRef); }, [toolResults.teacher]);
 
+  // 탭 전환 후 hidden-overflow인 canvas 컨테이너의 scrollLeft가 포커스 이동에 의해
+  // 튀는 현상을 막는다. 탭 전환마다 수평 스크롤 위치를 강제로 0으로 고정한다.
+  useEffect(() => { if (canvasRef.current) canvasRef.current.scrollLeft = 0; }, [activeMode]);
+
   const result = analysisByMode[activeMode] || {};
   const isTabLoading = loadingMode === activeMode;
 
@@ -83,7 +92,14 @@ export default function ResultCanvas({
     if (activeMode === 'understand') return (
       <>
         <SectionCard
-          title={t.easyTitle} icon="🧒" isMobile={isMobile}
+          title={t.understandSentenceTitle} icon="🧒" isMobile={isMobile}
+        >
+          {result.understandingSentence
+            ? <div style={s.bigTitle}>{result.understandingSentence}</div>
+            : <p style={s.empty}>{t.understandSentenceEmpty}</p>}
+        </SectionCard>
+        <SectionCard
+          title={t.understandEasyFullTitle} icon="📖" isMobile={isMobile}
           actions={result.easy ? (
             <button data-testid="copy-easy-button" style={s.smallBtn} onClick={async () => {
               try { await copyText(result.easy); alert(t.easyCopied); }
@@ -92,18 +108,37 @@ export default function ResultCanvas({
           ) : null}
         >
           {result.easy
-            ? <div style={s.md}><ReactMarkdown>{result.easy}</ReactMarkdown></div>
-            : <p style={s.empty}>{t.noEasy}</p>}
+            ? <div style={s.easyRewrite}>{result.easy}</div>
+            : <p style={s.empty}>{t.understandEasyFullEmpty}</p>}
         </SectionCard>
-        <SectionCard title={t.vocabularyTitle} icon="📚" isMobile={isMobile}>
-          <BulletList items={result.vocabularyLines} isMobile={isMobile} emptyText={t.noGenerated} />
+        <SectionCard title={t.understandVocabularyRoleTitle} icon="📚" isMobile={isMobile}>
+          <VocabularyToggle
+            text={result.understandingVocabulary}
+            fallbackLines={result.vocabularyLines}
+            isMobile={isMobile}
+            emptyText={t.understandVocabularyEmpty}
+          />
         </SectionCard>
-        <SectionCard title={t.summaryTitle} icon="📝" isMobile={isMobile}>
-          <BulletList items={result.summaryLines} isMobile={isMobile} emptyText={t.noGenerated} />
+        <SectionCard title={t.understandReadingTitle} icon="🧩" isMobile={isMobile}>
+          <PresentationBlocks
+            text={result.understandingReading}
+            fallbackLines={result.summaryLines}
+            isMobile={isMobile}
+            emptyText={t.understandReadingEmpty}
+          />
         </SectionCard>
-        <SectionCard title={t.reteachTitle} icon="🗣️" isMobile={isMobile}>
-          <BulletList items={result.reteachLines} isMobile={isMobile} emptyText={t.noGenerated} />
+        <SectionCard title={t.understandChecklistTitle} icon="📋" isMobile={isMobile}>
+          <WritingChecklist items={result.understandingChecklistLines} isMobile={isMobile} emptyText={t.understandChecklistEmpty} />
         </SectionCard>
+        <SectionCard title={t.understandMisconceptionsTitle} icon="🧭" isMobile={isMobile}>
+          <BulletList items={result.understandingMisconceptionLines} isMobile={isMobile} emptyText={t.understandMisconceptionsEmpty} />
+        </SectionCard>
+        <SectionCard title={t.understandCheckTitle} icon="✅" isMobile={isMobile}>
+          <BulletList items={result.understandingCheckLines?.length > 0 ? result.understandingCheckLines : result.reteachLines} isMobile={isMobile} emptyText={t.understandCheckEmpty} />
+        </SectionCard>
+        {(result.understandingSentence || result.easy) && (
+          <p style={s.coachHint}>{t.understandChatHint}</p>
+        )}
         <ReflectionCard fields={REFLECTION_FIELDS.understand} notes={notes} t={t}
           onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
@@ -111,48 +146,78 @@ export default function ResultCanvas({
 
     if (activeMode === 'inquiry') return (
       <>
-        <SectionCard title={t.keywordsTitle} icon="🧠" isMobile={isMobile}>
-          <BulletList items={result.keywordLines} isMobile={isMobile} emptyText={t.noGenerated} />
+        <SectionCard title={t.inquiryQuestionsTitle} icon="❓" isMobile={isMobile}>
+          <p style={s.sectionLead}>{t.inquiryQuestionsLead}</p>
+          <InquiryQuestionButtons
+            text={result.inquiryQuestions}
+            fallbackLines={result.questionLines}
+            onQuestionAsk={onQuestionAsk}
+            isMobile={isMobile}
+            emptyText={t.inquiryQuestionsEmpty}
+          />
         </SectionCard>
-        <SectionCard title={t.questionsTitle} icon="❓" isMobile={isMobile}>
-          <BulletList items={result.questionLines} isMobile={isMobile} emptyText={t.noGenerated} />
-          {result.questionLines?.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
-              {result.questionLines.map((q, idx) => (
-                <button key={`${q}-${idx}`} style={s.qBtn} onClick={() => onQuestionAsk(q)}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          )}
+        <SectionCard title={t.inquiryQuestionGuideTitle} icon="💡" isMobile={isMobile}>
+          <BulletList
+            items={result.inquiryQuestionGuideLines?.length > 0 ? result.inquiryQuestionGuideLines : t.inquiryQuestionGuideItems}
+            isMobile={isMobile}
+            emptyText={t.inquiryQuestionGuideEmpty}
+          />
         </SectionCard>
+        {(result.inquiryQuestions || result.questionLines?.length > 0) && (
+          <p style={s.coachHint}>{t.inquiryChatHint}</p>
+        )}
         <ReflectionCard fields={REFLECTION_FIELDS.inquiry} notes={notes} t={t}
           onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
-        <SectionCard title={t.searchesTitle} icon="🔎" isMobile={isMobile}>
-          <BulletList items={result.searchLines} isMobile={isMobile} emptyText={t.noGenerated} />
-        </SectionCard>
-        <SectionCard title={t.furtherTitle} icon="🧭" isMobile={isMobile}>
-          <BulletList items={result.furtherLines} isMobile={isMobile} emptyText={t.noGenerated} />
-        </SectionCard>
       </>
     );
 
     if (activeMode === 'presentation') return (
       <>
-        <SectionCard title={t.presentationTitle} icon="🏷️" isMobile={isMobile}>
-          {result.presentationTitle
-            ? <div style={s.bigTitle}>{result.presentationTitle}</div>
-            : <p style={s.empty}>{t.noPresentationTitle}</p>}
+        <SectionCard title={t.presentationMessagesTitle} icon="💡" isMobile={isMobile}>
+          <PresentationBlocks
+            text={result.presentationMessages || result.presentationTitle}
+            isMobile={isMobile}
+            emptyText={t.presentationMessagesEmpty}
+          />
         </SectionCard>
-        <SectionCard title={t.presentationScriptTitle} icon="🎤" isMobile={isMobile}>
-          <BulletList items={result.presentationScriptLines} isMobile={isMobile} emptyText={t.noGenerated} />
+        <SectionCard title={t.presentationAudienceTitle} icon="🎤" isMobile={isMobile}>
+          <BulletList items={result.presentationAudienceLines} isMobile={isMobile} emptyText={t.presentationAudienceEmpty} />
         </SectionCard>
-        <SectionCard title={t.presentationOrderTitle} icon="📍" isMobile={isMobile}>
-          <BulletList items={result.presentationOrderLines} isMobile={isMobile} emptyText={t.noGenerated} />
+        <SectionCard title={t.presentationFlowTitle} icon="📍" isMobile={isMobile}>
+          <PresentationBlocks
+            text={result.presentationFlow}
+            fallbackLines={result.presentationOrderLines}
+            isMobile={isMobile}
+            emptyText={t.presentationFlowEmpty}
+          />
         </SectionCard>
-        <SectionCard title={t.expectedQuestionsTitle} icon="🙋" isMobile={isMobile}>
-          <BulletList items={result.expectedQuestionLines} isMobile={isMobile} emptyText={t.noGenerated} />
+        <SectionCard title={t.presentationEvidenceTitle} icon="🗂️" isMobile={isMobile}>
+          <BulletList items={result.presentationEvidenceLines} isMobile={isMobile} emptyText={t.presentationEvidenceEmpty} />
         </SectionCard>
+        <SectionCard title={t.presentationQuestionsTitle} icon="🙋" isMobile={isMobile}>
+          <PresentationBlocks
+            text={result.presentationQuestions}
+            fallbackLines={result.expectedQuestionLines}
+            isMobile={isMobile}
+            emptyText={t.presentationQuestionsEmpty}
+          />
+        </SectionCard>
+        <SectionCard title={t.presentationVisualPlanTitle} icon="🖼️" isMobile={isMobile}>
+          <PresentationBlocks
+            text={result.presentationVisualPlan}
+            isMobile={isMobile}
+            emptyText={t.presentationVisualPlanEmpty}
+          />
+        </SectionCard>
+        <SectionCard title={t.presentationTemplatesTitle} icon="🗣️" isMobile={isMobile}>
+          <BulletList items={result.presentationTemplateLines?.length > 0 ? result.presentationTemplateLines : result.presentationScriptLines} isMobile={isMobile} emptyText={t.presentationTemplatesEmpty} />
+        </SectionCard>
+        <SectionCard title={t.presentationChecklistTitle} icon="✅" isMobile={isMobile}>
+          <WritingChecklist items={result.presentationChecklistLines} isMobile={isMobile} emptyText={t.presentationChecklistEmpty} />
+        </SectionCard>
+        {(result.presentationMessages || result.presentationFlow || result.presentationEvidenceLines?.length > 0) && (
+          <p style={s.coachHint}>{t.presentationChatHint}</p>
+        )}
         <ReflectionCard fields={REFLECTION_FIELDS.presentation} notes={notes} t={t}
           onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
@@ -160,6 +225,29 @@ export default function ResultCanvas({
 
     if (activeMode === 'writing') return (
       <>
+        <SectionCard title={t.writingTopicSentencesTitle} icon="💡" isMobile={isMobile}>
+          <WritingSectionBlocks
+            text={result.writingTopicSentences}
+            kind="topic"
+            isMobile={isMobile}
+            emptyText={t.writingEmpty}
+          />
+        </SectionCard>
+        <SectionCard title={t.writingSupportTitle} icon="🧭" isMobile={isMobile}>
+          <WritingSectionBlocks
+            text={result.writingSupportDirections}
+            fallbackText={result.writingTopicSentences}
+            kind="support"
+            isMobile={isMobile}
+            emptyText={t.writingSupportEmpty}
+          />
+        </SectionCard>
+        <SectionCard title={t.writingEvidenceTitle} icon="🗂️" isMobile={isMobile}>
+          <BulletList items={result.writingEvidenceLines} isMobile={isMobile} emptyText={t.writingEvidenceEmpty} />
+        </SectionCard>
+        <SectionCard title={t.writingTemplatesTitle} icon="✍️" isMobile={isMobile}>
+          <BulletList items={result.writingTemplateLines} isMobile={isMobile} emptyText={t.writingTemplatesEmpty} />
+        </SectionCard>
         <SectionCard
           title={t.writingOutlineTitle} icon="✏️" isMobile={isMobile}
           actions={result.writingOutline ? (
@@ -171,12 +259,12 @@ export default function ResultCanvas({
         >
           <WritingOutlineCard outline={result.writingOutline} isMobile={isMobile} t={t} />
         </SectionCard>
-        <SectionCard title={t.summaryTitle} icon="📝" isMobile={isMobile}>
-          <BulletList items={result.summaryLines} isMobile={isMobile} emptyText={t.noGenerated} />
+        <SectionCard title={t.writingChecklistTitle} icon="✅" isMobile={isMobile}>
+          <WritingChecklist items={result.writingChecklistLines} isMobile={isMobile} emptyText={t.writingChecklistEmpty} />
         </SectionCard>
-        <SectionCard title={t.vocabularyTitle} icon="📚" isMobile={isMobile}>
-          <BulletList items={result.vocabularyLines} isMobile={isMobile} emptyText={t.noGenerated} />
-        </SectionCard>
+        {(result.writingTopicSentences || result.writingSupportDirections || result.writingOutline || result.writingEvidenceLines?.length > 0) && (
+          <p style={s.writingChatHint}>{t.writingChatHint}</p>
+        )}
         <ReflectionCard fields={REFLECTION_FIELDS.writing} notes={notes} t={t}
           onUpdate={updateNote} saveStatus={saveStatus} onShare={handleShare} isMobile={isMobile} />
       </>
@@ -365,7 +453,7 @@ const s = {
     borderRadius: '50%', animation: 'cv-spin 0.8s linear infinite',
     marginLeft: 3, verticalAlign: 'middle',
   },
-  body: { flex: 1, overflowY: 'auto', padding: 18 },
+  body: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 18 },
   loadingState: {
     display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center',
@@ -388,9 +476,37 @@ const s = {
     background: 'color-mix(in srgb, var(--color-gold) 22%, var(--color-surface))',
     border: '1px solid rgba(var(--color-gold-rgb),0.6)', borderRadius: 14, padding: '15px 17px', lineHeight: 1.6,
   },
+  easyRewrite: {
+    color: 'var(--color-text)',
+    background: 'var(--color-surface-alt)',
+    border: '1px solid var(--color-border)',
+    borderRadius: 8,
+    padding: '14px 15px',
+    lineHeight: 1.85,
+    fontSize: 15,
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'keep-all',
+    overflowWrap: 'anywhere',
+  },
+  sectionLead: {
+    margin: '0 0 12px',
+    color: 'var(--color-text-sub)',
+    fontSize: 14,
+    lineHeight: 1.6,
+  },
   qBtn: {
     border: '1px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.06)', color: 'var(--color-primary-dark)',
     padding: '9px 12px', borderRadius: 12, cursor: 'pointer',
     fontWeight: 700, textAlign: 'left', fontSize: 12,
+  },
+  writingChatHint: {
+    margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-sub)',
+    background: 'var(--color-surface-alt)', border: '1px dashed var(--color-border)',
+    borderRadius: 12, padding: '10px 14px',
+  },
+  coachHint: {
+    margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-sub)',
+    background: 'var(--color-surface-alt)', border: '1px dashed var(--color-border)',
+    borderRadius: 12, padding: '10px 14px',
   },
 };
