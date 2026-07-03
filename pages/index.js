@@ -55,7 +55,7 @@ export default function Home() {
   const [lastAnalyzedTopic, setLastAnalyzedTopic] = useState('');
 
   const { notes, updateNote, saveStatus } = useStudentNotes(topic);
-  const { savedTopics, triggerSave, saveNow, loadSession } = useSessionSave();
+  const { savedTopics, triggerSave, saveNow, loadSession, deleteSession } = useSessionSave();
 
   const [conversation, setConversation] = useState([makeInitialMessage(getUiText('ko'))]);
   const [chatInput,    setChatInput]    = useState('');
@@ -122,6 +122,30 @@ export default function Home() {
     setLastAnalyzedTopic(anyResult ? (session.topic ?? '') : '');
   };
 
+  const resetWorkspace = () => {
+    setTopic('');
+    setSourceText('');
+    setActiveMode('understand');
+    setAnalysisByMode(INIT_BY_MODE());
+    setToolResults(EMPTY_TOOLS);
+    setQuizResult(null);
+    setQuizKey(k => k + 1);
+    setConversation([makeInitialMessage(getUiText(language))]);
+    setCanvasOpen(false);
+    setLeftPanelTab('source');
+    setLastAnalyzedTopic('');
+  };
+
+  const handleDeleteSession = (savedTopic) => {
+    if (!window.confirm(`"${savedTopic}" 조사 기록을 삭제할까요?`)) return;
+
+    deleteSession(savedTopic);
+
+    if (savedTopic === topic) {
+      resetWorkspace();
+    }
+  };
+
   // ── 안내판 사진에서 추출한 텍스트를 조사자료 입력창에 삽입 ──
   // 기존 입력 내용이 있으면 보존하고 줄바꿈으로 이어 붙인다.
   const handleSignTextExtracted = (extractedText) => {
@@ -135,17 +159,7 @@ export default function Home() {
   const handleGoHome = () => {
     if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults });
 
-    setTopic('');
-    setSourceText('');
-    setActiveMode('understand');
-    setAnalysisByMode(INIT_BY_MODE());
-    setToolResults(EMPTY_TOOLS);
-    setQuizResult(null);
-    setQuizKey(k => k + 1);
-    setConversation([makeInitialMessage(getUiText(language))]);
-    setCanvasOpen(false);
-    setLeftPanelTab('source');
-    setLastAnalyzedTopic('');
+    resetWorkspace();
   };
 
   const buildLanguageReminder = () => getLanguageReminder(language);
@@ -559,14 +573,24 @@ export default function Home() {
       <div style={styles.chipsWrap}>
         <span style={{ fontSize: 13, flexShrink: 0 }}>📂</span>
         {savedTopics.map(({ topic: t }) => (
-          <button
-            key={t}
-            style={{ ...styles.chip, ...(t === topic ? styles.chipActive : {}) }}
-            onClick={() => handleLoadSession(t)}
-            title={`"${t}" ${getUiText(language).loadTitle}`}
-          >
-            {t}
-          </button>
+          <span key={t} style={{ ...styles.savedTopicItem, ...(t === topic ? styles.savedTopicItemActive : {}) }}>
+            <button
+              style={{ ...styles.chip, ...(t === topic ? styles.chipActive : {}) }}
+              onClick={() => handleLoadSession(t)}
+              title={`"${t}" ${getUiText(language).loadTitle}`}
+            >
+              {t}
+            </button>
+            <button
+              type="button"
+              aria-label={`${t} 조사 기록 삭제`}
+              title={`${t} 조사 기록 삭제`}
+              style={{ ...styles.deleteChipBtn, ...(t === topic ? styles.deleteChipBtnActive : {}) }}
+              onClick={() => handleDeleteSession(t)}
+            >
+              ×
+            </button>
+          </span>
         ))}
       </div>
     ) : null
@@ -954,12 +978,33 @@ const styles = {
     flexWrap: 'wrap',
     width: '100%', marginBottom: 12,
   },
+  savedTopicItem: {
+    display: 'inline-flex', alignItems: 'center',
+    border: '1.5px solid rgba(var(--color-primary-rgb),0.3)',
+    background: 'rgba(var(--color-primary-rgb),0.08)',
+    borderRadius: 20, overflow: 'hidden', flexShrink: 0,
+  },
+  savedTopicItemActive: {
+    border: '1.5px solid var(--color-primary)',
+    background: 'var(--color-primary)',
+  },
   chip: {
-    border: '1.5px solid rgba(var(--color-primary-rgb),0.3)', background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
-    fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,
+    border: 'none', background: 'transparent', color: 'var(--color-primary-dark)',
+    fontSize: 12, fontWeight: 800, padding: '5px 9px 5px 12px', borderRadius: 0,
     cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s'
   },
-  chipActive: { background: 'var(--color-primary)', border: '1.5px solid var(--color-primary)', color: 'var(--color-surface)' },
+  chipActive: { color: 'var(--color-surface)' },
+  deleteChipBtn: {
+    width: 24, alignSelf: 'stretch', border: 'none',
+    borderLeft: '1px solid rgba(var(--color-primary-rgb),0.22)',
+    background: 'rgba(var(--color-surface-rgb),0.45)', color: 'var(--color-text-sub)',
+    fontSize: 15, fontWeight: 900, lineHeight: 1, cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  },
+  deleteChipBtnActive: {
+    borderLeft: '1px solid rgba(255,255,255,0.35)',
+    background: 'rgba(255,255,255,0.16)', color: 'var(--color-surface)',
+  },
 
   headerActions: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
   goHomeBtn: {

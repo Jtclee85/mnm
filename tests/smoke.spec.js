@@ -93,6 +93,43 @@ test.describe('뭐냐면 — desktop-1920 기준 스모크 테스트', () => {
     await expect(page.getByTestId('analyze-button')).toHaveText('분석 시작');
   });
 
+  test('[desktop-1920] 저장된 조사 기록을 삭제할 수 있다', async ({ page }) => {
+    await page.evaluate(() => {
+      localStorage.setItem('mnm-sessions', JSON.stringify({
+        세종대왕: {
+          topic: '세종대왕',
+          sourceText: '훈민정음 조사자료',
+          language: 'ko',
+          activeMode: 'understand',
+          conversation: [],
+          analysisByMode: {},
+          toolResults: {},
+          updatedAt: new Date().toISOString(),
+        },
+      }));
+      localStorage.setItem('mnm-student-notes', JSON.stringify({
+        세종대왕: { understand: { summary: '옛 메모' } },
+      }));
+    });
+    await page.reload();
+
+    await page.getByRole('button', { name: '세종대왕', exact: true }).click();
+    await expect(page.getByTestId('topic-input')).toHaveValue('세종대왕');
+
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: '세종대왕 조사 기록 삭제' }).click();
+
+    await expect(page.getByRole('button', { name: '세종대왕', exact: true })).toHaveCount(0);
+    await expect(page.getByTestId('topic-input')).toHaveValue('');
+
+    const stored = await page.evaluate(() => ({
+      sessions: JSON.parse(localStorage.getItem('mnm-sessions') || '{}'),
+      notes: JSON.parse(localStorage.getItem('mnm-student-notes') || '{}'),
+    }));
+    expect(stored.sessions.세종대왕).toBeUndefined();
+    expect(stored.notes.세종대왕).toBeUndefined();
+  });
+
   test('[desktop-1920] 분석 후 학습 모드(이해/탐구/발표/글쓰기)를 선택할 수 있다', async ({ page }) => {
     await runAnalysis(page);
 
