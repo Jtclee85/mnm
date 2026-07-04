@@ -37,12 +37,6 @@ const FAKE_ANALYSIS_TEXT = `
 [의미 해석형] 이 유적은 청동기 시대 사람들의 생활을 어떻게 보여 줄까요?
 [생각 확장형] 오늘날 우리는 왜 이런 유적을 지켜야 할까요?
 </inquiry_questions>
-<inquiry_question_guide>
-사실을 먼저 알고 싶으면 사실 확인형 질문을 골라요.
-두 대상을 견주고 싶으면 비교형 질문을 골라요.
-왜 그런지 알고 싶으면 까닭 탐구형 질문을 골라요.
-내 생각을 넓히고 싶으면 생각 확장형 질문을 골라요.
-</inquiry_question_guide>
 <presentation_messages>
 ### 1. 정보 전달형
 핵심 메시지: 테스트 발표 메시지입니다.
@@ -123,7 +117,8 @@ test.describe('뭐냐면 이해/탐구 모드 재조정', () => {
     const factButton = resultCanvas.getByRole('button', { name: /강화 부근리 지석묘는 언제 만들어졌을까요/ });
     await expect(factButton).toBeVisible();
     await expect(factButton.getByText('사실 확인형')).toBeVisible();
-    await expect(resultCanvas.getByText('질문을 고를 때 생각해 봐요')).toBeVisible();
+    // 질문 고르기 안내 카드는 제거됨
+    await expect(resultCanvas.getByText('질문을 고를 때 생각해 봐요')).toHaveCount(0);
 
     await expect(resultCanvas.getByText('질문을 더 좋은 탐구 질문으로 바꾸기')).toHaveCount(0);
     await expect(resultCanvas.getByText('조사할 단서 찾기')).toHaveCount(0);

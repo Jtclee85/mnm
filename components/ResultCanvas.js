@@ -173,14 +173,6 @@ export default function ResultCanvas({
             emptyText={t.inquiryQuestionsEmpty}
           />
         </SectionCard>
-        <SectionCard title={t.inquiryQuestionGuideTitle} icon="💡" isMobile={isMobile}>
-          <BulletList
-            items={result.inquiryQuestionGuideLines?.length > 0 ? result.inquiryQuestionGuideLines : t.inquiryQuestionGuideItems}
-            isMobile={isMobile}
-            emptyText={t.inquiryQuestionGuideEmpty}
-          />
-        </SectionCard>
-
         {/* 3차 구조 개편 — 탐구 질문을 고른 뒤 바로 챗봇으로 보내지 않고,
             먼저 내 생각을 쓰게 한 다음 챗봇 대화로 이어지게 한다. */}
         <SectionCard title={t.inquiryFirstThoughtTitle} icon="✍️" isMobile={isMobile}>
