@@ -181,8 +181,8 @@ export default function FloatingChatbot({
             src="/chatbot-mascot.png"
             alt=""
             aria-hidden="true"
-            width={144}
-            height={144}
+            width={isMobile ? 64 : 144}
+            height={isMobile ? 64 : 144}
             style={s.fabImage}
           />
           {!isMobile && (
@@ -247,7 +247,7 @@ const s = {
   },
   fabMobile: {
     right: 14, bottom: 'calc(14px + env(safe-area-inset-bottom))',
-    width: 128, height: 128,
+    width: 64, height: 64,
   },
   fabImage: {
     width: '100%', height: '100%', objectFit: 'contain',
