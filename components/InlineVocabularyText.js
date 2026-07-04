@@ -14,7 +14,7 @@ const cleanLabel = (line, labels) => {
   return t;
 };
 
-function parseVocabulary(text, fallbackLines = []) {
+export function parseVocabulary(text, fallbackLines = []) {
   if (text) {
     const matches = [...text.matchAll(HEADING_RE)];
     if (matches.length > 0) {

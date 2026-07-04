@@ -233,7 +233,7 @@ export default function ThinkingWorksheetDrawer({
         </div>
         <button
           onClick={onClose}
-          aria-label={isPanel ? '생각 워크시트 닫고 조사자료로 돌아가기' : '생각 워크시트 닫기'}
+          aria-label={isPanel ? '생각 워크시트 닫고 조사 원본자료로 돌아가기' : '생각 워크시트 닫기'}
           style={{
             border: '1px solid var(--color-border)', background: 'var(--color-surface)',
             color: 'var(--color-text-sub)', borderRadius: 8,

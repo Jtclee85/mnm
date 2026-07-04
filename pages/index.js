@@ -10,6 +10,7 @@ import HelpPanel from '../components/HelpPanel';
 import SignTextReader from '../components/SignTextReader';
 import ThinkingWorksheetDrawer from '../components/ThinkingWorksheetDrawer';
 import FloatingChatbot from '../components/FloatingChatbot';
+import EasyExplanationPanel from '../components/EasyExplanationPanel';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
@@ -531,7 +532,7 @@ export default function Home() {
     : t.mainCardTitle;
 
   // 1차 구조 개편: 왼쪽 '대화' 탭은 제거하고 우하단 플로팅 챗봇으로 이동했다.
-  // '조사자료' 탭만 남아, 워크시트 화면에서 되돌아올 자리로도 쓰인다.
+  // 2차 구조 개편: '조사 원본자료' / '쉬운설명' 2탭으로 재구성 — 대화 탭은 다시 만들지 않는다.
   const renderLeftPanelTabs = () => (
     <div style={styles.leftPanelTabs}>
       <button
@@ -539,6 +540,12 @@ export default function Home() {
         onClick={() => setLeftPanelTab('source')}
       >
         {t.sourceTab}
+      </button>
+      <button
+        style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'easy' ? styles.leftPanelTabActive : {}) }}
+        onClick={() => setLeftPanelTab('easy')}
+      >
+        {t.easyTab}
       </button>
     </div>
   );
@@ -682,6 +689,23 @@ export default function Home() {
                     </button>
                   )}
                 </div>
+              </SectionCard>
+              )}
+
+              {/* 쉬운설명 — 오른쪽에서 탐구/발표/글쓰기 활동을 하는 동안 참고하는 패널 */}
+              {leftPanelTab === 'easy' && (
+              <SectionCard
+                title={leftPanelTitle} icon="" isMobile={isMobile}
+                actions={renderHeaderActions()}
+              >
+                {renderSavedTopicChips()}
+                {renderLeftPanelTabs()}
+                <EasyExplanationPanel
+                  result={analysisByMode.understand}
+                  isMobile={isMobile}
+                  t={t}
+                  isLoading={loadingMode === 'understand'}
+                />
               </SectionCard>
               )}
 
@@ -861,7 +885,7 @@ const styles = {
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftPanelTabs: {
-    display: 'grid', gridTemplateColumns: '1fr', gap: 4,
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
     background: 'var(--color-bg)', border: '1px solid var(--color-border)',
     borderRadius: 12, padding: 4, marginBottom: 18,
   },

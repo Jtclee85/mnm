@@ -1,0 +1,142 @@
+const { test, expect } = require('@playwright/test');
+
+// 2차 구조 개편(왼쪽 패널 재구성: 조사 원본자료 / 쉬운설명) 검증.
+const FAKE_ANALYSIS_TEXT = `
+<understanding_sentence>강화 부근리 지석묘는 청동기 시대 사람들이 만든 큰 무덤입니다.</understanding_sentence>
+<easy>강화 부근리 지석묘는 아주 오래전 청동기 시대 사람들이 만든 큰 무덤입니다.</easy>
+<understanding_vocabulary>
+### 지석묘
+- 쉬운 뜻: 큰 돌로 만든 옛날 무덤
+- 자료 속 역할: 이 자료의 중심 대상이에요.
+</understanding_vocabulary>
+<inquiry_questions>
+[사실 확인형] 강화 부근리 지석묘는 언제 만들어졌을까요?
+</inquiry_questions>
+<presentation_messages>
+### 1. 정보 전달형
+핵심 메시지: 테스트 발표 메시지입니다.
+</presentation_messages>
+<writing_topic_sentences>
+### 1. 정보형
+중심문장 후보: 테스트 중심문장입니다.
+</writing_topic_sentences>
+`;
+const FAKE_SSE_BODY = `data: ${JSON.stringify(FAKE_ANALYSIS_TEXT)}\n\n`;
+
+async function runAnalysis(page) {
+  await page.route('**/api/chat', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/event-stream', body: FAKE_SSE_BODY })
+  );
+  await page.getByTestId('topic-input').fill('강화 부근리 지석묘');
+  await page
+    .getByTestId('source-textarea')
+    .fill('강화 부근리 지석묘는 청동기 시대에 만들어진 고인돌로, 강화 지역의 대표적인 문화유산이다.');
+  await page.getByTestId('analyze-button').click();
+  await expect(page.getByTestId('result-canvas')).toBeVisible();
+}
+
+test.describe('뭐냐면 — 왼쪽 패널 조사 원본자료/쉬운설명 (데스크탑)', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/');
+  });
+
+  test('[left-tabs] 왼쪽 패널에 조사 원본자료/쉬운설명 탭이 있고, 대화 탭은 없다', async ({ page }) => {
+    await runAnalysis(page);
+    const leftPanel = page.getByTestId('left-panel');
+    await expect(leftPanel.getByRole('button', { name: '조사 원본자료' })).toBeVisible();
+    await expect(leftPanel.getByRole('button', { name: '쉬운설명' })).toBeVisible();
+    await expect(leftPanel.getByRole('button', { name: '대화' })).toHaveCount(0);
+  });
+
+  test('[source-tab] 조사 원본자료 탭에서 조사 주제와 원본자료를 볼 수 있다', async ({ page }) => {
+    await runAnalysis(page);
+    await expect(page.getByTestId('topic-input')).toHaveValue('강화 부근리 지석묘');
+    await expect(page.getByTestId('source-textarea')).toHaveValue(
+      '강화 부근리 지석묘는 청동기 시대에 만들어진 고인돌로, 강화 지역의 대표적인 문화유산이다.'
+    );
+  });
+
+  test('[easy-tab-before] 이해모드 결과에 쉬운설명 태그가 없으면 안내 문구가 보인다', async ({ page }) => {
+    // 왼쪽 탭 자체는 랜딩(분석 전) 화면에서는 보이지 않으므로(!showLanding 조건),
+    // 분석은 했지만 이해모드 쉬운설명 태그(<easy>/<understanding_sentence>/<understanding_vocabulary>)가
+    // 비어 있는 경우로 "아직 준비되지 않음" 폴백을 검증한다.
+    await page.route('**/api/chat', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: `data: ${JSON.stringify('<inquiry_questions>[사실 확인형] 언제 만들어졌을까요?</inquiry_questions>')}\n\n`,
+      })
+    );
+    await page.getByTestId('topic-input').fill('강화 부근리 지석묘');
+    await page
+      .getByTestId('source-textarea')
+      .fill('강화 부근리 지석묘는 청동기 시대에 만들어진 고인돌로, 강화 지역의 대표적인 문화유산이다.');
+    await page.getByTestId('analyze-button').click();
+    await expect(page.getByTestId('result-canvas')).toBeVisible();
+
+    const leftPanel = page.getByTestId('left-panel');
+    await leftPanel.getByRole('button', { name: '쉬운설명' }).click();
+    await expect(leftPanel.getByText('아직 쉬운설명이 준비되지 않았어요')).toBeVisible();
+  });
+
+  test('[easy-tab-after] 분석 후 쉬운설명 탭에 3가지 핵심 섹션이 보인다', async ({ page }) => {
+    await runAnalysis(page);
+    const leftPanel = page.getByTestId('left-panel');
+    await leftPanel.getByRole('button', { name: '쉬운설명' }).click();
+
+    await expect(leftPanel.getByText('한 문장으로 이해하기')).toBeVisible();
+    await expect(leftPanel.getByText('강화 부근리 지석묘는 청동기 시대 사람들이 만든 큰 무덤입니다.')).toBeVisible();
+
+    await expect(leftPanel.getByText('조사자료를 쉬운 말로 바꾸면')).toBeVisible();
+    await expect(leftPanel.getByText('강화 부근리 지석묘는 아주 오래전')).toBeVisible();
+
+    await expect(leftPanel.getByText('어려운 낱말 클릭해서 보기')).toBeVisible();
+    // "지석묘"는 쉬운 말 문단 안의 클릭형 인라인 낱말과 낱말풀이 목록의 <summary> 양쪽에
+    // 모두 나타나므로, 낱말풀이 목록 쪽(summary)만 정확히 짚어 연다.
+    const glossarySummary = leftPanel.locator('summary', { hasText: '지석묘' });
+    await expect(glossarySummary).toBeVisible();
+    await glossarySummary.click();
+    await expect(leftPanel.getByText('큰 돌로 만든 옛날 무덤')).toBeVisible();
+  });
+
+  test('[easy-tab-during-activity] 탐구/발표/글쓰기 모드에서도 왼쪽 쉬운설명 탭을 참고할 수 있다', async ({ page }) => {
+    await runAnalysis(page);
+    const leftPanel = page.getByTestId('left-panel');
+    await leftPanel.getByRole('button', { name: '쉬운설명' }).click();
+
+    for (const mode of ['inquiry', 'presentation', 'writing']) {
+      await page.getByTestId(`mode-tab-${mode}`).click();
+      await expect(leftPanel.getByText('한 문장으로 이해하기')).toBeVisible();
+      await expect(leftPanel.getByText('조사자료를 쉬운 말로 바꾸면')).toBeVisible();
+    }
+  });
+
+  test('[chatbot-still-works] 우하단 플로팅 챗봇과 퀴즈 버튼 숨김 상태가 그대로 유지된다', async ({ page }) => {
+    await runAnalysis(page);
+    await expect(page.getByTestId('chatbot-toggle-button')).toBeVisible();
+    await expect(page.getByTestId('tool-quiz')).toHaveCount(0);
+    await expect(page.getByTestId('tool-evaluation')).toHaveCount(0);
+    await expect(page.getByTestId('tool-teacher')).toHaveCount(0);
+  });
+});
+
+test.describe('뭐냐면 — 왼쪽 패널 조사 원본자료/쉬운설명 모바일', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('[mobile-easy-tab] 모바일에서도 탭 전환과 쉬운설명 패널이 가로 스크롤 없이 보인다', async ({ page }) => {
+    await page.goto('/');
+    await runAnalysis(page);
+
+    // 모바일에서는 분석 후 결과 캔버스가 전체 화면을 덮으므로(기존 레이아웃 유지),
+    // 왼쪽 탭에 접근하려면 먼저 결과 캔버스를 닫아야 한다 — 조사자료 탭도 기존에 같은 방식이었다.
+    await page.getByTitle('닫기').click();
+
+    const leftPanel = page.getByTestId('left-panel');
+    await leftPanel.getByRole('button', { name: '쉬운설명' }).click();
+    await expect(leftPanel.getByText('한 문장으로 이해하기')).toBeVisible();
+
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(390 + 1);
+  });
+});
