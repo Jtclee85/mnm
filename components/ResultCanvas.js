@@ -153,6 +153,19 @@ export default function ResultCanvas({
               </div>
             ))}
           </div>
+          {result.understandingQuiz && (
+            <div data-testid="understanding-quiz" style={s.understandQuizBox}>
+              <p style={s.understandQuizLabel}>🎯 {t.quizTitle}</p>
+              <QuizCard
+                key={result.understandingQuiz.question}
+                quizData={result.understandingQuiz}
+                onReset={onQuiz}
+                isMobile={isMobile}
+                onResult={setQuizResult}
+                t={t}
+              />
+            </div>
+          )}
         </SectionCard>
         {(result.understandingSentence || result.easy) && (
           <p style={s.coachHint}>{t.understandChatHint}</p>
@@ -713,6 +726,8 @@ const s = {
   // 3차 구조 개편 — 모드별 워크시트 입력 공통 스타일
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: 14 },
   checkList: { display: 'flex', flexDirection: 'column', gap: 14 },
+  understandQuizBox: { marginTop: 18, paddingTop: 16, borderTop: '1px dashed var(--color-border)' },
+  understandQuizLabel: { margin: '0 0 10px', fontSize: 13.5, fontWeight: 800, color: 'var(--color-primary-dark)' },
   checkItem: {
     display: 'flex', flexDirection: 'column', gap: 6,
     border: '1px solid var(--color-border)', borderRadius: 12,

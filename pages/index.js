@@ -927,7 +927,7 @@ const EMPTY_MODE_RESULT = {
   questionLines: [], searchLines: [], reteachLines: [], furtherLines: [],
   understandingSentence: '', understandingVocabulary: '', understandingReading: '',
   understandingChecklistLines: [], understandingMisconceptionLines: [],
-  understandingCheckLines: [], inquiryQuestions: '', inquiryRefine: '',
+  understandingCheckLines: [], understandingQuiz: null, inquiryQuestions: '', inquiryRefine: '',
   inquiryClues: '', inquiryCompare: '', inquiryEvidenceInference: '',
   inquirySearches: '', inquiryCard: '',
   presentationTitle: '', presentationScriptLines: [], presentationOrderLines: [],

@@ -30,6 +30,16 @@ const FAKE_ANALYSIS_TEXT = `
 이 자료는 무엇에 대한 설명인가요?
 가장 중요한 낱말 2개를 고르면 무엇인가요?
 친구에게 설명한다면 어떤 말로 시작할까요?</understanding_check>
+<understanding_quiz>
+문제: 강화 부근리 지석묘는 어느 시대에 만들어졌나요?
+선택지:
+1. 구석기 시대
+2. 신석기 시대
+3. 청동기 시대
+4. 철기 시대
+정답: 3
+해설: 자료에 강화 부근리 지석묘는 청동기 시대에 만들어진 고인돌이라고 나와 있어요.
+</understanding_quiz>
 <inquiry_questions>
 [사실 확인형] 강화 부근리 지석묘는 언제 만들어졌을까요?
 [비교형] 강화 부근리 지석묘는 다른 고인돌과 어떤 점이 비슷하고 다를까요?
@@ -85,6 +95,23 @@ test.describe('뭐냐면 이해/탐구 모드 재조정', () => {
     await expect(resultCanvas.getByText('자료를 나누어 읽기')).toBeVisible();
     await expect(resultCanvas.getByText('헷갈리기 쉬운 점')).toBeVisible();
     await expect(resultCanvas.getByText('내가 이해했는지 확인해 봐요')).toBeVisible();
+  });
+
+  test('[understand-quiz] 내가 이해했는지 확인해 봐요 하단에 객관식 퀴즈가 나오고 풀 수 있다', async ({ page }) => {
+    await runAnalysis(page);
+    const quizBox = page.getByTestId('understanding-quiz');
+
+    await expect(quizBox.getByText('강화 부근리 지석묘는 어느 시대에 만들어졌나요?')).toBeVisible();
+    // 4지선다 선택지가 모두 버튼으로 보인다 (parseQuizBlock이 순서를 섞으므로 내용으로 확인)
+    for (const option of ['구석기 시대', '신석기 시대', '청동기 시대', '철기 시대']) {
+      await expect(quizBox.getByRole('button', { name: new RegExp(option) })).toBeVisible();
+    }
+
+    // 정답을 골라 제출하면 정답 피드백과 해설이 보인다
+    await quizBox.getByRole('button', { name: /청동기 시대/ }).click();
+    await quizBox.getByRole('button', { name: '정답 확인' }).click();
+    await expect(quizBox.getByText('정답이야! 잘했어 👏')).toBeVisible();
+    await expect(quizBox.getByText(/청동기 시대에 만들어진 고인돌이라고 나와 있어요/)).toBeVisible();
   });
 
   test('[understand-mode] 분석 후 왼쪽 패널은 쉬운설명 탭을 우선으로 보여주고, 인라인 어휘 클릭이 동작한다', async ({ page }) => {
