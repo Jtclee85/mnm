@@ -72,7 +72,7 @@ export default function ResearchTutorialQuest({ isOpen, step, onNext, onPrev, on
       >
         <div style={s.header}>
           <div>
-            <div id="rtq-title" style={s.headerTitle}>🧭 조사 시작 전 퀘스트</div>
+            <div id="rtq-title" style={s.headerTitle}>🧭 자료를 조사할 때 주의점 알아보기</div>
             <div style={s.stepLabel}>Step {step + 1} / {total}</div>
           </div>
           <button onClick={onClose} aria-label="튜토리얼 닫기" style={s.closeBtn}>✕</button>

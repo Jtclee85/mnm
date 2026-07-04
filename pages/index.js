@@ -74,12 +74,11 @@ export default function Home() {
   // 우하단 플로팅 챗봇 팝업 열림 상태 — 기존 왼쪽 패널 '대화' 탭을 대체
   const [isChatPopupOpen, setIsChatPopupOpen] = useState(false);
 
-  // 5차 — '조사 시작 전 퀘스트' 첫 접속 튜토리얼 + '자료 조사 나침반' 상태.
+  // 5차 — '자료를 조사할 때 주의점 알아보기' 첫 접속 튜토리얼 상태.
   // SSR에서는 항상 닫힌 상태로 시작해 hydration mismatch를 막고, 클라이언트
   // 마운트 이후에만 localStorage를 읽어 첫 접속 여부를 판단한다.
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
-  const [compassExpandSignal, setCompassExpandSignal] = useState(0);
 
   useEffect(() => {
     try {
@@ -102,13 +101,11 @@ export default function Home() {
     setTutorialStep(0);
   };
 
-  // 다시 보지 않기 / 완료: seen을 저장해 다음 접속부터 자동으로 뜨지 않게 하고,
-  // 나침반을 한 번 자동으로 펼쳐 보여 준다.
+  // 다시 보지 않기 / 완료: seen을 저장해 다음 접속부터 자동으로 뜨지 않게 한다.
   const finishTutorial = () => {
     markTutorialSeen();
     setTutorialOpen(false);
     setTutorialStep(0);
-    setCompassExpandSignal(v => v + 1);
   };
 
   const isBusy = loadingMode !== null || isAnalyzing;
@@ -844,9 +841,17 @@ export default function Home() {
           {showLanding ? (
             <div style={isMobile ? styles.landingStackMobile : styles.landingRow}>
               <RecommendedSources isMobile={isMobile} />
-              <div style={styles.landingFormCol}>
+              {/* 모바일 세로 스택에서는 flex-basis(860px)가 높이로 적용되어
+                  폼 아래 빈 공간을 만들므로 데스크톱에서만 쓴다. */}
+              <div style={isMobile ? styles.landingFormColMobile : styles.landingFormCol}>
                 {leftColEl}
               </div>
+              {/* 자료 조사 나침반 — 추천 사이트(300px)와 같은 폭의 오른쪽 컬럼으로,
+                  입력 폼이 정가운데에 오도록 좌우 대칭을 맞춘다. */}
+              <ResearchCompass
+                isMobile={isMobile}
+                onReopenTutorial={() => { setTutorialStep(0); setTutorialOpen(true); }}
+              />
             </div>
           ) : (
             <div style={layoutStyle} data-testid="layout-grid">
@@ -873,17 +878,7 @@ export default function Home() {
           />
         )}
 
-        {/* 5차 — 자료 조사 나침반: 자료 검색·입력 단계(랜딩 화면)에서만 필요하므로
-            분석 이후에는 띄우지 않는다. */}
-        {showLanding && (
-          <ResearchCompass
-            isMobile={isMobile}
-            onReopenTutorial={() => { setTutorialStep(0); setTutorialOpen(true); }}
-            expandSignal={compassExpandSignal}
-          />
-        )}
-
-        {/* 5차 — 조사 시작 전 퀘스트: 첫 접속 시에만 자동으로 뜨는 튜토리얼 */}
+        {/* 5차 — 자료를 조사할 때 주의점 알아보기: 첫 접속 시에만 자동으로 뜨는 튜토리얼 */}
         <ResearchTutorialQuest
           isOpen={tutorialOpen}
           step={tutorialStep}
@@ -967,7 +962,8 @@ const styles = {
   // 랜딩 화면 전용 — 추천 원본자료 사이드바 + 자료입력 폼
   landingRow:         { display: 'flex', gap: 28, alignItems: 'stretch', justifyContent: 'center', flexWrap: 'wrap' },
   landingStackMobile: { display: 'flex', flexDirection: 'column', gap: 18 },
-  landingFormCol:     { flex: '0 1 860px', minWidth: 0 },
+  landingFormCol:       { flex: '0 1 860px', minWidth: 0 },
+  landingFormColMobile: { width: '100%' },
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftPanelTabs: {
