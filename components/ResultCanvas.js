@@ -26,6 +26,10 @@ const TOOL_CONFIG = [
   { key: 'teacher',    labelKey: 'teacherTool',    tipKey: 'teacherTip' },
 ];
 
+// 1차 구조 개편: 퀴즈/나 어땠어?/교과평어는 학생 활동 중심 흐름으로 정리하는 동안
+// 잠시 숨긴다. 퀴즈는 추후 이해모드로 통합 예정이므로 로직/버튼 정의는 보존한다.
+const HIDDEN_TOOL_KEYS = ['quiz', 'evaluation', 'teacher'];
+
 export default function ResultCanvas({
   activeMode, onTabClick, onClose,
   analysisByMode, loadingMode,
@@ -264,6 +268,7 @@ export default function ResultCanvas({
   };
 
   const toolHandlers = { quiz: onQuiz, evaluation: onEvaluation, teacher: onTeacherComment };
+  const visibleTools = TOOL_CONFIG.filter(({ key }) => !HIDDEN_TOOL_KEYS.includes(key));
 
   return (
     <div ref={canvasRef} data-testid="result-canvas" style={isMobile ? s.canvasMobile : s.canvas}>
@@ -297,8 +302,9 @@ export default function ResultCanvas({
           </>
         )}
 
+        {visibleTools.length > 0 && (
         <div style={s.toolBar}>
-          {TOOL_CONFIG.map(({ key, labelKey, tipKey }) => (
+          {visibleTools.map(({ key, labelKey, tipKey }) => (
             <div key={key} style={{ position: 'relative', zIndex: hoveredTool === key ? 10 : 1 }}>
               <button
                 data-testid={`tool-${key}`}
@@ -320,6 +326,7 @@ export default function ResultCanvas({
             </div>
           ))}
         </div>
+        )}
 
         <button onClick={onClose} style={s.closeBtn} title={t.close}>✕</button>
       </div>

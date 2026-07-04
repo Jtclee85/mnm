@@ -37,7 +37,7 @@ test.describe('뭐냐면 — 생각 워크시트 위치/열림 방식 (데스크
     expect(wsBox.y).toBeLessThan(tab1Box.y);
   });
 
-  test('[worksheet-not-a-tab] 워크시트 CTA는 탭 역할이 아니고, 왼쪽 패널도 조사자료/대화 2탭만 남아있다', async ({ page }) => {
+  test('[worksheet-not-a-tab] 워크시트 CTA는 탭 역할이 아니고, 왼쪽 패널에는 조사자료 탭만 남아있다', async ({ page }) => {
     await runAnalysis(page);
     const worksheetBtn = page.getByTestId('worksheet-toggle-button');
     await expect(worksheetBtn).not.toHaveAttribute('role', 'tab');
@@ -45,10 +45,11 @@ test.describe('뭐냐면 — 생각 워크시트 위치/열림 방식 (데스크
     // 모드 탭 그룹에는 4개(이해/탐구/발표/글쓰기)만 존재해야 한다
     await expect(page.getByRole('tab')).toHaveCount(4);
 
-    // 왼쪽 패널은 조사자료/대화 2개 탭만 남아있고, 워크시트 탭은 없다
+    // 1차 구조 개편으로 '대화' 탭은 제거되고 우하단 플로팅 챗봇으로 이동했다.
+    // 왼쪽 패널에는 조사자료 탭만 남아있고, 워크시트 탭도 없다.
     const leftPanel = page.getByTestId('left-panel');
     await expect(leftPanel.getByRole('button', { name: '조사자료' })).toBeVisible();
-    await expect(leftPanel.getByRole('button', { name: '대화' })).toBeVisible();
+    await expect(leftPanel.getByRole('button', { name: '대화' })).toHaveCount(0);
     await expect(leftPanel.getByTestId('left-panel-tab-worksheet')).toHaveCount(0);
   });
 
@@ -80,13 +81,17 @@ test.describe('뭐냐면 — 생각 워크시트 위치/열림 방식 (데스크
     await expect(leftPanel.getByText('글쓰기 개요')).toBeVisible();
   });
 
-  test('[worksheet-back-to-chat] 닫기를 누르면 대화 탭으로 돌아가고 대화 기록이 유지된다', async ({ page }) => {
+  test('[worksheet-back-to-source] 닫기를 누르면 조사자료 화면으로 돌아가고, 대화 기록은 우하단 챗봇에 유지된다', async ({ page }) => {
     await runAnalysis(page);
     await page.getByTestId('worksheet-toggle-button').click();
     await expect(page.getByTestId('left-panel').getByText('기초 이해')).toBeVisible();
 
-    await page.getByRole('button', { name: '생각 워크시트 닫고 대화로 돌아가기' }).click();
-    await expect(page.getByTestId('followup-chat-section')).toBeVisible();
+    await page.getByRole('button', { name: '생각 워크시트 닫고 조사자료로 돌아가기' }).click();
+    await expect(page.getByTestId('topic-input')).toBeVisible();
+
+    // 대화 기록은 사라지지 않고 우하단 플로팅 챗봇 팝업에서 그대로 이어진다
+    await page.getByTestId('chatbot-toggle-button').click();
+    await expect(page.getByTestId('chatbot-popup')).toBeVisible();
   });
 
   test('[worksheet-autosave] 입력 내용이 자동 저장되고 새로고침 후에도 유지된다', async ({ page }) => {

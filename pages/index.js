@@ -1,15 +1,15 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 
 import titleLogo from '../public/title-mnm.png';
 import SectionCard from '../components/SectionCard';
-import ChatBubble from '../components/ChatBubble';
 import ResultCanvas from '../components/ResultCanvas';
 import RecommendedSources from '../components/RecommendedSources';
 import HelpPanel from '../components/HelpPanel';
 import SignTextReader from '../components/SignTextReader';
 import ThinkingWorksheetDrawer from '../components/ThinkingWorksheetDrawer';
+import FloatingChatbot from '../components/FloatingChatbot';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
@@ -59,10 +59,8 @@ export default function Home() {
 
   const [conversation, setConversation] = useState([makeInitialMessage(getUiText('ko'))]);
   const [chatInput,    setChatInput]    = useState('');
-
-  const chatBoxRef    = useRef(null);
-  const chatInputRef  = useRef(null);
-  const chatSectionRef = useRef(null);
+  // 우하단 플로팅 챗봇 팝업 열림 상태 — 기존 왼쪽 패널 '대화' 탭을 대체
+  const [isChatPopupOpen, setIsChatPopupOpen] = useState(false);
 
   const isBusy = loadingMode !== null || isAnalyzing;
 
@@ -73,20 +71,6 @@ export default function Home() {
     window.addEventListener('resize', fn);
     return () => window.removeEventListener('resize', fn);
   }, []);
-
-  // ── 채팅 스크롤 ──
-  useEffect(() => {
-    const el = chatBoxRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [conversation]);
-
-  // ── 채팅 입력 포커스 ──
-  useEffect(() => {
-    if (!isBusy && chatInputRef.current) {
-      try { chatInputRef.current.focus({ preventScroll: true }); }
-      catch { chatInputRef.current.focus(); }
-    }
-  }, [isBusy]);
 
   // ── 자동 세션 저장 ──
   useEffect(() => {
@@ -118,7 +102,7 @@ export default function Home() {
         r?.presentationTitle || r?.presentationMessages || r?.writingOutline
       );
     setCanvasOpen(!!anyResult);
-    setLeftPanelTab(anyResult ? 'chat' : 'source');
+    setLeftPanelTab('source');
     setLastAnalyzedTopic(anyResult ? (session.topic ?? '') : '');
   };
 
@@ -288,7 +272,7 @@ export default function Home() {
     if (trimmedSource.length < 50)  { alert(t.shortSource); return; }
 
     setLastAnalyzedTopic(trimmedTopic);
-    setLeftPanelTab('chat');
+    setLeftPanelTab('source');
 
     const thinkingMsg = trimmedSource.length > 3000
       ? t.longThinking
@@ -479,15 +463,10 @@ export default function Home() {
 
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-  // ── 탐구 탭 질문 버튼 클릭 → 채팅으로 ──
+  // ── 탐구 탭 질문 버튼 클릭 → 우하단 챗봇 팝업으로 ──
   const handleQuestionAsk = (q) => {
-    setLeftPanelTab('chat');
+    setIsChatPopupOpen(true);
     handleFollowUpChat(q);
-    setTimeout(() => {
-      if (!chatSectionRef.current) return;
-      const top = chatSectionRef.current.getBoundingClientRect().top + window.pageYOffset - 16;
-      window.scrollTo({ top, behavior: 'smooth' });
-    }, 150);
   };
 
   // ── 공유 URL 생성 ──
@@ -551,6 +530,8 @@ export default function Home() {
     ? `${withSubjectParticle(lastAnalyzedTopic)} 뭐냐면...`
     : t.mainCardTitle;
 
+  // 1차 구조 개편: 왼쪽 '대화' 탭은 제거하고 우하단 플로팅 챗봇으로 이동했다.
+  // '조사자료' 탭만 남아, 워크시트 화면에서 되돌아올 자리로도 쓰인다.
   const renderLeftPanelTabs = () => (
     <div style={styles.leftPanelTabs}>
       <button
@@ -558,12 +539,6 @@ export default function Home() {
         onClick={() => setLeftPanelTab('source')}
       >
         {t.sourceTab}
-      </button>
-      <button
-        style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'chat' ? styles.leftPanelTabActive : {}) }}
-        onClick={() => setLeftPanelTab('chat')}
-      >
-        {t.chatTab}
       </button>
     </div>
   );
@@ -710,53 +685,7 @@ export default function Home() {
               </SectionCard>
               )}
 
-              {/* 후속 질문 채팅 */}
-              {leftPanelTab === 'chat' && (
-              <div ref={chatSectionRef} data-testid="followup-chat-section">
-                <SectionCard
-                  title={leftPanelTitle} icon="" isMobile={isMobile}
-                  actions={renderHeaderActions()}
-                >
-                  {renderSavedTopicChips()}
-                  {renderLeftPanelTabs()}
-
-                  <div ref={chatBoxRef} style={{ ...styles.chatBox, ...(isMobile ? styles.chatBoxMobile : {}) }}>
-                    {conversation.map((msg, idx) => (
-                      <ChatBubble
-                        key={`${msg.role}-${idx}-${msg.content.slice(0, 10)}`}
-                        role={msg.role}
-                        content={msg.content}
-                        isMobile={isMobile}
-                      />
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    <textarea
-                      ref={chatInputRef}
-                      style={{ ...styles.chatTextarea, ...(isMobile ? styles.chatTextareaMobile : {}) }}
-                      value={chatInput}
-                      onChange={e => setChatInput(e.target.value)}
-                      placeholder={t.chatPlaceholder}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleFollowUpChat(); }
-                      }}
-                      disabled={isChatLoading}
-                    />
-                    <button
-                      data-testid="send-question-button"
-                      style={{ ...styles.primaryBtn, ...(isMobile ? styles.primaryBtnMobile : {}) }}
-                      onClick={() => handleFollowUpChat()}
-                      disabled={isChatLoading}
-                    >
-                      {isChatLoading ? t.sending : t.sendQuestion}
-                    </button>
-                  </div>
-                </SectionCard>
-              </div>
-              )}
-
-              {/* 생각 워크시트 — 오른쪽 분석 결과를 가리지 않도록 왼쪽 패널(대화/조사자료) 자리에 임베드 */}
+              {/* 생각 워크시트 — 오른쪽 분석 결과를 가리지 않도록 왼쪽 패널(조사자료) 자리에 임베드 */}
               {leftPanelTab === 'worksheet' && (
                 <div data-testid="worksheet-panel-section">
                   {renderSavedTopicChips()}
@@ -764,7 +693,7 @@ export default function Home() {
                   <ThinkingWorksheetDrawer
                     variant="panel"
                     isOpen={true}
-                    onClose={() => setLeftPanelTab('chat')}
+                    onClose={() => setLeftPanelTab('source')}
                     topic={lastAnalyzedTopic}
                     activeMode={activeMode}
                     notes={notes}
@@ -839,6 +768,23 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* 우하단 플로팅 챗봇 — 조사를 시작한 뒤부터 접근 가능 (랜딩 화면에서는 물어볼 맥락이 없음) */}
+        {!showLanding && (
+          <FloatingChatbot
+            isOpen={isChatPopupOpen}
+            onOpen={() => setIsChatPopupOpen(true)}
+            onClose={() => setIsChatPopupOpen(false)}
+            conversation={conversation}
+            chatInput={chatInput}
+            setChatInput={setChatInput}
+            onSend={handleFollowUpChat}
+            isChatLoading={isChatLoading}
+            isMobile={isMobile}
+            topic={lastAnalyzedTopic || topic}
+            t={t}
+          />
+        )}
       </div>
     </>
   );
@@ -915,7 +861,7 @@ const styles = {
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftPanelTabs: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
+    display: 'grid', gridTemplateColumns: '1fr', gap: 4,
     background: 'var(--color-bg)', border: '1px solid var(--color-border)',
     borderRadius: 12, padding: 4, marginBottom: 18,
   },
@@ -967,11 +913,6 @@ const styles = {
     fontWeight: 800, padding: '12px 20px', borderRadius: 12,
     cursor: 'pointer', fontSize: 12,
   },
-
-  chatBox:       { height: 460, overflowY: 'auto', background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 14, marginBottom: 12 },
-  chatBoxMobile: { height: 340, padding: 10, marginBottom: 10 },
-  chatTextarea:       { width: '100%', minHeight: 90, maxHeight: 200, border: '1px solid var(--color-border)', borderRadius: 14, padding: '12px 14px', fontSize: 15, lineHeight: 1.6, resize: 'vertical', outline: 'none', boxSizing: 'border-box' },
-  chatTextareaMobile: { minHeight: 80, fontSize: 16, padding: '12px' },
 
   chipsWrap: {
     display: 'flex', alignItems: 'center', gap: 5,

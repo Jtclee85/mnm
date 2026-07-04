@@ -140,7 +140,7 @@ test.describe('뭐냐면 — 글쓰기 모드 발판형 개편', () => {
 
   test('[writing-mode] 대화창 안내 문구가 보인다', async ({ page }) => {
     await runAnalysisAndOpenWriting(page);
-    await expect(page.getByTestId('result-canvas').getByText('왼쪽 대화창에 문장을 붙여 넣고 물어보세요')).toBeVisible();
+    await expect(page.getByTestId('result-canvas').getByText('우측 하단 채팅창에 문장을 붙여 넣고 물어보세요')).toBeVisible();
   });
 
   test('[writing-mode] 이해/탐구/발표 모드는 기존처럼 정상 작동한다', async ({ page }) => {
@@ -164,6 +164,9 @@ test.describe('뭐냐면 — 글쓰기 모드 모바일', () => {
     await page.goto('/');
     await runAnalysisAndOpenWriting(page);
 
+    // 글쓰기 탭 전환은 비동기 재분석을 트리거하므로, 고정 시간 대기 대신
+    // 첫 카드가 렌더링될 때까지 자동 재시도로 기다린 뒤 스냅샷한다.
+    await expect(page.getByTestId('section-card').first()).toBeVisible();
     const cards = await page.getByTestId('section-card').all();
     expect(cards.length).toBeGreaterThan(0);
     for (const card of cards) {

@@ -189,7 +189,7 @@ test.describe('뭐냐면 — desktop-1920 기준 스모크 테스트', () => {
     }
   });
 
-  test('[desktop-1920] 주요 버튼(자료 분석 시작/결과 복사/퀴즈 만들기)이 보이고 클릭 가능하다', async ({ page }) => {
+  test('[desktop-1920] 주요 버튼(자료 분석 시작/결과 복사)이 보이고 클릭 가능하다', async ({ page }) => {
     await expect(page.getByTestId('analyze-button')).toBeEnabled();
 
     await runAnalysis(page);
@@ -197,9 +197,33 @@ test.describe('뭐냐면 — desktop-1920 기준 스모크 테스트', () => {
     const copyButton = page.getByTestId('copy-easy-button');
     await expect(copyButton).toBeVisible();
     await expect(copyButton).toBeEnabled();
+  });
 
-    const quizButton = page.getByTestId('tool-quiz');
-    await expect(quizButton).toBeVisible();
-    await expect(quizButton).toBeEnabled();
+  // 1차 구조 개편: 퀴즈/나 어땠어?/교과평어는 학생 활동 중심 흐름으로 정리하는 동안
+  // 화면에서 숨긴다(로직은 보존, 추후 이해모드 통합 예정).
+  test('[desktop-1920] 퀴즈/나 어땠어?/교과평어 버튼이 화면에 보이지 않는다', async ({ page }) => {
+    await runAnalysis(page);
+
+    await expect(page.getByTestId('tool-quiz')).toHaveCount(0);
+    await expect(page.getByTestId('tool-evaluation')).toHaveCount(0);
+    await expect(page.getByTestId('tool-teacher')).toHaveCount(0);
+  });
+
+  test('[desktop-1920] 우하단 플로팅 챗봇 버튼이 보이고, 클릭하면 팝업이 열린다', async ({ page }) => {
+    await runAnalysis(page);
+
+    const chatbotButton = page.getByTestId('chatbot-toggle-button');
+    await expect(chatbotButton).toBeVisible();
+    await expect(chatbotButton).toHaveAttribute('aria-expanded', 'false');
+
+    await chatbotButton.click();
+    await expect(chatbotButton).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.getByTestId('chatbot-popup')).toBeVisible();
+
+    // 기존 대화 메시지가 팝업 안에 표시된다
+    await expect(page.getByTestId('chatbot-popup')).toContainText('조사자료를 정리했어');
+
+    // 왼쪽 패널에는 더 이상 상시 채팅창이 없다
+    await expect(page.getByTestId('followup-chat-section')).toHaveCount(0);
   });
 });

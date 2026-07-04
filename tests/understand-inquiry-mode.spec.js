@@ -137,6 +137,9 @@ test.describe('뭐냐면 이해/탐구 모드 모바일', () => {
 
     for (const mode of ['understand', 'inquiry']) {
       await page.getByTestId(`mode-tab-${mode}`).click();
+      // 모드 전환 시 비동기로 다시 분석하는 탭도 있으므로, 카드 목록을 스냅샷하기 전에
+      // 로딩이 끝나고 첫 카드가 렌더링될 때까지 기다린다(고정 시간 대기 대신 자동 재시도).
+      await expect(page.getByTestId('section-card').first()).toBeVisible();
       const cards = await page.getByTestId('section-card').all();
       expect(cards.length).toBeGreaterThan(0);
       for (const card of cards) {

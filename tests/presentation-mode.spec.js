@@ -151,7 +151,7 @@ test.describe('뭐냐면 — 발표 모드 워크시트형 개편', () => {
 
   test('[presentation-mode] 발표 연습 피드백 안내와 다른 모드가 정상 작동한다', async ({ page }) => {
     await runAnalysisAndOpenPresentation(page);
-    await expect(page.getByTestId('result-canvas').getByText('왼쪽 대화창에 붙여 넣고 물어보세요')).toBeVisible();
+    await expect(page.getByTestId('result-canvas').getByText('우측 하단 채팅창에 붙여 넣고 물어보세요')).toBeVisible();
 
     await page.getByTestId('mode-tab-understand').click();
     await expect(page.getByTestId('result-canvas').getByText('이것은 테스트용 쉬운 설명입니다.')).toBeVisible();
@@ -171,6 +171,9 @@ test.describe('뭐냐면 — 발표 모드 모바일', () => {
     await page.goto('/');
     await runAnalysisAndOpenPresentation(page);
 
+    // 발표 탭 전환은 비동기 재분석을 트리거하므로, 고정 시간 대기 대신
+    // 첫 카드가 렌더링될 때까지 자동 재시도로 기다린 뒤 스냅샷한다.
+    await expect(page.getByTestId('section-card').first()).toBeVisible();
     const cards = await page.getByTestId('section-card').all();
     expect(cards.length).toBeGreaterThan(0);
     for (const card of cards) {
