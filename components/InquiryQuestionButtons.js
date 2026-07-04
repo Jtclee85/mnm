@@ -60,7 +60,7 @@ function parseTypedQuestions(text, fallbackLines = []) {
     }));
 }
 
-export default function InquiryQuestionButtons({ text, fallbackLines = [], onQuestionAsk, isMobile, emptyText }) {
+export default function InquiryQuestionButtons({ text, fallbackLines = [], onQuestionAsk, isMobile, emptyText, selectedQuestion }) {
   const questions = parseTypedQuestions(text, fallbackLines);
 
   if (questions.length === 0) {
@@ -73,17 +73,21 @@ export default function InquiryQuestionButtons({ text, fallbackLines = [], onQue
 
   return (
     <div style={{ display: 'grid', gap: isMobile ? 8 : 10 }}>
-      {questions.map(({ type, question }, idx) => (
-        <button
-          key={`${type}-${question}-${idx}`}
-          type="button"
-          style={styles.button}
-          onClick={() => onQuestionAsk?.(question)}
-        >
-          <span style={styles.badge}>{type}</span>
-          <span style={styles.question}>{question}</span>
-        </button>
-      ))}
+      {questions.map(({ type, question }, idx) => {
+        const isSelected = !!selectedQuestion && selectedQuestion === question;
+        return (
+          <button
+            key={`${type}-${question}-${idx}`}
+            type="button"
+            aria-pressed={isSelected}
+            style={{ ...styles.button, ...(isSelected ? styles.buttonSelected : {}) }}
+            onClick={() => onQuestionAsk?.(question, type)}
+          >
+            <span style={styles.badge}>{type}</span>
+            <span style={styles.question}>{question}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -102,6 +106,10 @@ const styles = {
     gap: 10,
     alignItems: 'center',
     textAlign: 'left',
+  },
+  buttonSelected: {
+    border: '1.5px solid var(--color-primary)',
+    background: 'rgba(var(--color-primary-rgb),0.08)',
   },
   badge: {
     border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)',

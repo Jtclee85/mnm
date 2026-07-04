@@ -16,6 +16,7 @@ import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMes
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
 import { useStudentNotes } from '../lib/useStudentNotes';
 import { useSessionSave } from '../lib/useSessionSave';
+import { migrateLegacyWorksheetFields } from '../lib/modeWorksheetFields';
 import { encodeShareData } from '../lib/shareUtils';
 import { LANGUAGE_OPTIONS, getLanguageReminder, getUiText } from '../lib/i18n';
 import { withSubjectParticle } from '../lib/koreanParticles';
@@ -57,6 +58,12 @@ export default function Home() {
 
   const { notes, updateNote, saveStatus } = useStudentNotes(topic);
   const { savedTopics, triggerSave, saveNow, loadSession, deleteSession } = useSessionSave();
+
+  // 3차 구조 개편 — 옛 별도 '생각 워크시트' 데이터를 각 모드 안 입력 필드로 1회성 복사.
+  // 옛 데이터는 지우지 않고 그대로 둔 채, 새 필드가 비어 있을 때만 채운다.
+  useEffect(() => {
+    migrateLegacyWorksheetFields(notes, updateNote);
+  }, [notes, updateNote]);
 
   const [conversation, setConversation] = useState([makeInitialMessage(getUiText('ko'))]);
   const [chatInput,    setChatInput]    = useState('');
@@ -466,10 +473,13 @@ export default function Home() {
 
   const [isChatLoading, setIsChatLoading] = useState(false);
 
-  // ── 탐구 탭 질문 버튼 클릭 → 우하단 챗봇 팝업으로 ──
-  const handleQuestionAsk = (q) => {
+  // ── 3차 구조 개편: 탐구모드 '이 질문으로 챗봇에게 물어보기' 버튼 ──
+  // 질문을 고르자마자 자동으로 챗봇에 보내지 않는다. 학생이 먼저 자기 생각을 쓴 뒤
+  // 이 버튼을 눌러야 챗봇 팝업이 열리고, 질문은 입력창에 채워지기만 한다(자동 전송 아님).
+  const handleAskChatbotWithQuestion = (q) => {
+    if (!q) return;
+    setChatInput(q);
     setIsChatPopupOpen(true);
-    handleFollowUpChat(q);
   };
 
   // ── 공유 URL 생성 ──
@@ -755,7 +765,7 @@ export default function Home() {
       saveStatus={saveStatus}
       handleShare={handleShare}
       isMobile={isMobile}
-      onQuestionAsk={handleQuestionAsk}
+      onAskChatbotWithQuestion={handleAskChatbotWithQuestion}
       t={t}
       language={language}
       onLanguageChange={handleLanguageChange}

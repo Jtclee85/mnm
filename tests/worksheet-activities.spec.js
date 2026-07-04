@@ -29,13 +29,16 @@ function encodeShareData(obj) {
     .replace(/=/g, '');
 }
 
+// 3차 구조 개편: 별도 '생각 워크시트' CTA는 핵심 진입점에서 숨겼다(컴포넌트/데이터는
+// 보존, components/ThinkingWorksheetDrawer.js 참고). 아래는 그 CTA를 열어야 진행되는
+// 옛 테스트라 더 이상 실행할 진입점이 없으므로 skip으로 남겨 의도를 문서화한다.
 test.describe('뭐냐면 — 생각 워크시트 활동 개편 (자료에서 증거 찾기 / 생각 넓히기)', () => {
   test.beforeEach(async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/');
   });
 
-  test('[activity-rename] 활동 카드명이 새 이름으로 바뀌고 옛 이름은 보이지 않는다', async ({ page }) => {
+  test.skip('[activity-rename] 활동 카드명이 새 이름으로 바뀌고 옛 이름은 보이지 않는다 — CTA가 숨겨져 더 이상 열 수 없음', async ({ page }) => {
     await runAnalysis(page);
     await page.getByTestId('worksheet-toggle-button').click();
     const leftPanel = page.getByTestId('left-panel');
@@ -46,7 +49,7 @@ test.describe('뭐냐면 — 생각 워크시트 활동 개편 (자료에서 증
     await expect(leftPanel.getByText('깊이 생각', { exact: true })).toHaveCount(0);
   });
 
-  test('[evidence-structure] 자료에서 증거 찾기가 주장-증거-연결-다시쓰기 구조로 보인다', async ({ page }) => {
+  test.skip('[evidence-structure] 자료에서 증거 찾기가 주장-증거-연결-다시쓰기 구조로 보인다 — CTA가 숨겨져 더 이상 열 수 없음', async ({ page }) => {
     await runAnalysis(page);
     await page.getByTestId('worksheet-toggle-button').click();
     const leftPanel = page.getByTestId('left-panel');
@@ -63,7 +66,7 @@ test.describe('뭐냐면 — 생각 워크시트 활동 개편 (자료에서 증
     await expect(leftPanel.getByText('나는 __________라고 생각한다.')).toBeVisible();
   });
 
-  test('[deep-structure] 생각 넓히기가 질문-처음생각-알게된점-깊어진점-불확실한점-다음질문 구조로 보인다', async ({ page }) => {
+  test.skip('[deep-structure] 생각 넓히기가 질문-처음생각-알게된점-깊어진점-불확실한점-다음질문 구조로 보인다 — CTA가 숨겨져 더 이상 열 수 없음', async ({ page }) => {
     await runAnalysis(page);
     await page.getByTestId('worksheet-toggle-button').click();
     const leftPanel = page.getByTestId('left-panel');
@@ -81,7 +84,7 @@ test.describe('뭐냐면 — 생각 워크시트 활동 개편 (자료에서 증
     await expect(leftPanel.getByPlaceholder('탐구하고 싶은 질문을 써 보세요.')).toBeVisible();
   });
 
-  test('[mode-recommended] 탐구 모드에서는 생각 넓히기가 기본 선택되고 자료에서 증거 찾기에 추천 표시가 보인다', async ({ page }) => {
+  test.skip('[mode-recommended] 탐구 모드에서는 생각 넓히기가 기본 선택되고 자료에서 증거 찾기에 추천 표시가 보인다 — CTA가 숨겨져 더 이상 열 수 없음', async ({ page }) => {
     await runAnalysis(page);
     await page.getByTestId('mode-tab-inquiry').click();
     await page.getByTestId('worksheet-toggle-button').click();
@@ -95,7 +98,7 @@ test.describe('뭐냐면 — 생각 워크시트 활동 개편 (자료에서 증
     await expect(evidenceBtn.getByText('추천')).toBeVisible();
   });
 
-  test('[legacy-data-preserved] 기존 근거 찾기/깊이 생각 저장값이 새 필드로 옮겨져 보존된다', async ({ page }) => {
+  test.skip('[legacy-data-preserved] 기존 근거 찾기/깊이 생각 저장값이 새 필드로 옮겨져 보존된다 — CTA가 숨겨져 더 이상 열 수 없음', async ({ page }) => {
     // 개편 전 저장된 학생 데이터를 시뮬레이션
     await page.addInitScript(() => {
       localStorage.setItem('mnm-student-notes', JSON.stringify({

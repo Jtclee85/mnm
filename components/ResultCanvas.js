@@ -9,8 +9,10 @@ import WritingChecklist from './WritingChecklist';
 import WritingSectionBlocks from './WritingSectionBlocks';
 import PresentationBlocks from './PresentationBlocks';
 import InquiryQuestionButtons from './InquiryQuestionButtons';
+import WorksheetField from './WorksheetField';
 import { copyText } from '../lib/parseResponse';
 import { getUiText, LANGUAGE_OPTIONS } from '../lib/i18n';
+import { PRESENTATION_FIELDS, WRITING_FIELDS, getUnderstandCheckQuestions } from '../lib/modeWorksheetFields';
 
 export const TAB_OPTIONS = [
   { value: 'understand',   labelKey: 'modeUnderstand',   icon: '🧒' },
@@ -36,7 +38,7 @@ export default function ResultCanvas({
   onQuiz, onEvaluation, onTeacherComment,
   isBusy, loadingTool,
   notes, updateNote, saveStatus, handleShare,
-  isMobile, onQuestionAsk, t = getUiText('ko'),
+  isMobile, onAskChatbotWithQuestion, t = getUiText('ko'),
   language, onLanguageChange,
   topic,
   onOpenWorksheet, isWorksheetActive,
@@ -84,6 +86,13 @@ export default function ResultCanvas({
   const result = analysisByMode[activeMode] || {};
   const isTabLoading = loadingMode === activeMode;
 
+  // 탐구 질문 버튼 클릭 → 바로 챗봇에 보내지 않고, 선택한 질문만 저장한다.
+  // 학생이 먼저 '내 처음 생각'을 쓴 뒤, 별도 버튼으로 챗봇에게 물어보게 한다.
+  const handleSelectQuestion = (question, type) => {
+    updateNote('inq_selectedQuestion', question);
+    updateNote('inq_selectedQuestionType', type || '');
+  };
+
   const renderModeContent = () => {
     if (isTabLoading) {
       return (
@@ -113,7 +122,21 @@ export default function ResultCanvas({
           <BulletList items={result.understandingMisconceptionLines} isMobile={isMobile} emptyText={t.understandMisconceptionsEmpty} />
         </SectionCard>
         <SectionCard title={t.understandCheckTitle} icon="✅" isMobile={isMobile}>
-          <BulletList items={result.understandingCheckLines?.length > 0 ? result.understandingCheckLines : result.reteachLines} isMobile={isMobile} emptyText={t.understandCheckEmpty} />
+          <div style={s.checkList}>
+            {getUnderstandCheckQuestions(result).map((question, idx) => (
+              <div key={idx} style={s.checkItem}>
+                <p style={s.checkQuestion}>{idx + 1}. {question}</p>
+                <WorksheetField
+                  id={`u_check${idx + 1}`}
+                  value={notes?.[`u_check${idx + 1}`]}
+                  onChange={v => updateNote(`u_check${idx + 1}`, v)}
+                  placeholder={t.checkAnswerPlaceholder}
+                  isMobile={isMobile}
+                  rows={2}
+                />
+              </div>
+            ))}
+          </div>
         </SectionCard>
         {(result.understandingSentence || result.easy) && (
           <p style={s.coachHint}>{t.understandChatHint}</p>
@@ -128,7 +151,8 @@ export default function ResultCanvas({
           <InquiryQuestionButtons
             text={result.inquiryQuestions}
             fallbackLines={result.questionLines}
-            onQuestionAsk={onQuestionAsk}
+            onQuestionAsk={handleSelectQuestion}
+            selectedQuestion={notes?.inq_selectedQuestion}
             isMobile={isMobile}
             emptyText={t.inquiryQuestionsEmpty}
           />
@@ -140,9 +164,72 @@ export default function ResultCanvas({
             emptyText={t.inquiryQuestionGuideEmpty}
           />
         </SectionCard>
-        {(result.inquiryQuestions || result.questionLines?.length > 0) && (
-          <p style={s.coachHint}>{t.inquiryChatHint}</p>
-        )}
+
+        {/* 3차 구조 개편 — 탐구 질문을 고른 뒤 바로 챗봇으로 보내지 않고,
+            먼저 내 생각을 쓰게 한 다음 챗봇 대화로 이어지게 한다. */}
+        <SectionCard title={t.inquiryFirstThoughtTitle} icon="✍️" isMobile={isMobile}>
+          <div style={s.fieldGroup}>
+            <div style={s.selectedQuestionBox}>
+              <span style={s.selectedQuestionLabel}>{t.inquirySelectedQuestionLabel}</span>
+              {notes?.inq_selectedQuestion ? (
+                <span data-testid="inquiry-selected-question" style={s.selectedQuestionText}>
+                  {notes.inq_selectedQuestionType && (
+                    <span style={s.typeBadge}>{notes.inq_selectedQuestionType}</span>
+                  )}
+                  {notes.inq_selectedQuestion}
+                </span>
+              ) : (
+                <span style={s.selectedQuestionEmpty}>{t.inquirySelectedQuestionEmpty}</span>
+              )}
+            </div>
+            <WorksheetField
+              id="inq_firstThought"
+              label={t.inquiryFirstThoughtLabel}
+              value={notes?.inq_firstThought}
+              onChange={v => updateNote('inq_firstThought', v)}
+              placeholder={t.inquiryFirstThoughtPlaceholder}
+              isMobile={isMobile}
+            />
+            <WorksheetField
+              id="inq_reason"
+              label={t.inquiryReasonLabel}
+              value={notes?.inq_reason}
+              onChange={v => updateNote('inq_reason', v)}
+              placeholder={t.inquiryReasonPlaceholder}
+              isMobile={isMobile}
+            />
+            <button
+              type="button"
+              data-testid="ask-chatbot-with-question-button"
+              style={{ ...s.askChatbotBtn, ...(!notes?.inq_selectedQuestion ? s.askChatbotBtnDisabled : {}) }}
+              disabled={!notes?.inq_selectedQuestion}
+              onClick={() => onAskChatbotWithQuestion?.(notes.inq_selectedQuestion)}
+            >
+              💬 {t.inquiryAskChatbotButton}
+            </button>
+          </div>
+        </SectionCard>
+
+        <SectionCard title={t.inquiryAfterChatTitle} icon="🗒️" isMobile={isMobile}>
+          <div style={s.fieldGroup}>
+            <WorksheetField
+              id="inq_learnedAfterChat"
+              label={t.inquiryLearnedLabel}
+              value={notes?.inq_learnedAfterChat}
+              onChange={v => updateNote('inq_learnedAfterChat', v)}
+              placeholder={t.inquiryLearnedPlaceholder}
+              isMobile={isMobile}
+            />
+            <WorksheetField
+              id="inq_changedOrFurtherQuestion"
+              label={t.inquiryChangedLabel}
+              value={notes?.inq_changedOrFurtherQuestion}
+              onChange={v => updateNote('inq_changedOrFurtherQuestion', v)}
+              placeholder={t.inquiryChangedPlaceholder}
+              isMobile={isMobile}
+            />
+          </div>
+        </SectionCard>
       </>
     );
 
@@ -186,6 +273,22 @@ export default function ResultCanvas({
         </SectionCard>
         <SectionCard title={t.presentationTemplatesTitle} icon="🗣️" isMobile={isMobile}>
           <BulletList items={result.presentationTemplateLines?.length > 0 ? result.presentationTemplateLines : result.presentationScriptLines} isMobile={isMobile} emptyText={t.presentationTemplatesEmpty} />
+        </SectionCard>
+        {/* 3차 구조 개편 — 완성 대본 대신, 학생이 직접 발표 흐름/문장을 채우는 입력 카드 */}
+        <SectionCard title={t.presentationPrepTitle} icon="🎤" isMobile={isMobile}>
+          <div style={s.fieldGroup}>
+            {PRESENTATION_FIELDS.map(({ key, labelKey, placeholderKey, numbered }) => (
+              <WorksheetField
+                key={key}
+                id={key}
+                label={numbered ? `${t[labelKey]} ${numbered}` : t[labelKey]}
+                value={notes?.[key]}
+                onChange={v => updateNote(key, v)}
+                placeholder={t[placeholderKey]}
+                isMobile={isMobile}
+              />
+            ))}
+          </div>
         </SectionCard>
         <SectionCard title={t.presentationChecklistTitle} icon="✅" isMobile={isMobile}>
           <WritingChecklist items={result.presentationChecklistLines} isMobile={isMobile} emptyText={t.presentationChecklistEmpty} />
@@ -231,6 +334,22 @@ export default function ResultCanvas({
           ) : null}
         >
           <WritingOutlineCard outline={result.writingOutline} isMobile={isMobile} t={t} />
+        </SectionCard>
+        {/* 3차 구조 개편 — 완성글 대신, 학생이 직접 중심문장/개요를 채우는 입력 카드 */}
+        <SectionCard title={t.writingPrepTitle} icon="✏️" isMobile={isMobile}>
+          <div style={s.fieldGroup}>
+            {WRITING_FIELDS.map(({ key, labelKey, placeholderKey, numbered }) => (
+              <WorksheetField
+                key={key}
+                id={key}
+                label={numbered ? `${t[labelKey]} ${numbered}` : t[labelKey]}
+                value={notes?.[key]}
+                onChange={v => updateNote(key, v)}
+                placeholder={t[placeholderKey]}
+                isMobile={isMobile}
+              />
+            ))}
+          </div>
         </SectionCard>
         <SectionCard title={t.writingChecklistTitle} icon="✅" isMobile={isMobile}>
           <WritingChecklist items={result.writingChecklistLines} isMobile={isMobile} emptyText={t.writingChecklistEmpty} />
@@ -308,27 +427,31 @@ export default function ResultCanvas({
         <button onClick={onClose} style={s.closeBtn} title={t.close}>✕</button>
       </div>
 
-      {/* ── 생각 워크시트 CTA — 결과 모드 탭과 분리된 독립 산출물 제작 액션 ── */}
-      <div style={s.worksheetCtaRow}>
-        <button
-          data-testid="worksheet-toggle-button"
-          onClick={() => (isMobile ? setIsMobileSheetOpen(true) : onOpenWorksheet?.())}
-          aria-expanded={isMobile ? isMobileSheetOpen : !!isWorksheetActive}
-          aria-label="생각 워크시트 완성하기"
-          className="worksheet-cta-btn"
-          style={{ ...s.worksheetCtaBtn, ...(isMobile ? s.worksheetCtaBtnMobile : {}) }}
-        >
-          <span style={{ fontSize: 15 }}>✏️</span>
-          <span style={s.worksheetCtaTextWrap}>
-            <span style={s.worksheetCtaTitle}>
-              {isMobile ? '생각 워크시트' : '생각 워크시트 완성하기'}
-            </span>
-            {!isMobile && (
-              <span style={s.worksheetCtaSub}>AI 결과를 보고 내 생각을 정리해요</span>
-            )}
-          </span>
-        </button>
-      </div>
+      {/* 3차 구조 개편 — 별도 '생각 워크시트' 완성하기 CTA는 핵심 진입점에서 제거한다.
+          워크시트 입력 활동은 이제 각 모드(이해/탐구/발표준비/글쓰기준비) 안에 흡수되어 있다.
+          기존 ThinkingWorksheetDrawer 컴포넌트와 데이터는 삭제하지 않고 그대로 둔다
+          (아래 모바일 시트 렌더링과 onOpenWorksheet/isWorksheetActive 로직도 보존).
+          <div style={s.worksheetCtaRow}>
+            <button
+              data-testid="worksheet-toggle-button"
+              onClick={() => (isMobile ? setIsMobileSheetOpen(true) : onOpenWorksheet?.())}
+              aria-expanded={isMobile ? isMobileSheetOpen : !!isWorksheetActive}
+              aria-label="생각 워크시트 완성하기"
+              className="worksheet-cta-btn"
+              style={{ ...s.worksheetCtaBtn, ...(isMobile ? s.worksheetCtaBtnMobile : {}) }}
+            >
+              <span style={{ fontSize: 15 }}>✏️</span>
+              <span style={s.worksheetCtaTextWrap}>
+                <span style={s.worksheetCtaTitle}>
+                  {isMobile ? '생각 워크시트' : '생각 워크시트 완성하기'}
+                </span>
+                {!isMobile && (
+                  <span style={s.worksheetCtaSub}>AI 결과를 보고 내 생각을 정리해요</span>
+                )}
+              </span>
+            </button>
+          </div>
+      */}
 
       {/* ── Tabs ── */}
       <div style={s.tabBar}>
@@ -548,5 +671,39 @@ const s = {
     margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-sub)',
     background: 'var(--color-surface-alt)', border: '1px dashed var(--color-border)',
     borderRadius: 12, padding: '10px 14px',
+  },
+
+  // 3차 구조 개편 — 모드별 워크시트 입력 공통 스타일
+  fieldGroup: { display: 'flex', flexDirection: 'column', gap: 14 },
+  checkList: { display: 'flex', flexDirection: 'column', gap: 14 },
+  checkItem: {
+    display: 'flex', flexDirection: 'column', gap: 6,
+    border: '1px solid var(--color-border)', borderRadius: 12,
+    background: 'var(--color-surface-alt)', padding: '11px 13px',
+  },
+  checkQuestion: { margin: 0, fontSize: 13.5, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1.6 },
+  selectedQuestionBox: {
+    display: 'flex', flexDirection: 'column', gap: 4,
+    border: '1px solid var(--color-border)', borderRadius: 10,
+    background: 'var(--color-surface-alt)', padding: '9px 12px',
+  },
+  selectedQuestionLabel: { fontSize: 11.5, fontWeight: 900, color: 'var(--color-text-sub)' },
+  selectedQuestionText: { fontSize: 13.5, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1.6 },
+  selectedQuestionEmpty: { fontSize: 13, color: 'var(--color-text-sub)', lineHeight: 1.6 },
+  typeBadge: {
+    display: 'inline-block', marginRight: 7,
+    border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)',
+    background: 'rgba(var(--color-accent-teal-rgb),0.08)',
+    color: 'var(--color-primary-dark)', borderRadius: 999,
+    padding: '2px 7px', fontSize: 10.5, fontWeight: 900, whiteSpace: 'nowrap',
+  },
+  askChatbotBtn: {
+    border: 'none', borderRadius: 12, alignSelf: 'flex-start',
+    background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
+    color: 'var(--color-surface)', fontWeight: 800, fontSize: 13,
+    padding: '10px 16px', cursor: 'pointer',
+  },
+  askChatbotBtnDisabled: {
+    background: 'var(--color-border)', color: 'var(--color-text-sub)', cursor: 'not-allowed',
   },
 };
