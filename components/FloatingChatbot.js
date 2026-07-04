@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import Image from 'next/image';
 import ChatBubble from './ChatBubble';
 
 const POPUP_CSS = `
@@ -10,10 +11,43 @@ const POPUP_CSS = `
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .chatbot-fab:hover { background: var(--color-primary-dark); transform: translateY(-1px); }
+  .chatbot-fab:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 14px 32px rgba(var(--color-primary-rgb),0.35);
+  }
+  .chatbot-fab:active { transform: translateY(0) scale(0.95); }
+  .chatbot-fab:focus-visible {
+    outline: 3px solid var(--color-primary);
+    outline-offset: 3px;
+  }
+  .chatbot-fab[aria-expanded="true"] {
+    border-color: var(--color-primary);
+    box-shadow: 0 6px 18px rgba(var(--color-primary-rgb),0.30);
+  }
+  .chatbot-fab-tooltip {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 10px);
+    padding: 6px 12px;
+    border-radius: 10px;
+    background: var(--color-text);
+    color: var(--color-surface);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s, transform 0.15s;
+  }
+  .chatbot-fab:hover .chatbot-fab-tooltip,
+  .chatbot-fab:focus-visible .chatbot-fab-tooltip {
+    opacity: 1;
+    transform: translateY(0);
+  }
   @media (prefers-reduced-motion: reduce) {
     .chatbot-anim { animation: none !important; transition: none !important; }
-    .chatbot-fab:hover { transform: none !important; }
+    .chatbot-fab:hover, .chatbot-fab:active { transform: none !important; }
   }
 `;
 
@@ -117,8 +151,19 @@ export default function FloatingChatbot({
           className="chatbot-anim chatbot-fab"
           style={{ ...s.fab, ...(isMobile ? s.fabMobile : {}) }}
         >
-          <span style={{ fontSize: 20 }}>💬</span>
-          {!isMobile && <span style={s.fabLabel}>{t.chatbotButtonLabel}</span>}
+          <Image
+            src="/chatbot-mascot.png"
+            alt=""
+            aria-hidden="true"
+            width={64}
+            height={64}
+            style={s.fabImage}
+          />
+          {!isMobile && (
+            <span className="chatbot-fab-tooltip" aria-hidden="true">
+              {t.chatbotButtonLabel}
+            </span>
+          )}
         </button>
       )}
 
@@ -160,15 +205,22 @@ export default function FloatingChatbot({
 const s = {
   fab: {
     position: 'fixed', right: 20, bottom: 20, zIndex: 950,
-    display: 'flex', alignItems: 'center', gap: 8,
-    border: 'none', borderRadius: 999,
-    background: 'var(--color-primary)', color: 'var(--color-surface)',
-    padding: '13px 18px', cursor: 'pointer',
-    boxShadow: '0 8px 22px rgba(var(--color-primary-rgb),0.35)',
-    fontWeight: 800, fontSize: 13, transition: 'background 0.15s, transform 0.15s',
+    width: 72, height: 72,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    border: '1px solid var(--color-border)', borderRadius: 999,
+    background: 'var(--color-surface)',
+    padding: 4, cursor: 'pointer',
+    boxShadow: '0 10px 26px rgba(var(--color-text-rgb),0.18)',
+    transition: 'box-shadow 0.15s, transform 0.15s, border-color 0.15s',
   },
-  fabMobile: { right: 14, bottom: 14, padding: '13px 15px' },
-  fabLabel: { whiteSpace: 'nowrap' },
+  fabMobile: {
+    right: 14, bottom: 'calc(14px + env(safe-area-inset-bottom))',
+    width: 64, height: 64,
+  },
+  fabImage: {
+    width: '100%', height: '100%', objectFit: 'contain',
+    transform: 'scale(1.04)', pointerEvents: 'none',
+  },
 
   overlay: {
     position: 'fixed', inset: 0, zIndex: 945, background: 'rgba(0,0,0,0.3)',
