@@ -54,7 +54,8 @@ function SourceBanner({ source, isMobile }) {
 }
 
 const styles = {
-  wrap:       { width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 },
+  // 오른쪽 자료 조사 나침반(340px)과 같은 폭 — 랜딩 3컬럼 좌우 대칭 유지
+  wrap:       { width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 },
   wrapMobile: { width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 4 },
   heading:    { fontSize: 13, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 2px 2px' },
   list:       { display: 'flex', flexDirection: 'column', gap: 10 },
