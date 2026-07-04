@@ -14,7 +14,7 @@ import ResearchCompass from '../components/ResearchCompass';
 import ResearchTutorialQuest, { TUTORIAL_QUESTS } from '../components/ResearchTutorialQuest';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
-import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
+import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText, DEFAULT_STUDENT_LEVEL } from '../lib/parseResponse';
 import { useStudentNotes } from '../lib/useStudentNotes';
 import { useSessionSave } from '../lib/useSessionSave';
 import { migrateLegacyWorksheetFields, getLegacyEvidenceFields } from '../lib/modeWorksheetFields';
@@ -32,7 +32,9 @@ const TUTORIAL_SEEN_KEY = 'mnmHistoryResearchTutorialSeen';
 export default function Home() {
   const [topic,       setTopic]       = useState('');
   const [sourceText,  setSourceText]  = useState('');
-  const gradeLevel = 'high';
+  // 초등 4~6학년이 부담 없이 읽는 수준이 기본값 — 이전의 'high' 하드코딩을 대체.
+  // 추후 수준 선택 UI를 붙일 때 이 값을 state로 바꾸면 된다.
+  const gradeLevel = DEFAULT_STUDENT_LEVEL;
   const [language,    setLanguage]    = useState('ko');
   const t = getUiText(language);
   const isRtl = language === 'ar';
@@ -846,7 +848,7 @@ export default function Home() {
               <div style={isMobile ? styles.landingFormColMobile : styles.landingFormCol}>
                 {leftColEl}
               </div>
-              {/* 자료 조사 나침반 — 추천 사이트(300px)와 같은 폭의 오른쪽 컬럼으로,
+              {/* 자료 조사 나침반 — 추천 사이트(340px)와 같은 폭의 오른쪽 컬럼으로,
                   입력 폼이 정가운데에 오도록 좌우 대칭을 맞춘다. */}
               <ResearchCompass
                 isMobile={isMobile}

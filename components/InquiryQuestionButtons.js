@@ -1,14 +1,16 @@
-const TYPE_LABELS = ['사실 확인형', '비교형', '까닭 탐구형', '의미 해석형', '생각 확장형'];
+// 난이도 조정: 딱딱한 유형명 대신 쉬운 이름을 배지로 보여 준다.
+// 이전 저장 세션의 '사실 확인형' 같은 옛 라벨도 아래 정규화를 거쳐 새 이름으로 표시된다.
+const TYPE_LABELS = ['사실 찾기', '비교하기', '까닭 생각하기', '뜻 생각하기', '더 생각하기'];
 
 const stripBullet = (line) => line.replace(/^[-•*]\s*/, '').trim();
 
 function normalizeType(type = '') {
   const clean = type.replace(/질문$/, '').trim();
-  if (/사실/.test(clean)) return '사실 확인형';
-  if (/비교/.test(clean)) return '비교형';
-  if (/까닭|원인|이유/.test(clean)) return '까닭 탐구형';
-  if (/의미|해석/.test(clean)) return '의미 해석형';
-  if (/생각|확장|가치/.test(clean)) return '생각 확장형';
+  if (/사실/.test(clean)) return '사실 찾기';
+  if (/비교/.test(clean)) return '비교하기';
+  if (/까닭|원인|이유/.test(clean)) return '까닭 생각하기';
+  if (/의미|해석|뜻/.test(clean)) return '뜻 생각하기';
+  if (/생각|확장|가치/.test(clean)) return '더 생각하기';
   return clean || '추천 질문';
 }
 

@@ -257,6 +257,7 @@ export default function ResultCanvas({
     if (activeMode === 'presentation') return (
       <>
         <SectionCard title={t.presentationMessagesTitle} icon="💡" isMobile={isMobile}>
+          {t.presentationMessagesLead && <p style={s.sectionLead}>{t.presentationMessagesLead}</p>}
           <PresentationBlocks
             text={result.presentationMessages || result.presentationTitle}
             isMobile={isMobile}
@@ -323,6 +324,7 @@ export default function ResultCanvas({
     if (activeMode === 'writing') return (
       <>
         <SectionCard title={t.writingTopicSentencesTitle} icon="💡" isMobile={isMobile}>
+          {t.writingTopicSentencesLead && <p style={s.sectionLead}>{t.writingTopicSentencesLead}</p>}
           <WritingSectionBlocks
             text={result.writingTopicSentences}
             kind="topic"
@@ -331,6 +333,7 @@ export default function ResultCanvas({
           />
         </SectionCard>
         <SectionCard title={t.writingSupportTitle} icon="🧭" isMobile={isMobile}>
+          {t.writingSupportLead && <p style={s.sectionLead}>{t.writingSupportLead}</p>}
           <WritingSectionBlocks
             text={result.writingSupportDirections}
             fallbackText={result.writingTopicSentences}
@@ -340,6 +343,7 @@ export default function ResultCanvas({
           />
         </SectionCard>
         <SectionCard title={t.writingEvidenceTitle} icon="🗂️" isMobile={isMobile}>
+          {t.writingEvidenceLead && <p style={s.sectionLead}>{t.writingEvidenceLead}</p>}
           <BulletList items={result.writingEvidenceLines} isMobile={isMobile} emptyText={t.writingEvidenceEmpty} />
         </SectionCard>
         <SectionCard title={t.writingTemplatesTitle} icon="✍️" isMobile={isMobile}>

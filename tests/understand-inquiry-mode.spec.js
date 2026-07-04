@@ -143,7 +143,8 @@ test.describe('뭐냐면 이해/탐구 모드 재조정', () => {
     await expect(resultCanvas.getByText('어떤 질문으로 더 알아볼까?')).toBeVisible();
     const factButton = resultCanvas.getByRole('button', { name: /강화 부근리 지석묘는 언제 만들어졌을까요/ });
     await expect(factButton).toBeVisible();
-    await expect(factButton.getByText('사실 확인형')).toBeVisible();
+    // 난이도 조정: 옛 유형명(사실 확인형)도 쉬운 배지명(사실 찾기)으로 정규화되어 보인다.
+    await expect(factButton.getByText('사실 찾기')).toBeVisible();
     // 질문 고르기 안내 카드는 제거됨
     await expect(resultCanvas.getByText('질문을 고를 때 생각해 봐요')).toHaveCount(0);
 
