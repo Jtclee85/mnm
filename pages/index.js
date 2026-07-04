@@ -6,11 +6,12 @@ import titleLogo from '../public/title-mnm.png';
 import SectionCard from '../components/SectionCard';
 import ResultCanvas from '../components/ResultCanvas';
 import RecommendedSources from '../components/RecommendedSources';
-import HelpPanel from '../components/HelpPanel';
 import SignTextReader from '../components/SignTextReader';
 import ThinkingWorksheetDrawer from '../components/ThinkingWorksheetDrawer';
 import FloatingChatbot from '../components/FloatingChatbot';
 import EasyExplanationPanel from '../components/EasyExplanationPanel';
+import ResearchCompass from '../components/ResearchCompass';
+import ResearchTutorialQuest, { TUTORIAL_QUESTS } from '../components/ResearchTutorialQuest';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
@@ -25,6 +26,8 @@ import { withSubjectParticle } from '../lib/koreanParticles';
 /** =========================
  *  메인
  *  ========================= */
+
+const TUTORIAL_SEEN_KEY = 'mnmHistoryResearchTutorialSeen';
 
 export default function Home() {
   const [topic,       setTopic]       = useState('');
@@ -70,6 +73,43 @@ export default function Home() {
   const [chatInput,    setChatInput]    = useState('');
   // 우하단 플로팅 챗봇 팝업 열림 상태 — 기존 왼쪽 패널 '대화' 탭을 대체
   const [isChatPopupOpen, setIsChatPopupOpen] = useState(false);
+
+  // 5차 — '조사 시작 전 퀘스트' 첫 접속 튜토리얼 + '자료 조사 나침반' 상태.
+  // SSR에서는 항상 닫힌 상태로 시작해 hydration mismatch를 막고, 클라이언트
+  // 마운트 이후에만 localStorage를 읽어 첫 접속 여부를 판단한다.
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [tutorialStep, setTutorialStep] = useState(0);
+  const [compassExpandSignal, setCompassExpandSignal] = useState(0);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(TUTORIAL_SEEN_KEY) !== 'true') setTutorialOpen(true);
+    } catch {
+      setTutorialOpen(true);
+    }
+  }, []);
+
+  const markTutorialSeen = () => {
+    try { localStorage.setItem(TUTORIAL_SEEN_KEY, 'true'); } catch {}
+  };
+
+  const handleTutorialNext = () => setTutorialStep(s => Math.min(s + 1, TUTORIAL_QUESTS.length - 1));
+  const handleTutorialPrev = () => setTutorialStep(s => Math.max(s - 1, 0));
+
+  // 건너뛰기: 이번 방문에서만 닫는다 — seen을 저장하지 않으므로 다음 접속에 다시 보인다.
+  const handleTutorialSkip = () => {
+    setTutorialOpen(false);
+    setTutorialStep(0);
+  };
+
+  // 다시 보지 않기 / 완료: seen을 저장해 다음 접속부터 자동으로 뜨지 않게 하고,
+  // 나침반을 한 번 자동으로 펼쳐 보여 준다.
+  const finishTutorial = () => {
+    markTutorialSeen();
+    setTutorialOpen(false);
+    setTutorialStep(0);
+    setCompassExpandSignal(v => v + 1);
+  };
 
   const isBusy = loadingMode !== null || isAnalyzing;
 
@@ -808,7 +848,6 @@ export default function Home() {
               <div style={styles.landingFormCol}>
                 {leftColEl}
               </div>
-              <HelpPanel isMobile={isMobile} />
             </div>
           ) : (
             <div style={layoutStyle} data-testid="layout-grid">
@@ -834,6 +873,27 @@ export default function Home() {
             t={t}
           />
         )}
+
+        {/* 5차 — 자료 조사 나침반: 조사 중 항상 참고하는 상시 플로팅 체크리스트.
+            쉬운설명 탭과 달리 분석 전(랜딩 화면)에도 유용하므로 showLanding과 무관하게 항상 띄운다. */}
+        <ResearchCompass
+          isMobile={isMobile}
+          onReopenTutorial={() => { setTutorialStep(0); setTutorialOpen(true); }}
+          expandSignal={compassExpandSignal}
+        />
+
+        {/* 5차 — 조사 시작 전 퀘스트: 첫 접속 시에만 자동으로 뜨는 튜토리얼 */}
+        <ResearchTutorialQuest
+          isOpen={tutorialOpen}
+          step={tutorialStep}
+          onNext={handleTutorialNext}
+          onPrev={handleTutorialPrev}
+          onSkip={handleTutorialSkip}
+          onDontShowAgain={finishTutorial}
+          onComplete={finishTutorial}
+          onClose={handleTutorialSkip}
+          isMobile={isMobile}
+        />
       </div>
     </>
   );

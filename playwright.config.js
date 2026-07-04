@@ -12,6 +12,19 @@ module.exports = defineConfig({
     baseURL: 'http://localhost:3000',
     viewport: { width: 1920, height: 1080 },
     trace: 'on-first-retry',
+    // 5차: 첫 방문 튜토리얼 모달이 기존 테스트들의 클릭을 가로채지 않도록,
+    // 기본적으로 "이미 튜토리얼을 본 상태"로 시작한다.
+    // 첫 방문 동작 자체를 검증하는 테스트는 tests/research-onboarding.spec.js에서
+    // storageState를 개별적으로 비워 오버라이드한다.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: 'http://localhost:3000',
+          localStorage: [{ name: 'mnmHistoryResearchTutorialSeen', value: 'true' }],
+        },
+      ],
+    },
   },
 
   projects: [
