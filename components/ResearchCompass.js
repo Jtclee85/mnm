@@ -147,9 +147,7 @@ const s = {
     boxShadow: '0 6px 18px rgba(var(--color-text-rgb),0.12)',
     fontWeight: 800, fontSize: 12,
   },
-  // 모바일에서 결과 캔버스가 전체 화면으로 열리면 헤더(닫기 버튼 등)가 우상단을 차지하므로,
-  // 그 아래로 내려 겹치지 않게 한다.
-  collapsedBtnMobile: { right: 10, top: 64, padding: '8px 10px' },
+  collapsedBtnMobile: { right: 10, top: 10, padding: '8px 10px' },
   collapsedLabel: { whiteSpace: 'nowrap' },
 
   panel: {

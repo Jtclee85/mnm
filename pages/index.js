@@ -873,13 +873,15 @@ export default function Home() {
           />
         )}
 
-        {/* 5차 — 자료 조사 나침반: 조사 중 항상 참고하는 상시 플로팅 체크리스트.
-            쉬운설명 탭과 달리 분석 전(랜딩 화면)에도 유용하므로 showLanding과 무관하게 항상 띄운다. */}
-        <ResearchCompass
-          isMobile={isMobile}
-          onReopenTutorial={() => { setTutorialStep(0); setTutorialOpen(true); }}
-          expandSignal={compassExpandSignal}
-        />
+        {/* 5차 — 자료 조사 나침반: 자료 검색·입력 단계(랜딩 화면)에서만 필요하므로
+            분석 이후에는 띄우지 않는다. */}
+        {showLanding && (
+          <ResearchCompass
+            isMobile={isMobile}
+            onReopenTutorial={() => { setTutorialStep(0); setTutorialOpen(true); }}
+            expandSignal={compassExpandSignal}
+          />
+        )}
 
         {/* 5차 — 조사 시작 전 퀘스트: 첫 접속 시에만 자동으로 뜨는 튜토리얼 */}
         <ResearchTutorialQuest
