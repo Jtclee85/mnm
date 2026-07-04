@@ -181,8 +181,8 @@ export default function FloatingChatbot({
             src="/chatbot-mascot.png"
             alt=""
             aria-hidden="true"
-            width={64}
-            height={64}
+            width={144}
+            height={144}
             style={s.fabImage}
           />
           {!isMobile && (
@@ -237,7 +237,7 @@ export default function FloatingChatbot({
 const s = {
   fab: {
     position: 'fixed', right: 20, bottom: 20, zIndex: 950,
-    width: 72, height: 72,
+    width: 144, height: 144,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     border: '1px solid var(--color-border)', borderRadius: 999,
     background: 'var(--color-surface)',
@@ -247,7 +247,7 @@ const s = {
   },
   fabMobile: {
     right: 14, bottom: 'calc(14px + env(safe-area-inset-bottom))',
-    width: 64, height: 64,
+    width: 128, height: 128,
   },
   fabImage: {
     width: '100%', height: '100%', objectFit: 'contain',
@@ -259,8 +259,8 @@ const s = {
   },
 
   popupDesktop: {
-    position: 'fixed', right: 28, bottom: 104, zIndex: 951,
-    width: 360, height: 480, maxHeight: 'calc(100vh - 140px)',
+    position: 'fixed', right: 28, bottom: 176, zIndex: 951,
+    width: 360, height: 480, maxHeight: 'calc(100vh - 200px)',
     display: 'flex', flexDirection: 'column',
     background: 'var(--color-surface)', border: '1px solid var(--color-border)',
     borderRadius: 18, boxShadow: '0 18px 48px rgba(0,0,0,0.25)', overflow: 'hidden',
