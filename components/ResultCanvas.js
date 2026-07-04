@@ -8,7 +8,6 @@ import WritingOutlineCard from './WritingOutlineCard';
 import WritingChecklist from './WritingChecklist';
 import WritingSectionBlocks from './WritingSectionBlocks';
 import PresentationBlocks from './PresentationBlocks';
-import InlineVocabularyText from './InlineVocabularyText';
 import InquiryQuestionButtons from './InquiryQuestionButtons';
 import { copyText } from '../lib/parseResponse';
 import { getUiText, LANGUAGE_OPTIONS } from '../lib/i18n';
@@ -97,30 +96,8 @@ export default function ResultCanvas({
 
     if (activeMode === 'understand') return (
       <>
-        <SectionCard
-          title={t.understandSentenceTitle} icon="🧒" isMobile={isMobile}
-        >
-          {result.understandingSentence
-            ? <div style={s.bigTitle}>{result.understandingSentence}</div>
-            : <p style={s.empty}>{t.understandSentenceEmpty}</p>}
-        </SectionCard>
-        <SectionCard
-          title={t.understandEasyFullTitle} icon="📖" isMobile={isMobile}
-          actions={result.easy ? (
-            <button data-testid="copy-easy-button" style={s.smallBtn} onClick={async () => {
-              try { await copyText(result.easy); alert(t.easyCopied); }
-              catch { alert(t.copyFailed); }
-            }}>{t.copy}</button>
-          ) : null}
-        >
-          <InlineVocabularyText
-            text={result.easy}
-            vocabularyText={result.understandingVocabulary}
-            fallbackLines={result.vocabularyLines}
-            isMobile={isMobile}
-            emptyText={t.understandEasyFullEmpty}
-          />
-        </SectionCard>
+        {/* '한 문장으로 이해하기' / '조사자료를 쉬운 말로 바꾸면'은 왼쪽 '쉬운설명' 패널에서
+            상시 참고할 수 있으므로, 오른쪽 결과 영역에서는 중복 표시하지 않는다. */}
         <SectionCard title={t.understandReadingTitle} icon="🧩" isMobile={isMobile}>
           <PresentationBlocks
             text={result.understandingReading}
@@ -538,11 +515,6 @@ const s = {
   smallBtn: {
     border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)',
     fontWeight: 700, padding: '7px 11px', borderRadius: 9, cursor: 'pointer', fontSize: 12,
-  },
-  bigTitle: {
-    fontSize: 19, fontWeight: 900, color: 'var(--color-text)',
-    background: 'color-mix(in srgb, var(--color-gold) 22%, var(--color-surface))',
-    border: '1px solid rgba(var(--color-gold-rgb),0.6)', borderRadius: 14, padding: '15px 17px', lineHeight: 1.6,
   },
   easyRewrite: {
     color: 'var(--color-text)',

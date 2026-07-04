@@ -103,7 +103,8 @@ export default function Home() {
         r?.presentationTitle || r?.presentationMessages || r?.writingOutline
       );
     setCanvasOpen(!!anyResult);
-    setLeftPanelTab('source');
+    // 이미 분석된 세션을 불러온 경우에도 '쉬운설명'을 우선으로 보여준다.
+    setLeftPanelTab(anyResult ? 'easy' : 'source');
     setLastAnalyzedTopic(anyResult ? (session.topic ?? '') : '');
   };
 
@@ -273,7 +274,8 @@ export default function Home() {
     if (trimmedSource.length < 50)  { alert(t.shortSource); return; }
 
     setLastAnalyzedTopic(trimmedTopic);
-    setLeftPanelTab('source');
+    // 자료 분석 이후에는 왼쪽 패널에 '쉬운설명'을 우선으로 보여준다.
+    setLeftPanelTab('easy');
 
     const thinkingMsg = trimmedSource.length > 3000
       ? t.longThinking

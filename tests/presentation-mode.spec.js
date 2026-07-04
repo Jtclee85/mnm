@@ -154,7 +154,7 @@ test.describe('뭐냐면 — 발표 모드 워크시트형 개편', () => {
     await expect(page.getByTestId('result-canvas').getByText('우측 하단 채팅창에 붙여 넣고 물어보세요')).toBeVisible();
 
     await page.getByTestId('mode-tab-understand').click();
-    await expect(page.getByTestId('result-canvas').getByText('이것은 테스트용 쉬운 설명입니다.')).toBeVisible();
+    await expect(page.getByTestId('result-canvas').getByText('자료를 나누어 읽기')).toBeVisible();
 
     await page.getByTestId('mode-tab-inquiry').click();
     await expect(page.getByTestId('result-canvas').getByText('어떤 질문으로 더 알아볼까?')).toBeVisible();

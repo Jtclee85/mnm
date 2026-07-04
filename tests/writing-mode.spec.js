@@ -147,7 +147,7 @@ test.describe('뭐냐면 — 글쓰기 모드 발판형 개편', () => {
     await runAnalysisAndOpenWriting(page);
 
     await page.getByTestId('mode-tab-understand').click();
-    await expect(page.getByTestId('result-canvas').getByText('이것은 테스트용 쉬운 설명입니다.')).toBeVisible();
+    await expect(page.getByTestId('result-canvas').getByText('자료를 나누어 읽기')).toBeVisible();
 
     await page.getByTestId('mode-tab-inquiry').click();
     await expect(page.getByTestId('result-canvas').getByText('어떤 질문으로 더 알아볼까?')).toBeVisible();

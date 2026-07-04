@@ -51,10 +51,23 @@ test.describe('뭐냐면 — 왼쪽 패널 조사 원본자료/쉬운설명 (데
 
   test('[source-tab] 조사 원본자료 탭에서 조사 주제와 원본자료를 볼 수 있다', async ({ page }) => {
     await runAnalysis(page);
+    // 분석 이후에는 '쉬운설명'이 기본으로 열리므로, 원본자료를 보려면 탭을 눌러 전환한다.
+    await page.getByTestId('left-panel').getByRole('button', { name: '조사 원본자료' }).click();
     await expect(page.getByTestId('topic-input')).toHaveValue('강화 부근리 지석묘');
     await expect(page.getByTestId('source-textarea')).toHaveValue(
       '강화 부근리 지석묘는 청동기 시대에 만들어진 고인돌로, 강화 지역의 대표적인 문화유산이다.'
     );
+  });
+
+  test('[easy-tab-default] 자료 분석 직후에는 별도 클릭 없이 왼쪽 패널이 쉬운설명 탭으로 열린다', async ({ page }) => {
+    await runAnalysis(page);
+    const leftPanel = page.getByTestId('left-panel');
+    // 쉬운설명 탭을 누르지 않아도 바로 쉬운설명 내용(3개 섹션)이 보여야 한다.
+    await expect(leftPanel.getByText('한 문장으로 이해하기')).toBeVisible();
+    await expect(leftPanel.getByText('조사자료를 쉬운 말로 바꾸면')).toBeVisible();
+    await expect(leftPanel.getByText('어려운 낱말 클릭해서 보기')).toBeVisible();
+    // 원본자료 입력 요소는 이 시점엔 보이지 않는다(조사 원본자료 탭으로 전환해야 나타남).
+    await expect(page.getByTestId('topic-input')).toHaveCount(0);
   });
 
   test('[easy-tab-before] 이해모드 결과에 쉬운설명 태그가 없으면 안내 문구가 보인다', async ({ page }) => {

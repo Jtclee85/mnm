@@ -1,5 +1,6 @@
 import InlineVocabularyText, { parseVocabulary } from './InlineVocabularyText';
 import { extractEasyExplanationSections } from '../lib/easyExplanation';
+import { copyText } from '../lib/parseResponse';
 
 const SPIN_CSS = `@keyframes ep-spin { to { transform: rotate(360deg); } }`;
 
@@ -40,7 +41,21 @@ export default function EasyExplanationPanel({ result, isMobile, t, isLoading })
       </section>
 
       <section style={s.section}>
-        <h3 style={s.sectionTitle}>{t.understandEasyFullTitle}</h3>
+        <div style={s.sectionHeaderRow}>
+          <h3 style={s.sectionTitle}>{t.understandEasyFullTitle}</h3>
+          {easyFullText && (
+            <button
+              data-testid="copy-easy-button"
+              style={s.copyBtn}
+              onClick={async () => {
+                try { await copyText(easyFullText); alert(t.easyCopied); }
+                catch { alert(t.copyFailed); }
+              }}
+            >
+              {t.copy}
+            </button>
+          )}
+        </div>
         <InlineVocabularyText
           text={easyFullText}
           vocabularyText={glossaryText}
@@ -94,7 +109,12 @@ const s = {
     borderRadius: 10, padding: '8px 12px',
   },
   section: { display: 'flex', flexDirection: 'column', gap: 8 },
+  sectionHeaderRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   sectionTitle: { margin: 0, fontSize: 14, fontWeight: 900, color: 'var(--color-text)' },
+  copyBtn: {
+    border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)',
+    fontWeight: 700, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 11.5, flexShrink: 0,
+  },
   bigTitle: {
     fontSize: 15, fontWeight: 900, color: 'var(--color-text)',
     background: 'color-mix(in srgb, var(--color-gold) 22%, var(--color-surface))',

@@ -79,26 +79,39 @@ test.describe('뭐냐면 이해/탐구 모드 재조정', () => {
     await page.goto('/');
   });
 
-  test('[understand-mode] 쉬운 전체 풀이본과 어휘 토글이 보인다', async ({ page }) => {
+  test('[understand-mode] 오른쪽 결과에는 나머지 이해모드 카드가 보이고, 쉬운 전체 풀이본/한 문장 요약은 왼쪽으로 옮겨졌다', async ({ page }) => {
     await runAnalysis(page);
     const resultCanvas = page.getByTestId('result-canvas');
 
-    await expect(resultCanvas.getByText('한 문장으로 이해하기')).toBeVisible();
-    await expect(resultCanvas.getByText('조사자료를 쉬운 말로 바꾸면')).toBeVisible();
-    await expect(resultCanvas.getByText('강화 부근리 지석묘는 아주 오래전 청동기 시대 사람들이 만든 큰 무덤입니다.')).toBeVisible();
-    // 별도 카드 대신 쉬운 설명 텍스트 내 인라인으로 어휘 강조
-    await expect(resultCanvas.getByText('밑줄 친 낱말을 누르면 뜻을 볼 수 있어요.')).toBeVisible();
+    // '한 문장으로 이해하기' / '조사자료를 쉬운 말로 바꾸면'은 왼쪽 '쉬운설명' 패널로 이동했으므로
+    // 오른쪽 결과 영역에는 더 이상 중복 표시되지 않는다.
+    await expect(resultCanvas.getByText('한 문장으로 이해하기')).toHaveCount(0);
+    await expect(resultCanvas.getByText('조사자료를 쉬운 말로 바꾸면')).toHaveCount(0);
+
     await expect(resultCanvas.getByText('자료를 나누어 읽기')).toBeVisible();
     await expect(resultCanvas.getByText('헷갈리기 쉬운 점')).toBeVisible();
     await expect(resultCanvas.getByText('내가 이해했는지 확인해 봐요')).toBeVisible();
+  });
+
+  test('[understand-mode] 분석 후 왼쪽 패널은 쉬운설명 탭을 우선으로 보여주고, 인라인 어휘 클릭이 동작한다', async ({ page }) => {
+    await runAnalysis(page);
+    const leftPanel = page.getByTestId('left-panel');
+
+    // 자료 분석 이후에는 왼쪽 패널이 '쉬운설명' 탭으로 바로 열린다.
+    await expect(leftPanel.getByText('한 문장으로 이해하기')).toBeVisible();
+    await expect(leftPanel.getByText('조사자료를 쉬운 말로 바꾸면')).toBeVisible();
+    await expect(leftPanel.getByText('강화 부근리 지석묘는 아주 오래전 청동기 시대 사람들이 만든 큰 무덤입니다.')).toBeVisible();
+    await expect(leftPanel.getByText('밑줄 친 낱말을 누르면 뜻을 볼 수 있어요.')).toBeVisible();
 
     // 인라인 어휘 버튼 클릭 → 정의 팝업 확인
-    const termButton = resultCanvas.getByRole('button', { name: /지석묘/, exact: false }).first();
+    const termButton = leftPanel.getByRole('button', { name: /지석묘/, exact: false }).first();
     await expect(termButton).toHaveAttribute('aria-expanded', 'false');
     await termButton.click();
     await expect(termButton).toHaveAttribute('aria-expanded', 'true');
-    await expect(resultCanvas.getByText('큰 돌로 만든 옛날 무덤')).toBeVisible();
-    await expect(resultCanvas.getByText('이 자료의 중심 대상이에요.')).toBeVisible();
+    // 같은 낱말풀이 텍스트가 아래 '어려운 낱말 클릭해서 보기' 목록(닫힌 <details>)에도
+    // 존재하므로, DOM 순서상 먼저 나오는 툴팁 쪽(.first())으로 좁혀서 확인한다.
+    await expect(leftPanel.getByText('큰 돌로 만든 옛날 무덤').first()).toBeVisible();
+    await expect(leftPanel.getByText('이 자료의 중심 대상이에요.').first()).toBeVisible();
   });
 
   test('[inquiry-mode] 추천 질문 버튼 중심으로 보인다', async ({ page }) => {
