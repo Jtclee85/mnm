@@ -471,18 +471,20 @@ export default function Home() {
     setChatInput('');
     setIsChatLoading(true);
 
+    // 관련성 검사 응답을 기다리는 동안에도 학생이 보낸 질문이 바로 보이도록 먼저 추가한다
+    setConversation(prev => [...prev, userMessage]);
+
     const relevance = await checkChatRelevance(userText);
     if (!relevance.relevant) {
       setConversation(prev => [
         ...prev,
-        userMessage,
         { role: 'assistant', content: relevance.redirect },
       ]);
       setIsChatLoading(false);
       return;
     }
 
-    setConversation(prev => [...prev, userMessage, assistantPlaceholder]);
+    setConversation(prev => [...prev, assistantPlaceholder]);
 
     await requestStream([buildChatSystem(), ...conversation, userMessage], {
       onChunk: (data) => {

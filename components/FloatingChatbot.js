@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import ChatBubble from './ChatBubble';
 
@@ -63,6 +63,29 @@ export default function FloatingChatbot({
 }) {
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
+  const popupRef = useRef(null);
+
+  // 데스크탑 팝업 위치. null이면 기본 위치(우하단 버튼 위), 드래그하면 {x, y}로 고정된다.
+  const [dragPos, setDragPos] = useState(null);
+
+  const handleHeaderPointerDown = (e) => {
+    if (isMobile || e.button !== 0 || e.target.closest('button')) return;
+    const popup = popupRef.current;
+    if (!popup) return;
+    e.preventDefault();
+    const rect = popup.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    const onMove = (ev) => {
+      setDragPos({
+        x: Math.min(Math.max(ev.clientX - offsetX, 8), window.innerWidth - rect.width - 8),
+        y: Math.min(Math.max(ev.clientY - offsetY, 8), window.innerHeight - rect.height - 8),
+      });
+    };
+    const onUp = () => window.removeEventListener('pointermove', onMove);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once: true });
+  };
 
   useEffect(() => {
     const el = bodyRef.current;
@@ -89,7 +112,10 @@ export default function FloatingChatbot({
 
   const popupBody = (
     <>
-      <div style={s.header}>
+      <div
+        style={{ ...s.header, ...(isMobile ? {} : s.headerDraggable) }}
+        onPointerDown={handleHeaderPointerDown}
+      >
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={s.headerTitle}>{t.chatbotTitle}</div>
           {topic && (
@@ -169,11 +195,17 @@ export default function FloatingChatbot({
 
       {isOpen && !isMobile && (
         <div
+          ref={popupRef}
           role="dialog"
           aria-label={t.chatbotTitle}
           data-testid="chatbot-popup"
           className="chatbot-anim"
-          style={s.popupDesktop}
+          style={{
+            ...s.popupDesktop,
+            ...(dragPos
+              ? { left: dragPos.x, top: dragPos.y, right: 'auto', bottom: 'auto' }
+              : {}),
+          }}
         >
           {popupBody}
         </div>
@@ -227,11 +259,11 @@ const s = {
   },
 
   popupDesktop: {
-    position: 'fixed', right: 20, bottom: 84, zIndex: 951,
-    width: 360, height: 480, maxHeight: 'calc(100vh - 120px)',
+    position: 'fixed', right: 28, bottom: 104, zIndex: 951,
+    width: 360, height: 480, maxHeight: 'calc(100vh - 140px)',
     display: 'flex', flexDirection: 'column',
     background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-    borderRadius: 18, boxShadow: '0 12px 36px rgba(0,0,0,0.18)', overflow: 'hidden',
+    borderRadius: 18, boxShadow: '0 18px 48px rgba(0,0,0,0.25)', overflow: 'hidden',
     opacity: 1, transform: 'translateY(0) scale(1)',
     animation: 'chatbot-pop-in 180ms ease',
   },
@@ -250,6 +282,7 @@ const s = {
     padding: '12px 14px', borderBottom: '1px solid var(--color-border)',
     background: 'var(--color-surface-alt)', flexShrink: 0,
   },
+  headerDraggable: { cursor: 'grab', userSelect: 'none', touchAction: 'none' },
   headerTitle: { fontWeight: 900, fontSize: 14, color: 'var(--color-text)' },
   headerTopic: {
     fontSize: 11, color: 'var(--color-text-sub)', marginTop: 1,
