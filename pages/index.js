@@ -16,7 +16,8 @@ import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMes
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText } from '../lib/parseResponse';
 import { useStudentNotes } from '../lib/useStudentNotes';
 import { useSessionSave } from '../lib/useSessionSave';
-import { migrateLegacyWorksheetFields } from '../lib/modeWorksheetFields';
+import { migrateLegacyWorksheetFields, getLegacyEvidenceFields } from '../lib/modeWorksheetFields';
+import { buildModeInputs, truncateForShare } from '../lib/shareArtifact';
 import { encodeShareData } from '../lib/shareUtils';
 import { LANGUAGE_OPTIONS, getLanguageReminder, getUiText } from '../lib/i18n';
 import { withSubjectParticle } from '../lib/koreanParticles';
@@ -483,10 +484,22 @@ export default function Home() {
   };
 
   // ── 공유 URL 생성 ──
+  // 4차 구조 개편: 공유 페이지는 이제 AI 결과가 아니라 학생이 각 모드 안에서
+  // 직접 쓴 산출물(modeInputs) 중심으로 보여준다. 원본자료/쉬운설명은 보조 자료로만
+  // 짧게 포함한다. notes 전체(legacyWorksheet)도 함께 보내 옛 형식 링크와의
+  // 호환(3차 이전 생각 워크시트 데이터 포함)을 유지한다.
   const handleShare = () => {
+    const u = analysisByMode.understand || {};
     const shareData = {
       topic: lastAnalyzedTopic || topic || t.untitled,
-      notes,
+      sourceText: truncateForShare(sourceText, 500),
+      easyExplanationSummary: {
+        oneSentence: u.understandingSentence || '',
+        easyFullText: truncateForShare(u.easy, 400),
+      },
+      modeInputs: buildModeInputs(notes),
+      legacyEvidence: getLegacyEvidenceFields(notes),
+      legacyWorksheet: notes,
       sharedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
     };
     return `${window.location.origin}/share?d=${encodeShareData(shareData)}`;

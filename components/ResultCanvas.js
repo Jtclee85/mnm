@@ -46,6 +46,9 @@ export default function ResultCanvas({
   const [hoveredTool, setHoveredTool] = useState(null);
   // 모바일 전용 — 데스크탑은 왼쪽 패널에서 워크시트를 열기 때문에(onOpenWorksheet) 이 state는 쓰지 않음
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
+  // 4차 구조 개편 — 학습 산출물 공유 버튼. 옛 ThinkingWorksheetDrawer의
+  // handleShareClick과 동일한 UX(클립보드 복사 → 실패 시 새 탭 열기)를 재사용한다.
+  const [shareState, setShareState] = useState('idle');
   const canvasRef    = useRef(null);
   const canvasBodyRef = useRef(null);
   const quizCardRef   = useRef(null);
@@ -91,6 +94,19 @@ export default function ResultCanvas({
   const handleSelectQuestion = (question, type) => {
     updateNote('inq_selectedQuestion', question);
     updateNote('inq_selectedQuestionType', type || '');
+  };
+
+  // 4차 구조 개편 — 학습 산출물 공유 링크 생성. 클립보드 복사 우선, 실패 시 새 탭으로 연다.
+  const handleShareClick = async () => {
+    if (!handleShare) return;
+    const url = handleShare();
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareState('copied');
+      setTimeout(() => setShareState('idle'), 2500);
+    } catch {
+      window.open(url, '_blank');
+    }
   };
 
   const renderModeContent = () => {
@@ -452,6 +468,35 @@ export default function ResultCanvas({
             </button>
           </div>
       */}
+
+      {/* 4차 구조 개편 — 학생이 각 모드 안에서 직접 쓴 학습 산출물을 공유하는 버튼.
+          옛 워크시트 CTA가 차지하던 자리를 그대로 재사용한다. */}
+      {handleShare && (
+        <div style={s.worksheetCtaRow}>
+          <button
+            data-testid="share-artifact-button"
+            onClick={handleShareClick}
+            className="worksheet-cta-btn"
+            style={{ ...s.worksheetCtaBtn, ...(isMobile ? s.worksheetCtaBtnMobile : {}) }}
+          >
+            <span style={{ fontSize: 15 }}>{shareState === 'copied' ? '✓' : '🔗'}</span>
+            <span style={s.worksheetCtaTextWrap}>
+              <span style={s.worksheetCtaTitle}>
+                {shareState === 'copied'
+                  ? '링크가 복사되었어요'
+                  : (isMobile ? '학습 산출물 공유' : '학습 산출물 공유하기')}
+              </span>
+              {!isMobile && (
+                <span style={s.worksheetCtaSub}>
+                  {shareState === 'copied'
+                    ? '이제 패들릿이나 게시판에 붙여넣기 할 수 있어요'
+                    : '내가 쓴 이해·탐구·발표·글쓰기 기록을 공유해요'}
+                </span>
+              )}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* ── Tabs ── */}
       <div style={s.tabBar}>
