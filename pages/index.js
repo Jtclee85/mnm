@@ -23,6 +23,7 @@ import { buildModeInputs, truncateForShare } from '../lib/shareArtifact';
 import { encodeShareData } from '../lib/shareUtils';
 import { LANGUAGE_OPTIONS, getLanguageReminder, getUiText } from '../lib/i18n';
 import { withSubjectParticle } from '../lib/koreanParticles';
+import { SUBMISSION_APP_URL } from '../lib/submissionMeta';
 
 /** =========================
  *  메인
@@ -39,6 +40,8 @@ const DEMO_CHAT_NOTICE =
   '오프라인 시연에서는 실제 AI 응답을 생성하지 않습니다. 온라인 프로그램에서는 이 질문을 바탕으로 AI 도우미와 대화할 수 있습니다.';
 const DEMO_OCR_NOTICE =
   '오프라인 시연에서는 이미지 인식 기능이 작동하지 않습니다. 온라인 프로그램에서 안내판 사진을 올리면 원본자료를 추출할 수 있습니다.';
+const DEMO_API_FEATURE_NOTICE =
+  '이 기능은 api를 사용하므로 온라인 프로그램 실행이 필요합니다.';
 
 export default function Home({
   demoMode = false,
@@ -68,6 +71,7 @@ export default function Home({
   // 도구 결과 (탭과 무관)
   const [toolResults, setToolResults] = useState({ ...EMPTY_TOOLS, ...(demoSession?.toolResults || {}) });
   const [quizKey,    setQuizKey]    = useState(0);
+  const [demoApiNoticeOpen, setDemoApiNoticeOpen] = useState(false);
   const [quizResult, setQuizResult] = useState(null);
 
   // 로딩 플래그 (도구용)
@@ -273,7 +277,10 @@ export default function Home({
   const buildLanguageReminder = () => getLanguageReminder(language);
 
   const handleLanguageChange = (nextLanguage) => {
-    if (demoMode) return;
+    if (demoMode) {
+      setDemoApiNoticeOpen(true);
+      return;
+    }
     setLanguage(nextLanguage);
     const nextText = getUiText(nextLanguage);
     setAnalysisByMode(INIT_BY_MODE());
@@ -1034,6 +1041,55 @@ export default function Home({
             onViewTutorial={handleSubmissionViewTutorial}
           />
         )}
+
+        {demoApiNoticeOpen && (
+          <div
+            style={styles.demoApiModalOverlay}
+            role="presentation"
+            onClick={() => setDemoApiNoticeOpen(false)}
+            data-testid="demo-api-modal"
+          >
+            <div
+              style={{ ...styles.demoApiModalBox, ...(isMobile ? styles.demoApiModalBoxMobile : {}) }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="demo-api-modal-title"
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                style={styles.demoApiModalClose}
+                aria-label="닫기"
+                onClick={() => setDemoApiNoticeOpen(false)}
+              >
+                ×
+              </button>
+              <div style={styles.demoApiModalIcon}>!</div>
+              <h2 id="demo-api-modal-title" style={styles.demoApiModalTitle}>
+                온라인 프로그램 실행 필요
+              </h2>
+              <p style={styles.demoApiModalMessage}>{DEMO_API_FEATURE_NOTICE}</p>
+              <div style={styles.demoApiModalActions}>
+                <a
+                  href={SUBMISSION_APP_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={styles.demoApiModalPrimary}
+                  data-testid="demo-online-run-button"
+                >
+                  온라인 프로그램 실행
+                </a>
+                <button
+                  type="button"
+                  style={styles.demoApiModalSecondary}
+                  onClick={() => setDemoApiNoticeOpen(false)}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
@@ -1136,6 +1192,57 @@ const styles = {
     border: '1px solid rgba(var(--color-primary-rgb),0.25)',
     background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
     borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 800,
+  },
+  demoApiModalOverlay: {
+    position: 'fixed', inset: 0, zIndex: 500,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 18, background: 'rgba(31, 42, 68, 0.36)',
+  },
+  demoApiModalBox: {
+    width: 'min(420px, 100%)', position: 'relative',
+    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+    borderRadius: 18, padding: '30px 26px 24px',
+    boxShadow: '0 18px 48px rgba(31, 42, 68, 0.22)',
+    textAlign: 'center',
+  },
+  demoApiModalBoxMobile: { padding: '28px 20px 22px' },
+  demoApiModalClose: {
+    position: 'absolute', top: 10, right: 10,
+    width: 30, height: 30, border: '1px solid var(--color-border)',
+    borderRadius: 8, background: 'var(--color-surface)',
+    color: 'var(--color-text-sub)', cursor: 'pointer',
+    fontSize: 18, fontWeight: 800, lineHeight: 1,
+  },
+  demoApiModalIcon: {
+    width: 38, height: 38, margin: '0 auto 12px',
+    borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'rgba(var(--color-primary-rgb),0.10)',
+    color: 'var(--color-primary-dark)', fontSize: 22, fontWeight: 900,
+  },
+  demoApiModalTitle: {
+    margin: 0, color: 'var(--color-primary-dark)',
+    fontSize: 19, fontWeight: 900, lineHeight: 1.35,
+  },
+  demoApiModalMessage: {
+    margin: '10px 0 0', color: 'var(--color-text)',
+    fontSize: 14, fontWeight: 700, lineHeight: 1.7,
+  },
+  demoApiModalActions: {
+    display: 'flex', gap: 8, justifyContent: 'center',
+    flexWrap: 'wrap', marginTop: 20,
+  },
+  demoApiModalPrimary: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    textDecoration: 'none', border: 'none', borderRadius: 12,
+    background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
+    color: 'var(--color-surface)', fontSize: 13, fontWeight: 900,
+    padding: '11px 18px', cursor: 'pointer',
+    boxShadow: '0 8px 18px rgba(var(--color-primary-rgb),0.24)',
+  },
+  demoApiModalSecondary: {
+    border: '1.5px solid var(--color-border)', borderRadius: 12,
+    background: 'var(--color-surface)', color: 'var(--color-text-sub)',
+    fontSize: 13, fontWeight: 900, padding: '10px 16px', cursor: 'pointer',
   },
   languageBarSelect: {
     minWidth: 180, border: '1px solid var(--color-border)', borderRadius: 12,
