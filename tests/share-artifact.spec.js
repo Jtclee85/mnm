@@ -63,14 +63,23 @@ test.describe('뭐냐면 — 공유 버튼 (앱 화면)', () => {
   test.describe('클립보드 권한 있음', () => {
     test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-    test('[share-button-copy] 공유 버튼을 누르면 링크가 클립보드에 복사되고 안내 문구로 바뀐다', async ({ page }) => {
+    test('[share-button-copy] 공유 버튼을 누르면 링크가 클립보드에 복사되고 새 산출물 창에 안내가 뜬다', async ({ page, context }) => {
       await runAnalysis(page);
       const btn = page.getByTestId('share-artifact-button');
+      const popupPromise = context.waitForEvent('page');
       await btn.click();
+      const popup = await popupPromise;
+      await popup.waitForLoadState('domcontentloaded');
+
       await expect(btn).toContainText('링크가 복사되었어요');
+      await expect(page.getByTestId('share-notice')).toHaveCount(0);
+      await expect(popup.getByTestId('share-system-notice')).toContainText(
+        '링크가 복사되었어요. 이제 패들릿이나 게시판에 붙여넣기 할 수 있어요.'
+      );
 
       const url = await page.evaluate(() => navigator.clipboard.readText());
       expect(url).toContain('/share?d=');
+      expect(url).not.toContain('notice=');
     });
   });
 });

@@ -32,7 +32,12 @@ const TOOL_CONFIG = [
 const HIDDEN_TOOL_KEYS = ['quiz', 'evaluation', 'teacher'];
 const SHARE_COPY_SUCCESS_MESSAGE = '링크가 복사되었어요. 이제 패들릿이나 게시판에 붙여넣기 할 수 있어요.';
 const SHARE_COPY_FALLBACK_MESSAGE = '산출물 페이지를 새 창으로 열었어요. 주소 복사가 되지 않으면 주소창의 링크를 직접 복사해 주세요.';
-const SHARE_POPUP_BLOCKED_MESSAGE = '새 창이 차단되면 복사된 링크를 주소창에 붙여넣어 확인해 주세요.';
+const SHARE_POPUP_BLOCKED_MESSAGE = '새 창이 차단되었어요. 복사된 링크를 주소창에 붙여넣어 확인할 수 있어요.';
+
+function appendShareNoticeParam(url, notice) {
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}notice=${encodeURIComponent(notice)}`;
+}
 
 export default function ResultCanvas({
   activeMode, onTabClick, onClose,
@@ -52,7 +57,6 @@ export default function ResultCanvas({
   // 4차 구조 개편 — 학습 산출물 공유 버튼. 옛 ThinkingWorksheetDrawer의
   // handleShareClick과 동일한 UX(클립보드 복사 → 실패 시 새 탭 열기)를 재사용한다.
   const [shareState, setShareState] = useState('idle');
-  const [shareNotice, setShareNotice] = useState('');
   const canvasRef    = useRef(null);
   const canvasBodyRef = useRef(null);
   const quizCardRef   = useRef(null);
@@ -86,12 +90,6 @@ export default function ResultCanvas({
   useEffect(() => { if (toolResults.evaluation)  scrollCanvasTo(evalCardRef);    }, [toolResults.evaluation]);
   useEffect(() => { if (toolResults.teacher)     scrollCanvasTo(teacherCardRef); }, [toolResults.teacher]);
 
-  useEffect(() => {
-    if (!shareNotice) return undefined;
-    const timer = setTimeout(() => setShareNotice(''), 4000);
-    return () => clearTimeout(timer);
-  }, [shareNotice]);
-
   // 탭 전환 후 hidden-overflow인 canvas 컨테이너의 scrollLeft가 포커스 이동에 의해
   // 튀는 현상을 막는다. 탭 전환마다 수평 스크롤 위치를 강제로 0으로 고정한다.
   useEffect(() => { if (canvasRef.current) canvasRef.current.scrollLeft = 0; }, [activeMode]);
@@ -112,20 +110,21 @@ export default function ResultCanvas({
     const url = handleShare();
     if (!url) return;
 
-    const opened = window.open(url, '_blank');
-    if (opened) {
-      try { opened.opener = null; } catch {}
-    }
-
     let copySucceeded = false;
     try {
       await navigator.clipboard.writeText(url);
       copySucceeded = true;
     } catch {}
 
-    const baseMessage = copySucceeded ? SHARE_COPY_SUCCESS_MESSAGE : SHARE_COPY_FALLBACK_MESSAGE;
+    const notice = copySucceeded ? 'copied' : 'copy-failed';
+    const opened = window.open(appendShareNoticeParam(url, notice), '_blank');
+    if (opened) {
+      try { opened.opener = null; } catch {}
+    } else {
+      window.alert(copySucceeded ? SHARE_POPUP_BLOCKED_MESSAGE : SHARE_COPY_FALLBACK_MESSAGE);
+    }
+
     setShareState('copied');
-    setShareNotice(opened ? baseMessage : `${baseMessage} ${SHARE_POPUP_BLOCKED_MESSAGE}`);
     setTimeout(() => setShareState('idle'), 4000);
   };
 
@@ -524,12 +523,6 @@ export default function ResultCanvas({
               )}
             </span>
           </button>
-          {shareNotice && (
-            <div style={{ ...s.shareNotice, ...(isMobile ? s.shareNoticeMobile : {}) }} role="status" data-testid="share-notice">
-              <span style={s.shareNoticeIcon}>✓</span>
-              <span>{shareNotice}</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -695,15 +688,6 @@ const s = {
   worksheetCtaTextWrap: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.3 },
   worksheetCtaTitle: { fontWeight: 900, fontSize: 13, whiteSpace: 'nowrap' },
   worksheetCtaSub: { fontWeight: 600, fontSize: 10.5, opacity: 0.92, whiteSpace: 'nowrap' },
-  shareNotice: {
-    display: 'flex', alignItems: 'flex-start', gap: 7,
-    maxWidth: 520, border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)',
-    background: 'rgba(var(--color-accent-teal-rgb),0.10)',
-    color: 'var(--color-primary-dark)', borderRadius: 12,
-    padding: '8px 11px', fontSize: 12.5, fontWeight: 800, lineHeight: 1.5,
-  },
-  shareNoticeMobile: { width: '100%', maxWidth: '100%' },
-  shareNoticeIcon: { flexShrink: 0, fontWeight: 900 },
   tabSpinner: {
     display: 'inline-block', width: 9, height: 9,
     border: '2px solid var(--color-border)', borderTop: '2px solid var(--color-primary-dark)',

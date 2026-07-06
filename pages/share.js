@@ -7,16 +7,28 @@ import { FALLBACK_CHECK_QUESTIONS } from '../lib/modeWorksheetFields';
 import { REFLECTION_FIELDS, MODES } from '../lib/reflectionFields';
 import { WS_ACTIVITIES_META, WS_ACTIVITY_FIELDS } from '../components/ThinkingWorksheetDrawer';
 
+const SHARE_NOTICE_MESSAGES = {
+  copied: '링크가 복사되었어요. 이제 패들릿이나 게시판에 붙여넣기 할 수 있어요.',
+  'copy-failed': '산출물 페이지를 새 창으로 열었어요. 주소 복사가 되지 않으면 주소창의 링크를 직접 복사해 주세요.',
+};
+
 export default function SharePage() {
   const router = useRouter();
   const [shareData, setShareData] = useState(null);
   const [error, setError] = useState(false);
+  const [systemNotice, setSystemNotice] = useState('');
 
   useEffect(() => {
     const queryValue = Array.isArray(router.query.d) ? router.query.d[0] : router.query.d;
+    const noticeValue = Array.isArray(router.query.notice) ? router.query.notice[0] : router.query.notice;
+    const searchParams = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search)
+      : null;
     const d = queryValue || (typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('d')
+      ? searchParams.get('d')
       : null);
+    const notice = noticeValue || searchParams?.get('notice');
+    setSystemNotice(SHARE_NOTICE_MESSAGES[notice] || '');
     if (!d) return;
     const decoded = decodeShareData(d);
     if (decoded) {
@@ -26,6 +38,12 @@ export default function SharePage() {
       setError(true);
     }
   }, [router.isReady, router.query]);
+
+  useEffect(() => {
+    if (!systemNotice) return undefined;
+    const timer = setTimeout(() => setSystemNotice(''), 5000);
+    return () => clearTimeout(timer);
+  }, [systemNotice]);
 
   return (
     <>
@@ -42,6 +60,13 @@ export default function SharePage() {
       </Head>
 
       <div style={s.page}>
+        {systemNotice && (
+          <div style={s.systemNotice} role="status" data-testid="share-system-notice">
+            <span style={s.systemNoticeIcon}>✓</span>
+            <span>{systemNotice}</span>
+          </div>
+        )}
+
         {/* 헤더 */}
         <div style={s.header}>
           <div style={s.headerInner}>
@@ -407,6 +432,40 @@ const s = {
     color: 'var(--color-text-sub)',
     fontSize: 15,
     marginTop: 60
+  },
+  systemNotice: {
+    position: 'fixed',
+    top: 16,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 50,
+    width: 'min(560px, calc(100vw - 32px))',
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-primary-dark)',
+    borderRadius: 14,
+    padding: '11px 14px',
+    boxShadow: '0 10px 28px rgba(var(--color-text-rgb),0.16)',
+    fontSize: 13.5,
+    fontWeight: 800,
+    lineHeight: 1.5,
+  },
+  systemNoticeIcon: {
+    flexShrink: 0,
+    width: 19,
+    height: 19,
+    borderRadius: '50%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(var(--color-accent-teal-rgb),0.16)',
+    color: 'var(--color-primary-dark)',
+    fontSize: 12,
+    fontWeight: 900,
+    marginTop: 1,
   },
   legacyNotice: {
     margin: '0 0 14px', fontSize: 12.5, color: 'var(--color-text-sub)',
