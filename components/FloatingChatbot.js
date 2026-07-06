@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import ChatBubble from './ChatBubble';
 
+const OFFLINE_DEMO_MODE = process.env.NEXT_PUBLIC_OFFLINE_DEMO_MODE === 'true';
+
 const POPUP_CSS = `
   @keyframes chatbot-pop-in {
     from { opacity: 0; transform: translateY(8px) scale(0.98); }
@@ -177,14 +179,26 @@ export default function FloatingChatbot({
           className="chatbot-anim chatbot-fab"
           style={{ ...s.fab, ...(isMobile ? s.fabMobile : {}) }}
         >
-          <Image
-            src="/chatbot-mascot.png"
-            alt=""
-            aria-hidden="true"
-            width={isMobile ? 64 : 144}
-            height={isMobile ? 64 : 144}
-            style={s.fabImage}
-          />
+          {OFFLINE_DEMO_MODE ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="./chatbot-mascot.png"
+              alt=""
+              aria-hidden="true"
+              width={isMobile ? 64 : 144}
+              height={isMobile ? 64 : 144}
+              style={s.fabImage}
+            />
+          ) : (
+            <Image
+              src="/chatbot-mascot.png"
+              alt=""
+              aria-hidden="true"
+              width={isMobile ? 64 : 144}
+              height={isMobile ? 64 : 144}
+              style={s.fabImage}
+            />
+          )}
           {!isMobile && (
             <span className="chatbot-fab-tooltip" aria-hidden="true">
               {t.chatbotButtonLabel}

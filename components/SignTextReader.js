@@ -8,7 +8,10 @@ const VALIDATION_ERROR_KEY = {
   TOO_LARGE: 'signReaderTooLarge',
 };
 
-export default function SignTextReader({ isMobile, onExtracted, t = getUiText('ko') }) {
+const DEMO_OCR_NOTICE =
+  '오프라인 시연에서는 이미지 인식 기능이 작동하지 않습니다. 온라인 프로그램에서 안내판 사진을 올리면 원본자료를 추출할 수 있습니다.';
+
+export default function SignTextReader({ isMobile, onExtracted, t = getUiText('ko'), demoMode = false }) {
   const [isOpen, setIsOpen] = useState(false);
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
@@ -40,7 +43,14 @@ export default function SignTextReader({ isMobile, onExtracted, t = getUiText('k
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const openModal = () => { resetState(); setIsOpen(true); };
+  const openModal = () => {
+    resetState();
+    if (demoMode) {
+      setStatus('error');
+      setErrorMessage(DEMO_OCR_NOTICE);
+    }
+    setIsOpen(true);
+  };
   const closeModal = () => { setIsOpen(false); resetState(); };
 
   const handleFileChange = (e) => {
@@ -64,6 +74,12 @@ export default function SignTextReader({ isMobile, onExtracted, t = getUiText('k
   };
 
   const handleExtract = async () => {
+    if (demoMode) {
+      setStatus('error');
+      setErrorMessage(DEMO_OCR_NOTICE);
+      return;
+    }
+
     if (!file) {
       setStatus('error');
       setErrorMessage(t.signReaderNoFile);

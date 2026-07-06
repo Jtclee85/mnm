@@ -13,15 +13,19 @@ export default function SharePage() {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    const { d } = router.query;
+    const queryValue = Array.isArray(router.query.d) ? router.query.d[0] : router.query.d;
+    const d = queryValue || (typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('d')
+      : null);
     if (!d) return;
     const decoded = decodeShareData(d);
     if (decoded) {
       setShareData(decoded);
+      setError(false);
     } else {
       setError(true);
     }
-  }, [router.query]);
+  }, [router.isReady, router.query]);
 
   return (
     <>
@@ -47,7 +51,7 @@ export default function SharePage() {
         </div>
 
         <div style={s.container}>
-          {!router.isReady || (!shareData && !error) ? (
+          {(!router.isReady && typeof window === 'undefined') || (!shareData && !error) ? (
             <p style={s.loading}>불러오는 중...</p>
           ) : error ? (
             <ErrorView />

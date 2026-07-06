@@ -5,7 +5,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:offline-demo": "NEXT_PUBLIC_OFFLINE_DEMO_MODE=true NEXT_PUBLIC_SUBMISSION_MODE=false next build",
+    "build:submission": "node scripts/build-submission-package.js"
   },
   "dependencies": {
     "next": "14.1.0",

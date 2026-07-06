@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Head from 'next/head';
 import Image from 'next/image';
 
@@ -12,6 +12,7 @@ import FloatingChatbot from '../components/FloatingChatbot';
 import EasyExplanationPanel from '../components/EasyExplanationPanel';
 import ResearchCompass from '../components/ResearchCompass';
 import ResearchTutorialQuest, { TUTORIAL_QUESTS } from '../components/ResearchTutorialQuest';
+import SubmissionStartScreen from '../components/SubmissionStartScreen';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
 import { parseSectionedResponse, parseQuizBlock, extractTagBlock, copyText, DEFAULT_STUDENT_LEVEL } from '../lib/parseResponse';
@@ -29,26 +30,43 @@ import { withSubjectParticle } from '../lib/koreanParticles';
 
 const TUTORIAL_SEEN_KEY = 'mnmHistoryResearchTutorialSeen';
 
-export default function Home() {
-  const [topic,       setTopic]       = useState('');
-  const [sourceText,  setSourceText]  = useState('');
+// 연구대회 심사용 시작화면 — NEXT_PUBLIC_SUBMISSION_MODE=true일 때만 브라우저 세션당
+// 처음 한 번 표시한다. localStorage가 아닌 sessionStorage를 쓰는 이유: 심사자가
+// 브라우저를 다시 열었을 때도 시작화면(연구보고서 제목·대상학년)이 보여야 하기 때문.
+const SUBMISSION_MODE = process.env.NEXT_PUBLIC_SUBMISSION_MODE === 'true';
+const SUBMISSION_START_SEEN_KEY = 'mnmSubmissionStartSeenInSession';
+const DEMO_CHAT_NOTICE =
+  '오프라인 시연에서는 실제 AI 응답을 생성하지 않습니다. 온라인 프로그램에서는 이 질문을 바탕으로 AI 도우미와 대화할 수 있습니다.';
+const DEMO_OCR_NOTICE =
+  '오프라인 시연에서는 이미지 인식 기능이 작동하지 않습니다. 온라인 프로그램에서 안내판 사진을 올리면 원본자료를 추출할 수 있습니다.';
+
+export default function Home({
+  demoMode = false,
+  demoSnapshot = null,
+} = {}) {
+  const demoSession = demoMode ? getDemoSession(demoSnapshot) : null;
+  const demoInitialAnalysis = demoSession ? mergeModeResults(demoSession.analysisByMode) : INIT_BY_MODE();
+  const demoHasResult = demoMode && hasAnyAnalysisResult(demoInitialAnalysis);
+
+  const [topic,       setTopic]       = useState(demoSession?.topic || '');
+  const [sourceText,  setSourceText]  = useState(demoSession?.sourceText || '');
   // 초등 4~6학년이 부담 없이 읽는 수준이 기본값 — 이전의 'high' 하드코딩을 대체.
   // 추후 수준 선택 UI를 붙일 때 이 값을 state로 바꾸면 된다.
-  const gradeLevel = DEFAULT_STUDENT_LEVEL;
-  const [language,    setLanguage]    = useState('ko');
+  const gradeLevel = demoSession?.gradeLevel || DEFAULT_STUDENT_LEVEL;
+  const [language,    setLanguage]    = useState(demoSession?.language || 'ko');
   const t = getUiText(language);
   const isRtl = language === 'ar';
 
   // 캔버스 / 탭 상태
-  const [canvasOpen,  setCanvasOpen]  = useState(false);
-  const [activeMode,  setActiveMode]  = useState('understand');
+  const [canvasOpen,  setCanvasOpen]  = useState(demoHasResult);
+  const [activeMode,  setActiveMode]  = useState(demoSession?.activeMode || 'understand');
   const [loadingMode, setLoadingMode] = useState(null);   // 분석 중인 탭
 
   // 모드별 분리 저장 (공유 필드 덮어쓰기 버그 해소)
-  const [analysisByMode, setAnalysisByMode] = useState(INIT_BY_MODE());
+  const [analysisByMode, setAnalysisByMode] = useState(demoInitialAnalysis);
 
   // 도구 결과 (탭과 무관)
-  const [toolResults, setToolResults] = useState(EMPTY_TOOLS);
+  const [toolResults, setToolResults] = useState({ ...EMPTY_TOOLS, ...(demoSession?.toolResults || {}) });
   const [quizKey,    setQuizKey]    = useState(0);
   const [quizResult, setQuizResult] = useState(null);
 
@@ -57,21 +75,31 @@ export default function Home() {
   const [loadingTool,  setLoadingTool]  = useState(null);
 
   const [isMobile, setIsMobile] = useState(false);
-  const [leftPanelTab, setLeftPanelTab] = useState('source');
+  const [leftPanelTab, setLeftPanelTab] = useState(demoHasResult ? 'easy' : 'source');
 
   // 좌측 패널 제목용 — "가장 최근 분석을 실행한" 조사주제 (입력 중인 topic과는 별개)
-  const [lastAnalyzedTopic, setLastAnalyzedTopic] = useState('');
+  const [lastAnalyzedTopic, setLastAnalyzedTopic] = useState(demoHasResult ? (demoSession?.topic || '') : '');
 
-  const { notes, updateNote, saveStatus } = useStudentNotes(topic);
+  const realStudentNotes = useStudentNotes(topic);
+  const [demoNotes, setDemoNotes] = useState(demoSession?.notes || {});
+  const updateDemoNote = useCallback((field, value) => {
+    setDemoNotes(prev => ({ ...prev, [field]: value }));
+  }, []);
+  const notes = demoMode ? demoNotes : realStudentNotes.notes;
+  const updateNote = demoMode ? updateDemoNote : realStudentNotes.updateNote;
+  const saveStatus = demoMode ? 'saved' : realStudentNotes.saveStatus;
   const { savedTopics, triggerSave, saveNow, loadSession, deleteSession } = useSessionSave();
 
   // 3차 구조 개편 — 옛 별도 '생각 워크시트' 데이터를 각 모드 안 입력 필드로 1회성 복사.
   // 옛 데이터는 지우지 않고 그대로 둔 채, 새 필드가 비어 있을 때만 채운다.
   useEffect(() => {
+    if (demoMode) return;
     migrateLegacyWorksheetFields(notes, updateNote);
-  }, [notes, updateNote]);
+  }, [demoMode, notes, updateNote]);
 
-  const [conversation, setConversation] = useState([makeInitialMessage(getUiText('ko'))]);
+  const [conversation, setConversation] = useState(
+    cleanConversation(demoSession?.conversation, getUiText(demoSession?.language || 'ko'))
+  );
   const [chatInput,    setChatInput]    = useState('');
   // 우하단 플로팅 챗봇 팝업 열림 상태 — 기존 왼쪽 패널 '대화' 탭을 대체
   const [isChatPopupOpen, setIsChatPopupOpen] = useState(false);
@@ -83,12 +111,47 @@ export default function Home() {
   const [tutorialStep, setTutorialStep] = useState(0);
 
   useEffect(() => {
+    if (demoMode) return;
     try {
       if (localStorage.getItem(TUTORIAL_SEEN_KEY) !== 'true') setTutorialOpen(true);
     } catch {
       setTutorialOpen(true);
     }
+  }, [demoMode]);
+
+  // 심사용 시작화면 — SSR/hydration 불일치를 막기 위해 마운트 후에만 판단한다.
+  // /?submissionStart=1 쿼리로 sessionStorage와 무관하게 강제 표시할 수 있다.
+  const [submissionStartOpen, setSubmissionStartOpen] = useState(false);
+
+  useEffect(() => {
+    if (!SUBMISSION_MODE) return;
+    try {
+      const forced = new URLSearchParams(window.location.search).get('submissionStart') === '1';
+      if (forced || sessionStorage.getItem(SUBMISSION_START_SEEN_KEY) !== 'true') {
+        setSubmissionStartOpen(true);
+      }
+    } catch {
+      setSubmissionStartOpen(true);
+    }
   }, []);
+
+  const markSubmissionStartSeen = () => {
+    try { sessionStorage.setItem(SUBMISSION_START_SEEN_KEY, 'true'); } catch {}
+  };
+
+  // 시작하기: 시작화면을 닫고 기존 앱 랜딩 화면을 그대로 보여준다.
+  const handleSubmissionStart = () => {
+    markSubmissionStartSeen();
+    setSubmissionStartOpen(false);
+  };
+
+  // 자료조사 주의점 보기: 시작화면을 닫으면서 기존 튜토리얼(ResearchTutorialQuest)을 연다.
+  const handleSubmissionViewTutorial = () => {
+    markSubmissionStartSeen();
+    setSubmissionStartOpen(false);
+    setTutorialStep(0);
+    setTutorialOpen(true);
+  };
 
   const markTutorialSeen = () => {
     try { localStorage.setItem(TUTORIAL_SEEN_KEY, 'true'); } catch {}
@@ -122,12 +185,14 @@ export default function Home() {
 
   // ── 자동 세션 저장 ──
   useEffect(() => {
+    if (demoMode) return;
     if (!topic.trim()) return;
     triggerSave({ topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults });
-  }, [topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults, triggerSave]);
+  }, [demoMode, topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults, triggerSave]);
 
   // ── 이전 조사 불러오기 ──
   const handleLoadSession = (savedTopic) => {
+    if (demoMode) return;
     if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults });
 
     const session = loadSession(savedTopic);
@@ -170,6 +235,7 @@ export default function Home() {
   };
 
   const handleDeleteSession = (savedTopic) => {
+    if (demoMode) return;
     if (!window.confirm(`"${savedTopic}" 조사 기록을 삭제할까요?`)) return;
 
     deleteSession(savedTopic);
@@ -182,6 +248,10 @@ export default function Home() {
   // ── 안내판 사진에서 추출한 텍스트를 조사자료 입력창에 삽입 ──
   // 기존 입력 내용이 있으면 보존하고 줄바꿈으로 이어 붙인다.
   const handleSignTextExtracted = (extractedText) => {
+    if (demoMode) {
+      alert(DEMO_OCR_NOTICE);
+      return;
+    }
     setSourceText(prev => {
       const trimmedPrev = prev.trim();
       return trimmedPrev ? `${prev}\n\n${extractedText}` : extractedText;
@@ -190,6 +260,11 @@ export default function Home() {
 
   // ── 처음으로 돌아가기 ──
   const handleGoHome = () => {
+    if (demoMode) {
+      setCanvasOpen(true);
+      setLeftPanelTab('easy');
+      return;
+    }
     if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults });
 
     resetWorkspace();
@@ -198,6 +273,7 @@ export default function Home() {
   const buildLanguageReminder = () => getLanguageReminder(language);
 
   const handleLanguageChange = (nextLanguage) => {
+    if (demoMode) return;
     setLanguage(nextLanguage);
     const nextText = getUiText(nextLanguage);
     setAnalysisByMode(INIT_BY_MODE());
@@ -212,6 +288,10 @@ export default function Home() {
 
   // ── SSE 스트리밍 ──
   const requestStream = async (messageHistory, { onChunk, onDone, onError }) => {
+    if (demoMode) {
+      onDone?.(DEMO_CHAT_NOTICE);
+      return;
+    }
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -286,6 +366,14 @@ export default function Home() {
 
   // ── 모드별 분석 (공통) ──
   const analyzeForMode = async (mode) => {
+    if (demoMode) {
+      setLoadingMode(mode);
+      await new Promise(resolve => setTimeout(resolve, 350));
+      setAnalysisByMode(prev => ({ ...prev, [mode]: { ...EMPTY_MODE_RESULT, ...(demoSession?.analysisByMode?.[mode] || {}) } }));
+      setLoadingMode(null);
+      return true;
+    }
+
     setLoadingMode(mode);
 
     const sysMsg = createSystemMessage({ topic: topic.trim(), sourceText: sourceText.trim(), gradeLevel, learningMode: mode, language });
@@ -323,6 +411,17 @@ export default function Home() {
     setLastAnalyzedTopic(trimmedTopic);
     // 자료 분석 이후에는 왼쪽 패널에 '쉬운설명'을 우선으로 보여준다.
     setLeftPanelTab('easy');
+
+    if (demoMode) {
+      setLoadingMode('understand');
+      setCanvasOpen(true);
+      await new Promise(resolve => setTimeout(resolve, 350));
+      setAnalysisByMode(mergeModeResults(demoSession?.analysisByMode));
+      setActiveMode(demoSession?.activeMode || 'understand');
+      setConversation(cleanConversation(demoSession?.conversation, t));
+      setLoadingMode(null);
+      return;
+    }
 
     const thinkingMsg = trimmedSource.length > 3000
       ? t.longThinking
@@ -363,6 +462,10 @@ export default function Home() {
 
   const handleTabClick = async (mode) => {
     setActiveMode(mode);
+    if (demoMode) {
+      if (!hasModeResult(mode)) await analyzeForMode(mode);
+      return;
+    }
     if (!hasModeResult(mode) && loadingMode === null && !isAnalyzing) {
       await analyzeForMode(mode);
     }
@@ -371,6 +474,16 @@ export default function Home() {
   // ── 도구 공통 핸들러 ──
   const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey, buildSystem, retryTag }) => {
     if (!sourceText.trim()) { alert(t.missingAnalysis); return; }
+
+    if (demoMode) {
+      setIsAnalyzing(true);
+      setLoadingTool(toolKey ?? null);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      onDone(parseSectionedResponse(DEMO_CHAT_NOTICE));
+      setIsAnalyzing(false);
+      setLoadingTool(null);
+      return;
+    }
 
     setIsAnalyzing(true);
     setLoadingTool(toolKey ?? null);
@@ -405,6 +518,10 @@ export default function Home() {
 
   const handleEvaluation = async () => {
     if (!sourceText.trim()) { alert(t.missingAnalysis); return; }
+    if (demoMode) {
+      setToolResults(prev => ({ ...prev, evaluation: DEMO_CHAT_NOTICE }));
+      return;
+    }
     setIsAnalyzing(true);
     setLoadingTool('evaluation');
 
@@ -433,6 +550,9 @@ export default function Home() {
     });
 
   const checkChatRelevance = async (userText) => {
+    if (demoMode) {
+      return { relevant: true, redirect: '' };
+    }
     try {
       const res = await fetch('/api/relevance', {
         method: 'POST',
@@ -473,6 +593,13 @@ export default function Home() {
 
     // 관련성 검사 응답을 기다리는 동안에도 학생이 보낸 질문이 바로 보이도록 먼저 추가한다
     setConversation(prev => [...prev, userMessage]);
+
+    if (demoMode) {
+      await new Promise(resolve => setTimeout(resolve, 250));
+      setConversation(prev => [...prev, { role: 'assistant', content: DEMO_CHAT_NOTICE }]);
+      setIsChatLoading(false);
+      return;
+    }
 
     const relevance = await checkChatRelevance(userText);
     if (!relevance.relevant) {
@@ -533,17 +660,20 @@ export default function Home() {
     const u = analysisByMode.understand || {};
     const shareData = {
       topic: lastAnalyzedTopic || topic || t.untitled,
-      sourceText: truncateForShare(sourceText, 500),
+      sourceText: truncateForShare(sourceText, demoMode ? 2500 : 500),
       easyExplanationSummary: {
         oneSentence: u.understandingSentence || '',
-        easyFullText: truncateForShare(u.easy, 400),
+        easyFullText: truncateForShare(u.easy, demoMode ? 1200 : 400),
       },
       modeInputs: buildModeInputs(notes),
       legacyEvidence: getLegacyEvidenceFields(notes),
       legacyWorksheet: notes,
       sharedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
     };
-    return `${window.location.origin}/share?d=${encodeShareData(shareData)}`;
+    const encoded = encodeShareData(shareData);
+    return demoMode
+      ? `../share/index.html?d=${encoded}`
+      : `${window.location.origin}/share?d=${encoded}`;
   };
 
   // ── 퀴즈 파싱 (quiz 텍스트 변경 시만) ──
@@ -582,11 +712,7 @@ export default function Home() {
   };
 
   // 재오픈 버튼 표시 여부
-  const hasAnyResult = Object.values(analysisByMode).some(r =>
-    r?.easy || r?.understandingSentence || r?.summaryLines?.length || r?.keywordLines?.length ||
-    r?.inquiryQuestions ||
-    r?.presentationTitle || r?.presentationMessages || r?.writingOutline
-  );
+  const hasAnyResult = hasAnyAnalysisResult(analysisByMode);
 
   // 아직 분석을 시작하지 않은 진짜 첫 랜딩 상태 — 추천 원본자료 사이드바를 보여줄 시점
   const showLanding = !canvasOpen && !hasAnyResult;
@@ -720,7 +846,7 @@ export default function Home() {
                 <div style={styles.formGroup}>
                   <div style={styles.sourceLabelRow}>
                     <label style={styles.label}>{t.sourceLabel}</label>
-                    <SignTextReader isMobile={isMobile} onExtracted={handleSignTextExtracted} t={t} />
+                    <SignTextReader isMobile={isMobile} onExtracted={handleSignTextExtracted} t={t} demoMode={demoMode} />
                   </div>
                   <textarea
                     data-testid="source-textarea"
@@ -842,6 +968,11 @@ export default function Home() {
         style={{ ...styles.page, ...(isRtl ? styles.pageRtl : {}), ...(isMobile ? styles.pageMobile : {}) }}
       >
         <div style={styles.container}>
+          {demoMode && (
+            <div style={styles.demoBadge}>
+              오프라인 시연 모드 · 저장된 예시 데이터로 실행 중
+            </div>
+          )}
           {showLanding ? (
             <div style={isMobile ? styles.landingStackMobile : styles.landingRow}>
               <RecommendedSources isMobile={isMobile} />
@@ -894,14 +1025,59 @@ export default function Home() {
           onClose={handleTutorialSkip}
           isMobile={isMobile}
         />
+
+        {/* 연구대회 심사용 시작화면 — 심사 모드에서만 기존 앱 위에 오버레이로 표시 */}
+        {submissionStartOpen && (
+          <SubmissionStartScreen
+            isMobile={isMobile}
+            onStart={handleSubmissionStart}
+            onViewTutorial={handleSubmissionViewTutorial}
+          />
+        )}
       </div>
     </>
   );
 }
 
 // ── 유틸 ──
-function cleanConversation(messages) {
-  if (!Array.isArray(messages) || messages.length === 0) return [makeInitialMessage(getUiText('ko'))];
+function getDemoSession(snapshot) {
+  const session = snapshot?.session || {};
+  const topic = snapshot?.topic || session.topic || '';
+  return {
+    topic,
+    sourceText: session.sourceText || '',
+    gradeLevel: session.gradeLevel || DEFAULT_STUDENT_LEVEL,
+    language: session.language || 'ko',
+    activeMode: ['understand', 'inquiry', 'presentation', 'writing'].includes(session.activeMode)
+      ? session.activeMode
+      : 'understand',
+    conversation: session.conversation || [],
+    notes: session.notes || snapshot?.notes || {},
+    analysisByMode: session.analysisByMode || {},
+    toolResults: session.toolResults || {},
+  };
+}
+
+function mergeModeResults(analysisByMode = {}) {
+  const base = INIT_BY_MODE();
+  return {
+    understand: { ...base.understand, ...(analysisByMode.understand || {}) },
+    inquiry: { ...base.inquiry, ...(analysisByMode.inquiry || {}) },
+    presentation: { ...base.presentation, ...(analysisByMode.presentation || {}) },
+    writing: { ...base.writing, ...(analysisByMode.writing || {}) },
+  };
+}
+
+function hasAnyAnalysisResult(analysisByMode = {}) {
+  return Object.values(analysisByMode).some(r =>
+    r?.easy || r?.understandingSentence || r?.summaryLines?.length || r?.keywordLines?.length ||
+    r?.inquiryQuestions ||
+    r?.presentationTitle || r?.presentationMessages || r?.writingOutline
+  );
+}
+
+function cleanConversation(messages, fallbackText = getUiText('ko')) {
+  if (!Array.isArray(messages) || messages.length === 0) return [makeInitialMessage(fallbackText)];
 
   const cleaned = messages.filter(msg => {
     const content = msg?.content || '';
@@ -912,7 +1088,7 @@ function cleanConversation(messages) {
     return true;
   });
 
-  return cleaned.length > 0 ? cleaned : [makeInitialMessage(getUiText('ko'))];
+  return cleaned.length > 0 ? cleaned : [makeInitialMessage(fallbackText)];
 }
 
 // ── 상수 ──
@@ -955,6 +1131,12 @@ const styles = {
   pageRtl:   { textAlign: 'right' },
   pageMobile: { padding: '16px 10px 32px' },
   container: { maxWidth: 1680, margin: '0 auto' },
+  demoBadge: {
+    width: 'fit-content', maxWidth: '100%', margin: '0 auto 12px',
+    border: '1px solid rgba(var(--color-primary-rgb),0.25)',
+    background: 'rgba(var(--color-primary-rgb),0.08)', color: 'var(--color-primary-dark)',
+    borderRadius: 999, padding: '6px 12px', fontSize: 12, fontWeight: 800,
+  },
   languageBarSelect: {
     minWidth: 180, border: '1px solid var(--color-border)', borderRadius: 12,
     padding: '10px 12px', fontSize: 12, outline: 'none', background: 'var(--color-surface)', boxSizing: 'border-box',
