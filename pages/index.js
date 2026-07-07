@@ -304,12 +304,72 @@ export default function Home({
     setLastAnalyzedTopic('');
   };
 
-  // ── SSE 스트리밍 ──
+  // ── 비스트리밍 요청 (/api/chat-once) — 스트리밍 실패 시 fallback ──
+  const requestOnce = async (messageHistory) => {
+    const fallbackFailedMsg = t.chatFallbackFailed || t.processFailed;
+
+    let res;
+    try {
+      res = await fetch('/api/chat-once', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: messageHistory })
+      });
+    } catch {
+      // 네트워크 자체가 막힌 경우 — 브라우저 기본 오류 문구 대신 친절한 안내를 던진다
+      throw new Error(fallbackFailedMsg);
+    }
+
+    let data = {};
+    try { data = await res.json(); } catch {}
+
+    if (!res.ok) throw new Error(data.error || fallbackFailedMsg);
+    if (!data.content?.trim()) throw new Error(fallbackFailedMsg);
+
+    return data.content.trim();
+  };
+
+  // ── SSE 스트리밍 (+ 실패 시 비스트리밍 fallback) ──
+  // 학교망·보안 프로그램이 text/event-stream을 차단하는 환경에서도 답변이 나오도록,
+  // /api/chat 스트리밍이 실패하면 /api/chat-once로 같은 요청을 한 번에 다시 받는다.
   const requestStream = async (messageHistory, { onChunk, onDone, onError }) => {
     if (demoMode) {
       onDone?.(DEMO_CHAT_NOTICE);
       return;
     }
+
+    let streamedText = '';
+
+    const runFallback = async (reason) => {
+      console.warn('[chat fallback] 스트리밍 실패, 비스트리밍 재시도:', reason);
+      try {
+        const fullText = await requestOnce(messageHistory);
+        console.warn('[chat fallback] 스트리밍 실패 후 비스트리밍으로 성공');
+        // 스트리밍 UI와 호환되도록 전체 답변을 한 번에 전달
+        onChunk?.(fullText, fullText);
+        onDone?.(fullText);
+      } catch (fallbackError) {
+        console.error('[chat fallback] 비스트리밍도 실패:', fallbackError);
+        onError?.(
+          fallbackError instanceof Error
+            ? fallbackError.message
+            : (t.chatFallbackFailed || t.processFailed)
+        );
+      }
+    };
+
+    // 개발 중 fallback 동작 확인용: 주소에 ?forceFallback=1을 붙이면 스트리밍을 건너뛴다.
+    // production 빌드에서는 항상 비활성.
+    const forceFallback =
+      process.env.NODE_ENV !== 'production' &&
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('forceFallback') === '1';
+
+    if (forceFallback) {
+      await runFallback('forceFallback=1 쿼리로 강제 실행');
+      return;
+    }
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
@@ -320,15 +380,22 @@ export default function Home({
       if (!res.ok) {
         let errMsg = t.processFailed;
         try { const body = await res.json(); if (body.error) errMsg = body.error; } catch {}
-        onError?.(errMsg);
+        // 400(입력 문제)·405·429(사용량 초과)는 비스트리밍으로 다시 보내도 같은 결과이므로 바로 오류 처리
+        if (res.status === 400 || res.status === 405 || res.status === 429) {
+          onError?.(errMsg);
+        } else {
+          await runFallback(`stream status ${res.status}: ${errMsg}`);
+        }
         return;
       }
 
-      if (!res.body) throw new Error(t.processFailed);
+      if (!res.body) {
+        await runFallback('stream response body 없음');
+        return;
+      }
 
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
-      let fullText = '';
       let buffer   = '';
 
       while (true) {
@@ -341,20 +408,35 @@ export default function Home({
           if (part.startsWith('data: ')) {
             try {
               const data = JSON.parse(part.substring(6));
-              fullText += data;
-              onChunk?.(data, fullText);
+              streamedText += data;
+              onChunk?.(data, streamedText);
             } catch {}
           }
         }
       }
 
       if (buffer.startsWith('data: ')) {
-        try { const data = JSON.parse(buffer.substring(6)); fullText += data; onChunk?.(data, fullText); } catch {}
+        try { const data = JSON.parse(buffer.substring(6)); streamedText += data; onChunk?.(data, streamedText); } catch {}
       }
-      onDone?.(fullText);
+
+      if (!streamedText.trim()) {
+        await runFallback('stream 빈 응답');
+        return;
+      }
+
+      onDone?.(streamedText);
     } catch (error) {
-      console.error(error);
-      onError?.(error);
+      console.error('[chat stream] 오류:', error);
+
+      // 답변 대부분이 이미 화면에 표시된 뒤 끝부분에서 끊긴 경우 —
+      // fallback으로 다시 생성하면 내용이 중복·변형되므로 받은 것까지로 완료 처리
+      if (streamedText.trim().length >= 20) {
+        onDone?.(streamedText);
+        return;
+      }
+
+      // 학교망·보안 프로그램의 SSE 차단, 네트워크 끊김 등은 여기로 들어온다
+      await runFallback(error);
     }
   };
 
@@ -635,12 +717,14 @@ export default function Home({
     setConversation(prev => [...prev, assistantPlaceholder]);
 
     await requestStream([buildChatSystem(), ...conversation, userMessage], {
-      onChunk: (data) => {
+      // 두 번째 인자(누적 전체 텍스트)로 내용을 교체한다. 스트리밍이 잠깐 진행되다
+      // 비스트리밍 fallback으로 넘어가도 부분 답변과 전체 답변이 겹쳐 보이지 않는다.
+      onChunk: (_, full) => {
         setConversation(prev => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
           if (updated[lastIdx]?.role === 'assistant') {
-            updated[lastIdx] = { ...updated[lastIdx], content: updated[lastIdx].content + data };
+            updated[lastIdx] = { ...updated[lastIdx], content: full };
           }
           return updated;
         });
