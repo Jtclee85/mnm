@@ -182,7 +182,7 @@ export default function FloatingChatbot({
           {OFFLINE_DEMO_MODE ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src="./chatbot-mascot.png"
+              src="../assets/chatbot-mascot.png"
               alt=""
               aria-hidden="true"
               width={isMobile ? 64 : 144}

@@ -21,6 +21,7 @@ const META_PATH = path.join(ROOT, 'lib', 'submissionMeta.js');
 const OFFLINE_BUILD_DIR = path.join(ROOT, '.next-offline');
 const OFFLINE_OUTPUT_DIR = path.join(OUTPUT_DIR, 'offline-demo');
 const SHARE_OUTPUT_DIR = path.join(OUTPUT_DIR, 'share');
+const NEXT_OUTPUT_DIR = path.join(OUTPUT_DIR, '_next');
 const DEMO_LOCAL_PATH = path.join(ROOT, 'submission-demo', 'demo-snapshot.local.json');
 const DEMO_EXAMPLE_PATH = path.join(ROOT, 'submission-demo', 'demo-snapshot.example.json');
 
@@ -76,6 +77,7 @@ function copySubmissionShell(meta) {
       content = content.split(placeholder).join(value);
     }
     fs.writeFileSync(destPath, content);
+    if (filename === 'index.html') rewriteHtmlAssetPaths(destPath, 0);
   }
 }
 
@@ -118,18 +120,10 @@ function buildOfflineDemo() {
   fs.mkdirSync(OFFLINE_OUTPUT_DIR, { recursive: true });
   const offlineIndexOut = path.join(OFFLINE_OUTPUT_DIR, 'index.html');
   fs.copyFileSync(offlinePage, offlineIndexOut);
-  stripCrossoriginForFileProtocol(offlineIndexOut);
-  copyDirIfExists(path.join(OFFLINE_BUILD_DIR, '_next'), path.join(OFFLINE_OUTPUT_DIR, '_next'));
+  rewriteHtmlAssetPaths(offlineIndexOut, 1);
+  copyDirIfExists(path.join(OFFLINE_BUILD_DIR, '_next'), NEXT_OUTPUT_DIR);
   copyExportedPageToSubmission('share', SHARE_OUTPUT_DIR);
-
-  for (const entry of fs.readdirSync(OFFLINE_BUILD_DIR, { withFileTypes: true })) {
-    if (entry.name === '_next' || entry.name === 'offline-demo') continue;
-    if (['.html', '.json', '.js'].some((ext) => entry.name.endsWith(ext))) continue;
-    const srcPath = path.join(OFFLINE_BUILD_DIR, entry.name);
-    const destPath = path.join(OFFLINE_OUTPUT_DIR, entry.name);
-    if (entry.isDirectory()) copyDirIfExists(srcPath, destPath);
-    else fs.copyFileSync(srcPath, destPath);
-  }
+  rewriteSharedNextAssets();
 
   return fs.existsSync(DEMO_LOCAL_PATH);
 }
@@ -147,21 +141,54 @@ function copyExportedPageToSubmission(routeName, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
   const indexOut = path.join(destDir, 'index.html');
   fs.copyFileSync(pagePath, indexOut);
-  stripCrossoriginForFileProtocol(indexOut);
-  copyDirIfExists(path.join(OFFLINE_BUILD_DIR, '_next'), path.join(destDir, '_next'));
-
-  for (const assetName of ['chatbot-mascot.png', 'title-mnm.png']) {
-    const assetPath = path.join(OFFLINE_BUILD_DIR, assetName);
-    if (fs.existsSync(assetPath)) fs.copyFileSync(assetPath, path.join(destDir, assetName));
-  }
+  rewriteHtmlAssetPaths(indexOut, 1);
 }
 
-function stripCrossoriginForFileProtocol(htmlPath) {
-  // Chrome blocks file:// script/link loads when crossorigin is present. The files are local
-  // and same-folder relative, so removing only this attribute keeps the export USB-friendly.
-  const html = fs.readFileSync(htmlPath, 'utf8')
+function rewriteHtmlAssetPaths(htmlPath, depth) {
+  const prefix = depth === 0 ? './' : '../';
+  let html = fs.readFileSync(htmlPath, 'utf8')
+    // Chrome blocks file:// script/link loads when crossorigin is present. The files are local.
     .replace(/\s+crossorigin(?:="")?/g, '');
+
+  html = html.replace(
+    /\b(src|href)=("|')\/(_next|assets|offline-demo|share)\//g,
+    (_match, attr, quote, dir) => `${attr}=${quote}${prefix}${dir}/`
+  );
+
   fs.writeFileSync(htmlPath, html);
+}
+
+function rewriteSharedNextAssets() {
+  if (!fs.existsSync(NEXT_OUTPUT_DIR)) return;
+  const textExts = new Set(['.js', '.css']);
+
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+        continue;
+      }
+      if (!textExts.has(path.extname(entry.name))) continue;
+
+      let content = fs.readFileSync(fullPath, 'utf8');
+      if (path.extname(entry.name) === '.js') {
+        content = content
+          .replaceAll('"/_next/', '"../_next/')
+          .replaceAll("'/_next/", "'../_next/")
+          .replaceAll('`/_next/', '`../_next/')
+          .replaceAll('"/assets/', '"../assets/')
+          .replaceAll("'\/assets/", "'../assets/")
+          .replaceAll('`/assets/', '`../assets/');
+      }
+      if (path.extname(entry.name) === '.css') {
+        content = content.replace(/url\((["']?)\/_next\/static\/media\//g, 'url($1../media/');
+      }
+      fs.writeFileSync(fullPath, content);
+    }
+  };
+
+  walk(NEXT_OUTPUT_DIR);
 }
 
 function copyDirIfExists(srcDir, destDir) {
@@ -187,9 +214,16 @@ function copyMascot() {
 // ── 4. 결과물 점검 ──
 // 금지어(시도명/학교명/출품자명/계정명)와 치환되지 않은 placeholder를 검사한다.
 // 레포 코드 전체가 아니라 dist-submission/ 결과물만 점검한다.
-const FORBIDDEN_WORDS = ['인천', '인천해원초', '해원초', '이진복', 'jbeduwork', 'jtclee85', '@gclass', 'api_key', 'apikey'];
+const FORBIDDEN_WORDS = [
+  '시도명', '학교명', '출품자명',
+  '인천', '인천해원초', '해원초', '이진복',
+  'jbeduwork', 'jtclee85', '@gclass',
+  '아이브', '장원영',
+  'api_key', 'apikey',
+];
 const FORBIDDEN_PATTERNS = [
   { label: 'OpenAI API key pattern', re: /sk-(?:proj-[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{32,})/i },
+  { label: 'email address pattern', re: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i },
 ];
 
 function verifyOutput() {
@@ -230,7 +264,62 @@ function verifyOutput() {
   };
 
   walk(OUTPUT_DIR);
+  problems.push(...verifyFileProtocolPaths());
   return problems;
+}
+
+function verifyFileProtocolPaths() {
+  const problems = [];
+  const htmlTargets = [
+    { rel: 'index.html', depth: 0 },
+    { rel: path.join('offline-demo', 'index.html'), depth: 1 },
+    { rel: path.join('share', 'index.html'), depth: 1 },
+  ];
+  const absoluteAssetAttr = /\b(?:src|href)=["']\/(?:_next|assets|offline-demo|share)\//;
+
+  for (const { rel } of htmlTargets) {
+    const fullPath = path.join(OUTPUT_DIR, rel);
+    if (!fs.existsSync(fullPath)) {
+      problems.push(`필수 HTML 누락: ${path.join('dist-submission', rel)}`);
+      continue;
+    }
+    const html = fs.readFileSync(fullPath, 'utf8');
+    if (absoluteAssetAttr.test(html)) {
+      problems.push(`file:// 절대 리소스 경로 잔존: ${path.join('dist-submission', rel)}`);
+    }
+  }
+
+  const rootHtml = readOutputHtml('index.html');
+  const offlineHtml = readOutputHtml(path.join('offline-demo', 'index.html'));
+  const shareHtml = readOutputHtml(path.join('share', 'index.html'));
+
+  if (rootHtml && !rootHtml.includes('href="./offline-demo/index.html"')) {
+    problems.push('index.html의 오프라인 시연 링크가 ./offline-demo/index.html이 아닙니다.');
+  }
+  if (offlineHtml && !offlineHtml.includes('../_next/')) {
+    problems.push('offline-demo/index.html에서 ../_next/ 리소스 경로를 찾을 수 없습니다.');
+  }
+  if (shareHtml && !shareHtml.includes('../_next/')) {
+    problems.push('share/index.html에서 ../_next/ 리소스 경로를 찾을 수 없습니다.');
+  }
+  if (!fs.existsSync(NEXT_OUTPUT_DIR)) {
+    problems.push('dist-submission/_next 폴더가 없습니다.');
+  }
+  for (const nested of [
+    path.join(OFFLINE_OUTPUT_DIR, '_next'),
+    path.join(SHARE_OUTPUT_DIR, '_next'),
+  ]) {
+    if (fs.existsSync(nested)) {
+      problems.push(`중복 _next 폴더가 남아 있습니다: ${path.relative(ROOT, nested)}`);
+    }
+  }
+
+  return problems;
+}
+
+function readOutputHtml(relPath) {
+  const fullPath = path.join(OUTPUT_DIR, relPath);
+  return fs.existsSync(fullPath) ? fs.readFileSync(fullPath, 'utf8') : '';
 }
 
 // ── 실행 ──
@@ -261,11 +350,11 @@ function main() {
   console.log('  - index.html');
   console.log('  - 실행안내.txt');
   console.log('  - offline-demo/index.html');
-  console.log(`  - offline-demo/_next/* ${usedRealSnapshot ? '(실제 세션 스냅샷 기반)' : '(예시 스냅샷 기반)'}`);
   console.log('  - share/index.html');
+  console.log(`  - _next/static/* ${usedRealSnapshot ? '(실제 세션 스냅샷 기반)' : '(예시 스냅샷 기반)'}`);
   if (mascotCopied) console.log('  - assets/chatbot-mascot.png');
   console.log('\n다음 단계: dist-submission/ 폴더를 USB에 복사하세요.');
-  console.log('USB 폴더명에 시도명·학교명·출품자명을 넣지 마세요. (예: "뭐냐면_심사용")');
+  console.log('USB의 program/ 폴더 안에 dist-submission/ 내용물을 복사한 뒤 index.html을 실행하세요.');
 }
 
 main();

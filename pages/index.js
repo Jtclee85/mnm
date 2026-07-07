@@ -48,8 +48,7 @@ export default function Home({
   demoSnapshot = null,
 } = {}) {
   const demoSession = demoMode ? getDemoSession(demoSnapshot) : null;
-  const demoInitialAnalysis = demoSession ? mergeModeResults(demoSession.analysisByMode) : INIT_BY_MODE();
-  const demoHasResult = demoMode && hasAnyAnalysisResult(demoInitialAnalysis);
+  const demoSnapshotAnalysis = demoSession ? mergeModeResults(demoSession.analysisByMode) : INIT_BY_MODE();
 
   const [topic,       setTopic]       = useState(demoSession?.topic || '');
   const [sourceText,  setSourceText]  = useState(demoSession?.sourceText || '');
@@ -61,15 +60,15 @@ export default function Home({
   const isRtl = language === 'ar';
 
   // 캔버스 / 탭 상태
-  const [canvasOpen,  setCanvasOpen]  = useState(demoHasResult);
+  const [canvasOpen,  setCanvasOpen]  = useState(false);
   const [activeMode,  setActiveMode]  = useState(demoSession?.activeMode || 'understand');
   const [loadingMode, setLoadingMode] = useState(null);   // 분석 중인 탭
 
   // 모드별 분리 저장 (공유 필드 덮어쓰기 버그 해소)
-  const [analysisByMode, setAnalysisByMode] = useState(demoInitialAnalysis);
+  const [analysisByMode, setAnalysisByMode] = useState(() => INIT_BY_MODE());
 
   // 도구 결과 (탭과 무관)
-  const [toolResults, setToolResults] = useState({ ...EMPTY_TOOLS, ...(demoSession?.toolResults || {}) });
+  const [toolResults, setToolResults] = useState(EMPTY_TOOLS);
   const [quizKey,    setQuizKey]    = useState(0);
   const [demoApiNoticeOpen, setDemoApiNoticeOpen] = useState(false);
   const [quizResult, setQuizResult] = useState(null);
@@ -79,10 +78,10 @@ export default function Home({
   const [loadingTool,  setLoadingTool]  = useState(null);
 
   const [isMobile, setIsMobile] = useState(false);
-  const [leftPanelTab, setLeftPanelTab] = useState(demoHasResult ? 'easy' : 'source');
+  const [leftPanelTab, setLeftPanelTab] = useState('source');
 
   // 좌측 패널 제목용 — "가장 최근 분석을 실행한" 조사주제 (입력 중인 topic과는 별개)
-  const [lastAnalyzedTopic, setLastAnalyzedTopic] = useState(demoHasResult ? (demoSession?.topic || '') : '');
+  const [lastAnalyzedTopic, setLastAnalyzedTopic] = useState('');
 
   const realStudentNotes = useStudentNotes(topic);
   const [demoNotes, setDemoNotes] = useState(demoSession?.notes || {});
@@ -115,7 +114,10 @@ export default function Home({
   const [tutorialStep, setTutorialStep] = useState(0);
 
   useEffect(() => {
-    if (demoMode) return;
+    if (demoMode) {
+      setTutorialOpen(true);
+      return;
+    }
     try {
       if (localStorage.getItem(TUTORIAL_SEEN_KEY) !== 'true') setTutorialOpen(true);
     } catch {
@@ -172,7 +174,7 @@ export default function Home({
 
   // 다시 보지 않기 / 완료: seen을 저장해 다음 접속부터 자동으로 뜨지 않게 한다.
   const finishTutorial = () => {
-    markTutorialSeen();
+    if (!demoMode) markTutorialSeen();
     setTutorialOpen(false);
     setTutorialStep(0);
   };
@@ -265,8 +267,17 @@ export default function Home({
   // ── 처음으로 돌아가기 ──
   const handleGoHome = () => {
     if (demoMode) {
-      setCanvasOpen(true);
-      setLeftPanelTab('easy');
+      setTopic(demoSession?.topic || '');
+      setSourceText(demoSession?.sourceText || '');
+      setActiveMode(demoSession?.activeMode || 'understand');
+      setAnalysisByMode(INIT_BY_MODE());
+      setToolResults(EMPTY_TOOLS);
+      setQuizResult(null);
+      setQuizKey(k => k + 1);
+      setConversation(cleanConversation(demoSession?.conversation, getUiText(demoSession?.language || 'ko')));
+      setCanvasOpen(false);
+      setLeftPanelTab('source');
+      setLastAnalyzedTopic('');
       return;
     }
     if (topic.trim()) saveNow({ topic, sourceText, gradeLevel, language, activeMode, conversation, notes, analysisByMode, toolResults });
@@ -415,20 +426,23 @@ export default function Home({
     if (!trimmedTopic)              { alert(t.missingTopic); return; }
     if (trimmedSource.length < 50)  { alert(t.shortSource); return; }
 
-    setLastAnalyzedTopic(trimmedTopic);
-    // 자료 분석 이후에는 왼쪽 패널에 '쉬운설명'을 우선으로 보여준다.
-    setLeftPanelTab('easy');
-
     if (demoMode) {
       setLoadingMode('understand');
-      setCanvasOpen(true);
-      await new Promise(resolve => setTimeout(resolve, 350));
-      setAnalysisByMode(mergeModeResults(demoSession?.analysisByMode));
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setAnalysisByMode(demoSnapshotAnalysis);
+      setToolResults({ ...EMPTY_TOOLS, ...(demoSession?.toolResults || {}) });
       setActiveMode(demoSession?.activeMode || 'understand');
       setConversation(cleanConversation(demoSession?.conversation, t));
+      setLastAnalyzedTopic(demoSession?.topic || trimmedTopic);
+      setLeftPanelTab('easy');
+      setCanvasOpen(true);
       setLoadingMode(null);
       return;
     }
+
+    setLastAnalyzedTopic(trimmedTopic);
+    // 자료 분석 이후에는 왼쪽 패널에 '쉬운설명'을 우선으로 보여준다.
+    setLeftPanelTab('easy');
 
     const thinkingMsg = trimmedSource.length > 3000
       ? t.longThinking
@@ -977,7 +991,7 @@ export default function Home({
         <div style={styles.container}>
           {demoMode && (
             <div style={styles.demoBadge}>
-              오프라인 시연 모드 · 저장된 예시 데이터로 실행 중
+              오프라인 시연 모드 · 저장된 예시 자료가 입력되어 있어요
             </div>
           )}
           {showLanding ? (
@@ -1003,8 +1017,8 @@ export default function Home({
           )}
         </div>
 
-        {/* 우하단 플로팅 챗봇 — 조사를 시작한 뒤부터 접근 가능 (랜딩 화면에서는 물어볼 맥락이 없음) */}
-        {!showLanding && (
+        {/* 우하단 플로팅 챗봇 — 일반 모드는 조사를 시작한 뒤부터, 데모는 첫 화면부터 snapshot 대화를 보여준다. */}
+        {(demoMode || !showLanding) && (
           <FloatingChatbot
             isOpen={isChatPopupOpen}
             onOpen={() => setIsChatPopupOpen(true)}
