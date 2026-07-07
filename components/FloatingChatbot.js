@@ -165,7 +165,9 @@ export default function FloatingChatbot({
 
   return (
     <>
-      <style>{POPUP_CSS}</style>
+      {/* SSR 시 텍스트 자식의 따옴표가 &quot;로 이스케이프되어 hydration 불일치가
+          나므로(데모 랜딩에서 서버 렌더됨) dangerouslySetInnerHTML로 넣는다. */}
+      <style dangerouslySetInnerHTML={{ __html: POPUP_CSS }} />
 
       {/* 모바일에서 팝업이 열려 있을 때는 바텀시트가 버튼 자리를 덮으므로,
           팝업 헤더의 닫기 버튼과 겹치지 않게 플로팅 버튼을 숨긴다. */}

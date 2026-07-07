@@ -43,6 +43,58 @@ const DEMO_OCR_NOTICE =
 const DEMO_API_FEATURE_NOTICE =
   '이 기능은 api를 사용하므로 온라인 프로그램 실행이 필요합니다.';
 
+// AI 분석용 조사자료 길이 상한 — 서버(/api/chat)의 MAX_TOTAL_CHARS(25000)보다 훨씬 낮게
+// 잡는다. 시스템 프롬프트·이전 대화가 함께 전송되기 때문. 이 길이를 넘는 자료는
+// 차단하지 않고 핵심 문단 중심으로 잘라 보낸다(원문은 화면에 그대로 보존).
+const MAX_ANALYSIS_SOURCE_CHARS = 7000;
+
+// 긴 조사자료를 AI가 분석 가능한 길이로 줄인다. 백과사전형 자료의 핵심 항목
+// (정의·내용·문화유산 등)이 담긴 문단을 우선 선택하고, 문단 구분이 없는
+// 자료는 앞부분을 그대로 자른다. 화면의 원본자료는 건드리지 않는다.
+function buildSourceTextForAnalysis(sourceText) {
+  const normalized = (sourceText || '').trim();
+
+  if (normalized.length <= MAX_ANALYSIS_SOURCE_CHARS) return normalized;
+
+  const paragraphs = normalized
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(Boolean);
+
+  const importantHeadings = [
+    '정의',
+    '개설',
+    '연원 및 변천',
+    '내용',
+    '당우와 국가유산',
+    '주요고승',
+    '산내 암자',
+  ];
+
+  const importantKeywords = [
+    '국보', '보물', '문화유산', '창건', '석탑', '석등', '각황전', '대웅전',
+  ];
+
+  const selected = [];
+  let total = 0;
+
+  for (const paragraph of paragraphs) {
+    const shouldPrefer =
+      importantHeadings.some(h => paragraph.includes(h)) ||
+      importantKeywords.some(k => paragraph.includes(k));
+
+    if (shouldPrefer || selected.length < 5) {
+      if (total + paragraph.length > MAX_ANALYSIS_SOURCE_CHARS) break;
+      selected.push(paragraph);
+      total += paragraph.length;
+    }
+  }
+
+  return selected.length > 0
+    ? selected.join('\n\n')
+    : normalized.slice(0, MAX_ANALYSIS_SOURCE_CHARS);
+}
+
 export default function Home({
   demoMode = false,
   demoSnapshot = null,
@@ -76,6 +128,13 @@ export default function Home({
   // 로딩 플래그 (도구용)
   const [isAnalyzing,  setIsAnalyzing]  = useState(false);
   const [loadingTool,  setLoadingTool]  = useState(null);
+
+  // 분석 실패 원인 — 자료 입력 카드에 에러 박스로 표시한다.
+  // (예: 서버의 "입력 자료가 너무 깁니다" 400 응답이 빈 결과 안내에 덮이지 않게)
+  const [analysisError, setAnalysisError] = useState('');
+
+  // 긴 자료 안내 — 자료를 차단하는 대신 핵심 중심으로 잘라 분석한다는 알림
+  const [analysisNotice, setAnalysisNotice] = useState('');
 
   const [isMobile, setIsMobile] = useState(false);
   const [leftPanelTab, setLeftPanelTab] = useState('source');
@@ -446,11 +505,12 @@ export default function Home({
     });
 
   // ── 시스템 프롬프트 빌더 ──
+  // AI에는 항상 분석용 축약본을 보낸다. 화면의 원본자료는 전체가 그대로 남는다.
   const buildBaseSystem = (mode = activeMode) =>
-    createSystemMessage({ topic, sourceText, gradeLevel, learningMode: mode, language });
+    createSystemMessage({ topic, sourceText: buildSourceTextForAnalysis(sourceText), gradeLevel, learningMode: mode, language });
 
   const buildChatSystem = () =>
-    createChatSystemMessage({ topic, sourceText, gradeLevel, language });
+    createChatSystemMessage({ topic, sourceText: buildSourceTextForAnalysis(sourceText), gradeLevel, language });
 
   const buildEvaluationSystem = () => {
     const excludePatterns = [
@@ -465,20 +525,22 @@ export default function Home({
   };
 
   // ── 모드별 분석 (공통) ──
+  // 실패 시 서버가 알려준 원인(예: "입력 자료가 너무 깁니다")을 그대로 돌려준다.
   const analyzeForMode = async (mode) => {
     if (demoMode) {
       setLoadingMode(mode);
       await new Promise(resolve => setTimeout(resolve, 350));
       setAnalysisByMode(prev => ({ ...prev, [mode]: { ...EMPTY_MODE_RESULT, ...(demoSession?.analysisByMode?.[mode] || {}) } }));
       setLoadingMode(null);
-      return true;
+      return { success: true, error: '' };
     }
 
     setLoadingMode(mode);
 
-    const sysMsg = createSystemMessage({ topic: topic.trim(), sourceText: sourceText.trim(), gradeLevel, learningMode: mode, language });
+    const sysMsg = createSystemMessage({ topic: topic.trim(), sourceText: buildSourceTextForAnalysis(sourceText), gradeLevel, learningMode: mode, language });
 
     let success = false;
+    let errorMessage = '';
     await new Promise(resolve => {
       requestStream(
         [sysMsg, { role: 'user', content: '원본 자료를 분석해서 모드에 맞는 학습 결과를 만들어 줘.' }],
@@ -490,6 +552,7 @@ export default function Home({
           },
           onError: (msg) => {
             console.error(`[analyzeForMode:${mode}]`, msg);
+            errorMessage = typeof msg === 'string' && msg ? msg : t.analysisFailed;
             resolve();
           }
         }
@@ -497,7 +560,7 @@ export default function Home({
     });
 
     setLoadingMode(null);
-    return success;
+    return { success, error: errorMessage };
   };
 
   // ── 분석 시작 ──
@@ -507,6 +570,15 @@ export default function Home({
 
     if (!trimmedTopic)              { alert(t.missingTopic); return; }
     if (trimmedSource.length < 50)  { alert(t.shortSource); return; }
+
+    setAnalysisError('');
+
+    // 긴 자료는 차단하지 않는다 — 핵심 중심으로 잘라 보낸다는 안내만 하고 계속 진행
+    setAnalysisNotice(
+      !demoMode && trimmedSource.length > MAX_ANALYSIS_SOURCE_CHARS
+        ? (t.sourceTrimmedNotice || '')
+        : ''
+    );
 
     if (demoMode) {
       setLoadingMode('understand');
@@ -538,18 +610,25 @@ export default function Home({
     setActiveMode('understand');
     setCanvasOpen(true);
 
-    const ok = await analyzeForMode('understand');
+    const result = await analyzeForMode('understand');
+
+    // 실패 시 결과 화면을 열어두면 "아직 쉬운설명이 준비되지 않았어요" 같은
+    // 빈 결과 안내가 실제 원인(예: 자료가 너무 긺)을 덮어버린다.
+    // 캔버스를 닫고 입력 화면으로 되돌린 뒤 에러 박스로 원인을 보여준다.
+    if (!result.success) {
+      const message = result.error || t.analysisFailed;
+      setAnalysisError(message);
+      setCanvasOpen(false);
+      setLeftPanelTab('source');
+      setConversation([{ role: 'assistant', content: message }]);
+      return;
+    }
 
     setConversation(prev => {
       const updated = [...prev];
       const last = updated.length - 1;
       if (updated[last]?.role === 'assistant') {
-        updated[last] = {
-          ...updated[last],
-          content: ok
-            ? t.initialMessage
-            : t.analysisFailed
-        };
+        updated[last] = { ...updated[last], content: t.initialMessage };
       }
       return updated;
     });
@@ -662,7 +741,7 @@ export default function Home({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           topic,
-          sourceText: sourceText.slice(0, 6000),
+          sourceText: buildSourceTextForAnalysis(sourceText).slice(0, 6000),
           userText,
           language,
           conversation: conversation.slice(-6),
@@ -731,11 +810,15 @@ export default function Home({
       },
       onDone: () => {},
       onError: (msg) => {
+        // 서버가 400으로 알려준 원인(예: "입력 자료가 너무 깁니다")을 그대로 보여준다
         setConversation(prev => {
           const updated = [...prev];
           const lastIdx = updated.length - 1;
           if (updated[lastIdx]?.role === 'assistant') {
-            updated[lastIdx] = { ...updated[lastIdx], content: msg || t.chatFailed };
+            updated[lastIdx] = {
+              ...updated[lastIdx],
+              content: (typeof msg === 'string' && msg) ? msg : t.chatFailed,
+            };
           }
           return updated;
         });
@@ -962,6 +1045,20 @@ export default function Home({
                     placeholder={t.sourcePlaceholder}
                   />
                 </div>
+
+                {/* 분석 실패 원인 — 빈 결과 안내에 덮이지 않도록 입력 카드에서 바로 보여준다 */}
+                {analysisError && (
+                  <div role="alert" data-testid="analysis-error" style={styles.analysisErrorBox}>
+                    ⚠️ {analysisError}
+                  </div>
+                )}
+
+                {/* 긴 자료 안내 — 오류가 아니라 계속 진행 중이라는 알림 */}
+                {!analysisError && analysisNotice && (
+                  <div role="status" data-testid="analysis-notice" style={styles.analysisNoticeBox}>
+                    ℹ️ {analysisNotice}
+                  </div>
+                )}
 
                 {/* 버튼 행 */}
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -1397,6 +1494,17 @@ const styles = {
     outline: 'none', boxSizing: 'border-box'
   },
   textareaMobile: { minHeight: 160, fontSize: 16, padding: '12px' },
+
+  analysisErrorBox: {
+    background: '#fff5f5', border: '1px solid #fecaca', color: '#b91c1c',
+    borderRadius: 12, padding: '12px 14px', fontSize: 14, lineHeight: 1.6,
+    marginBottom: 12, wordBreak: 'keep-all',
+  },
+  analysisNoticeBox: {
+    background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8',
+    borderRadius: 12, padding: '12px 14px', fontSize: 14, lineHeight: 1.6,
+    marginBottom: 12, wordBreak: 'keep-all',
+  },
 
   primaryBtn: {
     border: 'none', background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
