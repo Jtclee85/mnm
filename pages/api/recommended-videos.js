@@ -25,20 +25,111 @@ function decodeHtmlEntities(text = '') {
     .replace(/&amp;/g, '&');
 }
 
-// "역사 문화유산" 고정 검색어는 문화유산 주제에는 맞지만 과학·인물·지리 등
-// 다른 주제에서는 오히려 검색 결과를 좁힌다. topic이나 자료에 문화유산 관련
-// 낱말이 있을 때만 그 표현을 붙이고, 그 외에는 범용 교육 검색어를 쓴다.
-const HERITAGE_HINT_KEYWORDS = [
-  '문화유산', '문화재', '국보', '보물', '사찰', '유적', '역사', '석탑', '석등',
-];
+// "초등학생 어린이" 같은 넓은 검색어는 더빙 영상·키즈 채널·잡영상을 끌어온다.
+// topic 자체와 주제 성격(문화유산 등)에 맞춘 여러 개의 구체적인 검색어를 만들어
+// 그중 필요한 만큼만 순서대로 사용한다 (품질이 낮으면 다음 검색어로 보충).
+export function buildVideoSearchQueries(topic, sourceText = '') {
+  const normalized = String(topic || '')
+    .replace(/[()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-function buildSearchQuery(topic, sourceText) {
-  const isHeritageTopic = HERITAGE_HINT_KEYWORDS.some(
-    k => topic.includes(k) || (sourceText || '').includes(k)
-  );
-  return isHeritageTopic
-    ? `${topic} 초등학생 문화유산 역사 설명`
-    : `${topic} 초등학생 설명 교육`;
+  const queries = [];
+  const haystack = `${topic} ${sourceText}`;
+
+  const hasDolmen = /고인돌|지석묘|선사|청동기|세계문화유산|강화/.test(haystack);
+  if (hasDolmen) {
+    queries.push('고인돌 문화유산 설명');
+    queries.push('지석묘 고인돌 선사시대');
+    queries.push('강화 고인돌 세계문화유산');
+    queries.push('고인돌 초등 사회');
+  }
+
+  const heritageHints = ['문화유산', '문화재', '국보', '보물', '사찰', '유적', '역사', '석탑', '석등'];
+  const isHeritageTopic = heritageHints.some(k => haystack.includes(k));
+
+  if (isHeritageTopic) {
+    queries.push(`${normalized} 문화유산 설명`);
+    queries.push(`${normalized} 역사 교육`);
+    queries.push(`${normalized} 초등 사회`);
+  } else {
+    queries.push(`${normalized} 설명 교육`);
+    queries.push(`${normalized} 초등`);
+  }
+
+  return [...new Set(queries)].slice(0, 4);
+}
+
+// YouTube Search API 원본 아이템을 후보 영상 형태로 변환한다.
+function mapYoutubeItem(item) {
+  return {
+    videoId: item.id?.videoId || '',
+    title: decodeHtmlEntities(item.snippet?.title || ''),
+    channelTitle: decodeHtmlEntities(item.snippet?.channelTitle || ''),
+    description: decodeHtmlEntities(item.snippet?.description || ''),
+    thumbnailUrl:
+      item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
+    url: item.id?.videoId ? `https://www.youtube.com/watch?v=${item.id.videoId}` : '',
+  };
+}
+
+// 검색어 하나로 YouTube Search API를 한 번 호출한다. 실패 시 빈 배열(그 검색어만 포기).
+async function searchYoutubeOnce(query, apiKey) {
+  const params = new URLSearchParams({
+    part: 'snippet',
+    type: 'video',
+    q: query,
+    maxResults: '6',
+    safeSearch: 'strict',
+    relevanceLanguage: 'ko',
+    regionCode: 'KR',
+    videoEmbeddable: 'true',
+    videoDuration: 'medium',
+    key: apiKey,
+  });
+
+  const res = await fetch(`${YOUTUBE_SEARCH_URL}?${params.toString()}`);
+  if (!res.ok) {
+    console.error('YouTube API 오류:', query, res.status, await res.text().catch(() => ''));
+    return [];
+  }
+  const data = await res.json();
+  return (data.items || []).map(mapYoutubeItem);
+}
+
+function dedupeByVideoId(candidates) {
+  const seen = new Set();
+  return candidates.filter(video => {
+    if (!video.videoId || seen.has(video.videoId)) return false;
+    seen.add(video.videoId);
+    return true;
+  });
+}
+
+// 검색어를 앞에서부터 사용해 후보를 모은다. 처음 2개는 병렬로 호출해 지연을 줄이고,
+// 후보가 충분(6개 이상)하지 않으면 남은 검색어를 순서대로 추가 호출한다.
+// YouTube 검색은 호출당 쿼터 비용이 있으므로 검색어 전부를 매번 쓰지는 않는다.
+async function collectCandidates(queries, apiKey) {
+  const usedQueries = [];
+  let rawItems = [];
+
+  const firstBatch = queries.slice(0, 2);
+  const firstResults = await Promise.all(firstBatch.map(q => searchYoutubeOnce(q, apiKey)));
+  usedQueries.push(...firstBatch);
+  rawItems.push(...firstResults.flat());
+
+  let candidates = dedupeByVideoId(rawItems);
+
+  let nextIndex = firstBatch.length;
+  while (candidates.length < 6 && nextIndex < queries.length) {
+    const more = await searchYoutubeOnce(queries[nextIndex], apiKey);
+    usedQueries.push(queries[nextIndex]);
+    rawItems.push(...more);
+    candidates = dedupeByVideoId(rawItems);
+    nextIndex += 1;
+  }
+
+  return { candidates, usedQueries, rawCount: rawItems.length };
 }
 
 export default async function handler(req) {
@@ -65,44 +156,30 @@ export default async function handler(req) {
   }
 
   try {
-    const query = buildSearchQuery(trimmedTopic, String(sourceText || ''));
-    const params = new URLSearchParams({
-      part: 'snippet',
-      type: 'video',
-      q: query,
-      maxResults: '8',
-      safeSearch: 'strict',
-      relevanceLanguage: 'ko',
-      regionCode: 'KR',
-      videoEmbeddable: 'true',
-      videoDuration: 'medium',
-      key: apiKey,
-    });
+    const queries = buildVideoSearchQueries(trimmedTopic, String(sourceText || ''));
+    const { candidates, usedQueries, rawCount } = await collectCandidates(queries, apiKey);
 
-    const res = await fetch(`${YOUTUBE_SEARCH_URL}?${params.toString()}`);
-    if (!res.ok) {
-      console.error('YouTube API 오류:', res.status, await res.text().catch(() => ''));
+    if (rawCount === 0) {
       return new Response(
         JSON.stringify({ videos: [], error: '추천 영상을 불러오지 못했어요.' }),
         { status: 200, headers: jsonHeaders }
       );
     }
 
-    const data = await res.json();
-    const candidates = (data.items || []).map(item => ({
-      videoId: item.id?.videoId || '',
-      title: decodeHtmlEntities(item.snippet?.title || ''),
-      channelTitle: decodeHtmlEntities(item.snippet?.channelTitle || ''),
-      description: decodeHtmlEntities(item.snippet?.description || ''),
-      thumbnailUrl:
-        item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
-      url: item.id?.videoId ? `https://www.youtube.com/watch?v=${item.id.videoId}` : '',
-    }));
-
     const videos = filterVideosForStudents(candidates, trimmedTopic);
 
     const body = debug === true
-      ? { videos, debug: { topic: trimmedTopic, rawCount: candidates.length, filteredCount: videos.length, query } }
+      ? {
+          videos,
+          debug: {
+            topic: trimmedTopic,
+            queries,
+            usedQueries,
+            rawCount,
+            dedupedCount: candidates.length,
+            filteredCount: videos.length,
+          },
+        }
       : { videos };
 
     return new Response(JSON.stringify(body), { status: 200, headers: jsonHeaders });
