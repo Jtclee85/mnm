@@ -9,6 +9,7 @@ import WritingChecklist from './WritingChecklist';
 import WritingSectionBlocks from './WritingSectionBlocks';
 import PresentationBlocks from './PresentationBlocks';
 import InquiryQuestionButtons from './InquiryQuestionButtons';
+import ResearchLoadingTips from './ResearchLoadingTips';
 import WorksheetField from './WorksheetField';
 import { copyText } from '../lib/parseResponse';
 import { getUiText, LANGUAGE_OPTIONS } from '../lib/i18n';
@@ -130,12 +131,8 @@ export default function ResultCanvas({
 
   const renderModeContent = () => {
     if (isTabLoading) {
-      return (
-        <div style={s.loadingState}>
-          <div style={s.loadingSpinner} />
-          <p style={s.loadingText}>{t.loadingResult}</p>
-        </div>
-      );
+      // 기다리는 동안 지루하지 않게 자료조사 꿀팁을 돌아가며 보여준다
+      return <ResearchLoadingTips mode={activeMode} t={t} isMobile={isMobile} />;
     }
 
     if (activeMode === 'understand') return (

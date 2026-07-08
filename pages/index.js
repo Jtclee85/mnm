@@ -6,6 +6,7 @@ import titleLogo from '../public/title-mnm.png';
 import SectionCard from '../components/SectionCard';
 import ResultCanvas from '../components/ResultCanvas';
 import RecommendedSources from '../components/RecommendedSources';
+import RecommendedVideos from '../components/RecommendedVideos';
 import SignTextReader from '../components/SignTextReader';
 import ThinkingWorksheetDrawer from '../components/ThinkingWorksheetDrawer';
 import FloatingChatbot from '../components/FloatingChatbot';
@@ -1121,6 +1122,20 @@ export default function Home({
                   />
                 </div>
               )}
+
+              {/* 함께 보면 좋은 영상 — 분석이 성공적으로 끝난 뒤에만 좌측 하단에 표시.
+                  로딩 중·분석 실패 시에는 호출하지 않는다 (보조 기능). */}
+              {canvasOpen && hasAnyResult && !analysisError && loadingMode === null && (
+                <RecommendedVideos
+                  topic={lastAnalyzedTopic || topic}
+                  sourceText={sourceText}
+                  enabled={true}
+                  demoMode={demoMode}
+                  demoVideos={demoSession?.recommendedVideos || []}
+                  t={t}
+                  isMobile={isMobile}
+                />
+              )}
             </div>
   );
 
@@ -1306,6 +1321,7 @@ function getDemoSession(snapshot) {
     notes: session.notes || snapshot?.notes || {},
     analysisByMode: session.analysisByMode || {},
     toolResults: session.toolResults || {},
+    recommendedVideos: session.recommendedVideos || [],
   };
 }
 
