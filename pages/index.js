@@ -44,6 +44,11 @@ const DEMO_OCR_NOTICE =
 const DEMO_API_FEATURE_NOTICE =
   '이 기능은 api를 사용하므로 온라인 프로그램 실행이 필요합니다.';
 
+// 오프라인 데모 로딩 시간(ms). 실제 온라인 분석처럼 로딩 화면(자료조사 꿀팁)을
+// 잠깐 보여주기 위한 더미 지연이다. 결과는 snapshot에서 즉시 채운다.
+const DEMO_ANALYZE_DELAY_MS = 1700;
+const DEMO_MODE_SWITCH_DELAY_MS = 1100;
+
 // AI 분석용 조사자료 길이 상한 — 서버(/api/chat)의 MAX_TOTAL_CHARS(25000)보다 훨씬 낮게
 // 잡는다. 시스템 프롬프트·이전 대화가 함께 전송되기 때문. 이 길이를 넘는 자료는
 // 차단하지 않고 핵심 문단 중심으로 잘라 보낸다(원문은 화면에 그대로 보존).
@@ -529,8 +534,9 @@ export default function Home({
   // 실패 시 서버가 알려준 원인(예: "입력 자료가 너무 깁니다")을 그대로 돌려준다.
   const analyzeForMode = async (mode) => {
     if (demoMode) {
+      // 모드 전환 시에도 실제 생성처럼 로딩 화면(자료조사 꿀팁)을 잠시 보여준다.
       setLoadingMode(mode);
-      await new Promise(resolve => setTimeout(resolve, 350));
+      await new Promise(resolve => setTimeout(resolve, DEMO_MODE_SWITCH_DELAY_MS));
       setAnalysisByMode(prev => ({ ...prev, [mode]: { ...EMPTY_MODE_RESULT, ...(demoSession?.analysisByMode?.[mode] || {}) } }));
       setLoadingMode(null);
       return { success: true, error: '' };
@@ -582,15 +588,23 @@ export default function Home({
     );
 
     if (demoMode) {
+      // 실제 온라인 분석과 동일한 흐름으로 로딩 화면을 먼저 보여준다.
+      // 캔버스를 열고 '이해' 모드 로딩(자료조사 꿀팁)을 잠시 표시한 뒤,
+      // snapshot 결과를 채우고 저장된 활성 모드로 전환한다.
+      const demoActiveMode = demoSession?.activeMode || 'understand';
+      setLastAnalyzedTopic(demoSession?.topic || trimmedTopic);
+      setActiveMode('understand');
+      setLeftPanelTab('easy');
+      setConversation([{ role: 'assistant', content: trimmedSource.length > 3000 ? t.longThinking : t.thinking }]);
+      setCanvasOpen(true);
       setLoadingMode('understand');
-      await new Promise(resolve => setTimeout(resolve, 500));
+
+      await new Promise(resolve => setTimeout(resolve, DEMO_ANALYZE_DELAY_MS));
+
       setAnalysisByMode(demoSnapshotAnalysis);
       setToolResults({ ...EMPTY_TOOLS, ...(demoSession?.toolResults || {}) });
-      setActiveMode(demoSession?.activeMode || 'understand');
+      setActiveMode(demoActiveMode);
       setConversation(cleanConversation(demoSession?.conversation, t));
-      setLastAnalyzedTopic(demoSession?.topic || trimmedTopic);
-      setLeftPanelTab('easy');
-      setCanvasOpen(true);
       setLoadingMode(null);
       return;
     }
@@ -1129,9 +1143,12 @@ export default function Home({
                 <RecommendedVideos
                   topic={lastAnalyzedTopic || topic}
                   sourceText={sourceText}
+                  gradeLevel={gradeLevel}
                   enabled={true}
                   demoMode={demoMode}
+                  submissionMode={SUBMISSION_MODE}
                   demoVideos={demoSession?.recommendedVideos || []}
+                  allowEmbed={true}
                   t={t}
                   isMobile={isMobile}
                 />

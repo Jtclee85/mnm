@@ -67,11 +67,14 @@
     "toolResults": {},
     "recommendedVideos": [
       {
-        "title": "성덕대왕신종을 쉽게 설명하는 영상",
-        "channelTitle": "문화유산 교육 채널",
-        "thumbnailUrl": "",
-        "url": "https://www.youtube.com/results?search_query=성덕대왕신종+초등+문화유산",
-        "reason": "오프라인 시연용 예시 영상 링크"
+        "videoId": "",
+        "title": "성덕대왕신종 관련 승인 채널 영상 (예시 — 교사가 승인한 videoId로 교체)",
+        "channelTitle": "국가유산채널(K-Heritage Channel)",
+        "approvedChannelName": "국가유산채널(K-Heritage Channel)",
+        "approvedChannelId": "UCRO-l6Fli7rtpY2O9Y5NIzw",
+        "url": "https://www.youtube.com/results?search_query=성덕대왕신종+국가유산채널",
+        "source": "YouTube",
+        "usageType": "external-reference-link"
       }
     ],
     "updatedAt": "2026-01-01T00:00:00.000Z"

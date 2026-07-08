@@ -155,4 +155,23 @@ test.describe('뭐냐면 — 오프라인 데모의 추천 영상', () => {
     await page.waitForTimeout(500);
     expect(videosCalled).toBe(false);
   });
+
+  test('[demo-loading-tips] 데모 분석 중에도 실제 앱처럼 로딩 화면(자료조사 꿀팁)이 보인다', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/offline-demo');
+
+    await expect(page.getByText('자료를 조사할 때 주의점 알아보기')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await page.getByTestId('analyze-button').click();
+
+    // 결과가 채워지기 전, 로딩 화면과 자료조사 꿀팁이 잠시 보여야 한다.
+    const tips = page.getByTestId('research-loading-tips');
+    await expect(tips).toBeVisible();
+    await expect(tips).toContainText('오늘의 자료조사 꿀팁');
+
+    // 잠시 뒤 로딩이 끝나고 결과 캔버스가 뜬다.
+    await expect(tips).toHaveCount(0, { timeout: 10000 });
+    await expect(page.getByTestId('result-canvas')).toBeVisible();
+  });
 });

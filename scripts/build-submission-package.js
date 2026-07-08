@@ -224,6 +224,16 @@ const FORBIDDEN_WORDS = [
 const FORBIDDEN_PATTERNS = [
   { label: 'OpenAI API key pattern', re: /sk-(?:proj-[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{32,})/i },
   { label: 'email address pattern', re: /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i },
+  { label: 'Google/YouTube API key pattern', re: /AIza[0-9A-Za-z_-]{20,}/ },
+  { label: 'YOUTUBE_API_KEY 노출', re: /YOUTUBE_API_KEY/ },
+  { label: 'YouTube 썸네일 URL(ytimg)', re: /ytimg\.com/i },
+];
+
+// 저작권 정책: YouTube 영상·음원·자막·썸네일 파일을 제출물에 포함하지 않는다.
+// (앱 로고·마스코트 등 자체 png/svg는 허용)
+const FORBIDDEN_FILE_EXTENSIONS = ['.mp4', '.webm', '.mov', '.m4v', '.mkv', '.mp3', '.m4a', '.srt', '.vtt'];
+const FORBIDDEN_FILENAME_PATTERNS = [
+  /ytimg/i, /hqdefault/i, /mqdefault/i, /sddefault/i, /maxresdefault/i, /youtube[-_]?thumb/i,
 ];
 
 function verifyOutput() {
@@ -237,6 +247,18 @@ function verifyOutput() {
       for (const word of FORBIDDEN_WORDS) {
         if (entry.name.toLowerCase().includes(word.toLowerCase())) {
           problems.push(`금지어 발견 (파일명): ${relPath} ← "${word}"`);
+        }
+      }
+
+      if (!entry.isDirectory()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (FORBIDDEN_FILE_EXTENSIONS.includes(ext)) {
+          problems.push(`금지 파일 형식(영상·음원·자막): ${relPath} ← "${ext}"`);
+        }
+        for (const re of FORBIDDEN_FILENAME_PATTERNS) {
+          if (re.test(entry.name)) {
+            problems.push(`YouTube 썸네일/영상 파일 의심: ${relPath} ← ${re}`);
+          }
         }
       }
 

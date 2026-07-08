@@ -1,8 +1,16 @@
 import { useEffect, useState } from 'react';
 
 // 분석 완료 후 좌측 패널 하단에 보여주는 관련 YouTube 영상 추천.
-// 보조 기능이므로 실패하면 조용히 섹션을 숨긴다 (alert·큰 오류 표시 금지).
-// 데모 모드에서는 API를 호출하지 않고 snapshot의 예시 영상만 사용한다.
+//
+// 정책 (교사 승인 채널 기반 외부 참고 링크):
+//  - 온라인 모드: /api/recommended-videos(승인 채널 검색) 결과를 표시. API 썸네일은
+//    실시간으로만 표시하고 파일로 저장하지 않는다.
+//  - 오프라인 데모 / 심사(submission) 모드: API를 호출하지 않고 snapshot의
+//    recommendedVideos만 사용한다. videoId가 있으면 youtube-nocookie 미리보기를
+//    (사용자가 눌렀을 때) 보여줄 수 있고, 없으면 텍스트 링크 카드만 보여준다.
+//  - 어떤 모드에서도 YouTube 썸네일/영상/음원/자막 파일을 저장하지 않는다.
+//  - autoplay 금지. 링크는 새 탭. 카드에는 채널명·승인 채널·출처(YouTube)를 표시한다.
+//  - 추천할 영상이 없으면 섹션을 숨긴다(억지 fallback 없음).
 
 const CACHE_PREFIX = 'mnm-recommended-videos:v2:';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24시간
@@ -25,22 +33,81 @@ function writeCache(topic, videos) {
   } catch {}
 }
 
-export default function RecommendedVideos({ topic, sourceText, enabled, demoMode, demoVideos, t, isMobile }) {
+// watch?v=, youtu.be/, embed/ 형태의 URL에서 videoId를 뽑는다.
+function extractYouTubeVideoId(url = '') {
+  const patterns = [
+    /[?&]v=([A-Za-z0-9_-]{6,})/,
+    /youtu\.be\/([A-Za-z0-9_-]{6,})/,
+    /youtube(?:-nocookie)?\.com\/embed\/([A-Za-z0-9_-]{6,})/,
+  ];
+  for (const re of patterns) {
+    const match = String(url || '').match(re);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+// 온라인 API 응답과 오프라인 snapshot 데이터를 같은 UI에서 쓰도록 정규화한다.
+function normalizeVideo(video) {
+  if (!video) return null;
+  const videoId = video.videoId || extractYouTubeVideoId(video.url);
+  const url = video.url || (videoId ? `https://www.youtube.com/watch?v=${videoId}` : '');
+  if (!videoId && !url) return null;
+
+  return {
+    videoId,
+    title: video.title || '추천 영상',
+    channelTitle: video.channelTitle || video.approvedChannelName || '승인 채널',
+    approvedChannelName: video.approvedChannelName || video.channelTitle || '',
+    approvedChannelId: video.approvedChannelId || '',
+    url,
+    source: video.source || 'YouTube',
+    usageType: video.usageType || 'external-reference-link',
+    // 오프라인 snapshot에는 썸네일을 저장하지 않는다(정책). 온라인 API 응답에만 존재.
+    thumbnailUrl: video.thumbnailUrl || '',
+    reason: video.reason || '',
+  };
+}
+
+function normalizeVideos(list) {
+  return (Array.isArray(list) ? list : []).map(normalizeVideo).filter(Boolean);
+}
+
+export default function RecommendedVideos({
+  topic,
+  sourceText,
+  gradeLevel,
+  enabled,
+  demoMode,
+  submissionMode,
+  demoVideos,
+  allowEmbed = true,
+  t,
+  isMobile,
+}) {
   const [videos, setVideos] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const trimmedTopic = (topic || '').trim();
 
+  // 오프라인 데모·심사 제출본에서는 절대 API를 호출하지 않는다.
+  const isStaticVideoMode =
+    demoMode || submissionMode || process.env.NEXT_PUBLIC_SUBMISSION_MODE === 'true';
+
   useEffect(() => {
     if (!enabled || !trimmedTopic) return;
 
-    if (demoMode) {
-      setVideos(Array.isArray(demoVideos) ? demoVideos.filter(v => v?.title && v?.url) : []);
+    if (isStaticVideoMode) {
+      const staticVideos = normalizeVideos(demoVideos);
+      if (staticVideos.length === 0) {
+        console.warn('[recommended-videos] 승인 채널 예시 영상이 없어 섹션을 숨깁니다.', { topic: trimmedTopic });
+      }
+      setVideos(staticVideos);
       return;
     }
 
     const cached = readCache(trimmedTopic);
     if (cached) {
-      setVideos(cached);
+      setVideos(normalizeVideos(cached));
       return;
     }
 
@@ -53,12 +120,13 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
       body: JSON.stringify({
         topic: trimmedTopic,
         sourceText: (sourceText || '').slice(0, 500),
+        gradeLevel: gradeLevel || '',
       }),
     })
       .then(res => res.json())
       .then(data => {
         if (cancelled) return;
-        const list = Array.isArray(data?.videos) ? data.videos : [];
+        const list = normalizeVideos(data?.videos);
         if (list.length === 0) {
           console.warn('[recommended-videos] 승인 채널에서 추천 영상을 찾지 못했습니다.', { topic: trimmedTopic });
         }
@@ -74,9 +142,9 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
       });
 
     return () => { cancelled = true; };
-    // sourceText는 보조 힌트일 뿐이라 topic이 같으면 다시 부르지 않는다
+    // sourceText/gradeLevel은 보조 힌트일 뿐이라 topic이 같으면 다시 부르지 않는다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, trimmedTopic, demoMode]);
+  }, [enabled, trimmedTopic, isStaticVideoMode]);
 
   if (!enabled || !trimmedTopic) return null;
   if (!isLoading && videos.length === 0) return null;
@@ -84,7 +152,10 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
   const title = t?.recommendedVideosTitle || '함께 보면 좋은 영상';
   const subtitle = t?.recommendedVideosSubtitle || '믿을 수 있는 교육·공공 채널에서 관련 영상을 골라봤어요.';
   const openLabel = t?.recommendedVideosOpen || 'YouTube에서 보기';
-  const loadingLabel = t?.recommendedVideosLoading || '관련 영상을 찾고 있어요...';
+  const sourceLabel = t?.recommendedVideosSource || '출처';
+  const disclaimer =
+    t?.recommendedVideosDisclaimer ||
+    '※ 추천 영상은 교사가 승인한 공식 YouTube 채널의 외부 참고 링크입니다. 영상·썸네일 파일은 프로그램에 저장되지 않습니다.';
 
   return (
     <aside data-testid="recommended-videos" style={styles.wrap} aria-label={title}>
@@ -92,7 +163,7 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
       <p style={styles.subheading}>{subtitle}</p>
 
       {isLoading ? (
-        <div style={styles.list} aria-label={loadingLabel}>
+        <div style={styles.list} aria-label={t?.recommendedVideosLoading || '관련 영상을 찾고 있어요...'}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{ ...styles.card, ...styles.skeletonCard }}>
               <div style={{ ...styles.thumbWrap, ...styles.skeletonBlock }} />
@@ -106,37 +177,107 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
       ) : (
         <div style={styles.list}>
           {videos.map((video, idx) => (
-            <a
+            <VideoCard
               key={video.videoId || video.url || idx}
-              href={video.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ ...styles.card, ...(isMobile ? styles.cardMobile : {}) }}
-              aria-label={`${video.title}, ${video.channelTitle}. 새 탭에서 YouTube가 열립니다.`}
-            >
-              <span style={{ ...styles.thumbWrap, ...(isMobile ? styles.thumbWrapMobile : {}) }}>
-                {video.thumbnailUrl ? (
-                  // YouTube 썸네일은 외부 호스트라 next/image 대신 img를 쓴다
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={video.thumbnailUrl} alt={`${video.title} 썸네일`} style={styles.thumb} loading="lazy" />
-                ) : (
-                  <span style={styles.thumbPlaceholder} aria-hidden="true">🎬</span>
-                )}
-              </span>
-              <span style={styles.textCol}>
-                <span style={styles.title}>{video.title}</span>
-                <span style={styles.channel}>{video.channelTitle}</span>
-                {video.approvedChannelName && (
-                  <span style={styles.approvedChannel}>공식/교육 채널 · {video.approvedChannelName}</span>
-                )}
-                {video.reason && <span style={styles.reasonBadge}>{video.reason}</span>}
-                <span style={styles.openLink}>{openLabel} ↗</span>
-              </span>
-            </a>
+              video={video}
+              staticMode={isStaticVideoMode}
+              allowEmbed={allowEmbed}
+              openLabel={openLabel}
+              sourceLabel={sourceLabel}
+              isMobile={isMobile}
+            />
           ))}
         </div>
       )}
+
+      <p style={styles.disclaimer}>{disclaimer}</p>
     </aside>
+  );
+}
+
+// 온라인 모드: 썸네일 + 텍스트를 하나의 링크 카드로. (기존 동작 유지)
+// 오프라인/심사 모드: 텍스트 링크 카드가 기본이고, videoId가 있으면
+//   '미리보기 보기'를 눌렀을 때만 youtube-nocookie iframe을 로드한다(autoplay 없음).
+function VideoCard({ video, staticMode, allowEmbed, openLabel, sourceLabel, isMobile }) {
+  const [showEmbed, setShowEmbed] = useState(false);
+  const canEmbed = staticMode && allowEmbed && !!video.videoId;
+
+  const infoBlock = (
+    <>
+      <span style={styles.title}>{video.title}</span>
+      <span style={styles.channel}>{video.channelTitle}</span>
+      {video.approvedChannelName && (
+        <span style={styles.approvedChannel}>공식/교육 채널 · {video.approvedChannelName}</span>
+      )}
+      <span style={styles.sourceLine}>{sourceLabel}: {video.source}</span>
+      {video.reason && <span style={styles.reasonBadge}>{video.reason}</span>}
+    </>
+  );
+
+  // 온라인 모드(썸네일 있음, embed 아님): 카드 전체가 새 탭 링크 — 기존 UI/테스트 유지.
+  if (!staticMode) {
+    return (
+      <a
+        href={video.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ ...styles.card, ...(isMobile ? styles.cardMobile : {}) }}
+        aria-label={`${video.title}, ${video.channelTitle}. 새 탭에서 YouTube가 열립니다.`}
+      >
+        <span style={{ ...styles.thumbWrap, ...(isMobile ? styles.thumbWrapMobile : {}) }}>
+          {video.thumbnailUrl ? (
+            // YouTube 썸네일은 외부 호스트라 next/image 대신 img로 실시간 표시(저장 안 함)
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={video.thumbnailUrl} alt={`${video.title} 썸네일`} style={styles.thumb} loading="lazy" />
+          ) : (
+            <span style={styles.thumbPlaceholder} aria-hidden="true">🎬</span>
+          )}
+        </span>
+        <span style={styles.textCol}>
+          {infoBlock}
+          <span style={styles.openLink}>{openLabel} ↗</span>
+        </span>
+      </a>
+    );
+  }
+
+  // 오프라인/심사 모드: 미리보기(iframe)는 선택적으로만 로드. iframe이 없거나
+  // 네트워크가 없어도 제목/채널/출처/링크는 항상 보인다.
+  return (
+    <div style={{ ...styles.card, ...(isMobile ? styles.cardMobile : {}) }}>
+      <div style={{ ...styles.thumbWrap, ...(isMobile ? styles.thumbWrapMobile : {}) }}>
+        {canEmbed && showEmbed ? (
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${video.videoId}?autoplay=0&rel=0`}
+            title={video.title}
+            loading="lazy"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            style={styles.iframe}
+          />
+        ) : canEmbed ? (
+          <button
+            type="button"
+            onClick={() => setShowEmbed(true)}
+            style={styles.previewBtn}
+            aria-label={`${video.title} 미리보기 열기`}
+          >
+            ▶ 미리보기
+          </button>
+        ) : (
+          <span style={styles.thumbPlaceholder} aria-hidden="true">🎬</span>
+        )}
+      </div>
+      <div style={styles.textCol}>
+        {infoBlock}
+        <a href={video.url} target="_blank" rel="noopener noreferrer" style={styles.openLink}>
+          {openLabel} ↗
+        </a>
+        {canEmbed && (
+          <span style={styles.embedHint}>온라인 연결 시 YouTube 공식 플레이어로 미리보기가 표시됩니다.</span>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -161,7 +302,13 @@ const styles = {
   },
   thumbWrapMobile: { width: '100%', height: 'auto', aspectRatio: '16 / 9' },
   thumb: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+  iframe: { width: '100%', height: '100%', border: 0, display: 'block' },
   thumbPlaceholder: { fontSize: 24 },
+  previewBtn: {
+    border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+    color: 'var(--color-primary)', fontWeight: 800, fontSize: 12,
+    borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+  },
 
   textCol: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, flex: 1 },
   title: {
@@ -176,6 +323,7 @@ const styles = {
     fontSize: 11, color: 'var(--color-primary)', fontWeight: 800,
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
+  sourceLine: { fontSize: 11, color: 'var(--color-text-sub)', fontWeight: 600 },
   reasonBadge: {
     alignSelf: 'flex-start', fontSize: 11, fontWeight: 700,
     color: 'var(--color-text)', lineHeight: 1.4,
@@ -183,7 +331,9 @@ const styles = {
     border: '1px solid color-mix(in srgb, var(--color-accent-teal) 50%, var(--color-border))',
     borderRadius: 8, padding: '2px 8px',
   },
-  openLink: { fontSize: 12, fontWeight: 700, color: 'var(--color-primary)', marginTop: 1 },
+  openLink: { fontSize: 12, fontWeight: 700, color: 'var(--color-primary)', marginTop: 1, textDecoration: 'none' },
+  embedHint: { fontSize: 10, color: 'var(--color-text-sub)', lineHeight: 1.4 },
+  disclaimer: { fontSize: 10, color: 'var(--color-text-sub)', lineHeight: 1.5, margin: '4px 0 0 2px' },
 
   skeletonCard: { pointerEvents: 'none' },
   skeletonBlock: { background: 'var(--color-border)', borderRadius: 8, opacity: 0.5 },
