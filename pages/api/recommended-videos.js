@@ -1,6 +1,7 @@
-import { filterVideosForStudents } from '../../lib/youtubeVideoFilter';
+import { getActiveApprovedYoutubeChannels } from '../../lib/approvedYoutubeChannels';
+import { filterVideosForStudents, getRejectedVideoSamples } from '../../lib/youtubeVideoFilter';
 
-// 조사주제와 관련된 초등학생용 YouTube 영상을 검색해 추천한다.
+// 조사주제와 관련된 YouTube 영상을 교사가 승인한 채널 안에서만 검색해 추천한다.
 // API Key는 서버 환경변수(YOUTUBE_API_KEY)로만 다루며 클라이언트에 노출하지 않는다.
 // 보조 기능이므로 키가 없거나 호출이 실패해도 200 + 빈 배열로 답해 앱을 깨지 않는다.
 export const config = {
@@ -8,14 +9,19 @@ export const config = {
 };
 
 const YOUTUBE_SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search';
+const YOUTUBE_VIDEOS_URL = 'https://www.googleapis.com/youtube/v3/videos';
+
+const MAX_CHANNELS = 4;
+const MAX_QUERIES = 4;
+const MAX_QUERIES_PER_CHANNEL = 3;
+const MAX_CANDIDATES_BEFORE_DETAILS = 24;
 
 const jsonHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
-  // 같은 검색어에 대한 반복 호출을 CDN에서 흡수 — YouTube API 쿼터 절약
+  // 같은 검색어에 대한 반복 호출을 CDN에서 흡수해 YouTube API 쿼터를 아낀다.
   'Cache-Control': 's-maxage=86400, stale-while-revalidate=604800',
 };
 
-// YouTube Search API의 snippet.title은 HTML 이스케이프되어 온다 (&quot; 등)
 function decodeHtmlEntities(text = '') {
   return text
     .replace(/&quot;/g, '"')
@@ -25,43 +31,78 @@ function decodeHtmlEntities(text = '') {
     .replace(/&amp;/g, '&');
 }
 
-// "초등학생 어린이" 같은 넓은 검색어는 더빙 영상·키즈 채널·잡영상을 끌어온다.
-// topic 자체와 주제 성격(문화유산 등)에 맞춘 여러 개의 구체적인 검색어를 만들어
-// 그중 필요한 만큼만 순서대로 사용한다 (품질이 낮으면 다음 검색어로 보충).
+function dedupe(list) {
+  return [...new Set(list.filter(Boolean))];
+}
+
+export function selectApprovedChannels(topic, sourceText, channels) {
+  const text = `${topic || ''} ${sourceText || ''}`;
+
+  const isHeritage = /문화유산|문화재|국보|보물|사찰|유적|고인돌|지석묘|선사|청동기|석탑|석등|박물관|역사/.test(text);
+  const isScience = /과학|광합성|전기|자석|화산|날씨|생물|식물|동물|우주|생태|환경|갯벌/.test(text);
+
+  if (isHeritage) {
+    return channels.filter(c =>
+      c.tags?.some(tag => ['문화유산', '역사', '박물관', '사회'].includes(tag))
+    );
+  }
+
+  if (isScience) {
+    return channels.filter(c =>
+      c.tags?.some(tag => ['과학', '생태', '환경', '교육', '초등'].includes(tag))
+    );
+  }
+
+  return channels.filter(c =>
+    c.tags?.some(tag => ['교육', '초등', '사회', '과학', '역사'].includes(tag))
+  );
+}
+
+// "어린이"를 무조건 넣지 않는다. 키즈/더빙/애니 영상 유입을 줄이기 위해
+// 주제 성격에 맞는 구체적인 검색어만 만든다.
 export function buildVideoSearchQueries(topic, sourceText = '') {
   const normalized = String(topic || '')
     .replace(/[()]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
+  const text = `${topic || ''} ${sourceText || ''}`;
   const queries = [];
-  const haystack = `${topic} ${sourceText}`;
 
-  const hasDolmen = /고인돌|지석묘|선사|청동기|세계문화유산|강화/.test(haystack);
+  const hasDolmen = /고인돌|지석묘|선사|청동기|세계문화유산|강화/.test(text);
+
   if (hasDolmen) {
-    queries.push('고인돌 문화유산 설명');
-    queries.push('지석묘 고인돌 선사시대');
-    queries.push('강화 고인돌 세계문화유산');
-    queries.push('고인돌 초등 사회');
+    queries.push('고인돌');
+    queries.push('지석묘');
+    queries.push('선사시대 고인돌');
+    queries.push('강화 고인돌');
+    queries.push('고인돌 문화유산');
   }
 
-  const heritageHints = ['문화유산', '문화재', '국보', '보물', '사찰', '유적', '역사', '석탑', '석등'];
-  const isHeritageTopic = heritageHints.some(k => haystack.includes(k));
+  const isHeritage = /문화유산|문화재|국보|보물|사찰|유적|역사|석탑|석등|박물관/.test(text);
+  const isScience = /과학|광합성|전기|자석|화산|날씨|생물|식물|동물|우주|생태|환경|갯벌/.test(text);
 
-  if (isHeritageTopic) {
-    queries.push(`${normalized} 문화유산 설명`);
-    queries.push(`${normalized} 역사 교육`);
-    queries.push(`${normalized} 초등 사회`);
-  } else {
-    queries.push(`${normalized} 설명 교육`);
-    queries.push(`${normalized} 초등`);
+  if (normalized) {
+    if (isHeritage) {
+      queries.push(normalized);
+      queries.push(`${normalized} 문화유산`);
+      queries.push(`${normalized} 역사`);
+      queries.push(`${normalized} 초등 사회`);
+    } else if (isScience) {
+      queries.push(normalized);
+      queries.push(`${normalized} 과학`);
+      queries.push(`${normalized} 초등 과학`);
+    } else {
+      queries.push(normalized);
+      queries.push(`${normalized} 설명`);
+      queries.push(`${normalized} 초등`);
+    }
   }
 
-  return [...new Set(queries)].slice(0, 4);
+  return dedupe(queries).slice(0, MAX_QUERIES);
 }
 
-// YouTube Search API 원본 아이템을 후보 영상 형태로 변환한다.
-function mapYoutubeItem(item) {
+function mapYoutubeItem(item, channel, query) {
   return {
     videoId: item.id?.videoId || '',
     title: decodeHtmlEntities(item.snippet?.title || ''),
@@ -70,66 +111,120 @@ function mapYoutubeItem(item) {
     thumbnailUrl:
       item.snippet?.thumbnails?.medium?.url || item.snippet?.thumbnails?.default?.url || '',
     url: item.id?.videoId ? `https://www.youtube.com/watch?v=${item.id.videoId}` : '',
+    approvedChannelName: channel.name,
+    approvedChannelId: channel.channelId,
+    matchedQuery: query,
   };
 }
 
-// 검색어 하나로 YouTube Search API를 한 번 호출한다. 실패 시 빈 배열(그 검색어만 포기).
-async function searchYoutubeOnce(query, apiKey) {
+async function searchYoutubeWithinChannel({ apiKey, channel, query }) {
   const params = new URLSearchParams({
     part: 'snippet',
     type: 'video',
+    channelId: channel.channelId,
     q: query,
-    maxResults: '6',
+    maxResults: '5',
     safeSearch: 'strict',
     relevanceLanguage: 'ko',
     regionCode: 'KR',
     videoEmbeddable: 'true',
-    videoDuration: 'medium',
     key: apiKey,
   });
 
   const res = await fetch(`${YOUTUBE_SEARCH_URL}?${params.toString()}`);
   if (!res.ok) {
-    console.error('YouTube API 오류:', query, res.status, await res.text().catch(() => ''));
+    console.error('YouTube 승인 채널 검색 오류:', channel.name, query, res.status);
     return [];
   }
   const data = await res.json();
-  return (data.items || []).map(mapYoutubeItem);
+  return (data.items || []).map(item => mapYoutubeItem(item, channel, query));
 }
 
-function dedupeByVideoId(candidates) {
-  const seen = new Set();
-  return candidates.filter(video => {
-    if (!video.videoId || seen.has(video.videoId)) return false;
-    seen.add(video.videoId);
-    return true;
-  });
-}
+async function collectApprovedChannelCandidates({ apiKey, channels, queries }) {
+  const candidateMap = new Map();
+  const usedSearches = [];
 
-// 검색어를 앞에서부터 사용해 후보를 모은다. 처음 2개는 병렬로 호출해 지연을 줄이고,
-// 후보가 충분(6개 이상)하지 않으면 남은 검색어를 순서대로 추가 호출한다.
-// YouTube 검색은 호출당 쿼터 비용이 있으므로 검색어 전부를 매번 쓰지는 않는다.
-async function collectCandidates(queries, apiKey) {
-  const usedQueries = [];
-  let rawItems = [];
+  for (const channel of channels.slice(0, MAX_CHANNELS)) {
+    for (const query of queries.slice(0, MAX_QUERIES_PER_CHANNEL)) {
+      const results = await searchYoutubeWithinChannel({ apiKey, channel, query });
+      usedSearches.push({ channelName: channel.name, channelId: channel.channelId, query, count: results.length });
 
-  const firstBatch = queries.slice(0, 2);
-  const firstResults = await Promise.all(firstBatch.map(q => searchYoutubeOnce(q, apiKey)));
-  usedQueries.push(...firstBatch);
-  rawItems.push(...firstResults.flat());
+      for (const video of results) {
+        if (video.videoId && !candidateMap.has(video.videoId)) {
+          candidateMap.set(video.videoId, video);
+        }
+      }
 
-  let candidates = dedupeByVideoId(rawItems);
-
-  let nextIndex = firstBatch.length;
-  while (candidates.length < 6 && nextIndex < queries.length) {
-    const more = await searchYoutubeOnce(queries[nextIndex], apiKey);
-    usedQueries.push(queries[nextIndex]);
-    rawItems.push(...more);
-    candidates = dedupeByVideoId(rawItems);
-    nextIndex += 1;
+      if (candidateMap.size >= MAX_CANDIDATES_BEFORE_DETAILS) break;
+    }
+    if (candidateMap.size >= MAX_CANDIDATES_BEFORE_DETAILS) break;
   }
 
-  return { candidates, usedQueries, rawCount: rawItems.length };
+  return {
+    candidates: [...candidateMap.values()],
+    usedSearches,
+    rawCount: usedSearches.reduce((sum, item) => sum + item.count, 0),
+  };
+}
+
+export function parseYoutubeDurationToSeconds(duration = '') {
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  const [, h = 0, m = 0, s = 0] = match;
+  return Number(h) * 3600 + Number(m) * 60 + Number(s);
+}
+
+async function fetchVideoDetails(videoIds, apiKey) {
+  const ids = dedupe(videoIds).slice(0, 50);
+  if (ids.length === 0) return new Map();
+
+  const params = new URLSearchParams({
+    part: 'snippet,contentDetails,statistics',
+    id: ids.join(','),
+    key: apiKey,
+  });
+
+  const res = await fetch(`${YOUTUBE_VIDEOS_URL}?${params.toString()}`);
+  if (!res.ok) {
+    console.error('YouTube 영상 세부정보 조회 오류:', res.status);
+    return new Map();
+  }
+
+  const data = await res.json();
+  return new Map((data.items || []).map(item => [
+    item.id,
+    {
+      duration: item.contentDetails?.duration || '',
+      durationSeconds: parseYoutubeDurationToSeconds(item.contentDetails?.duration || ''),
+      viewCount: Number(item.statistics?.viewCount || 0),
+      publishedAt: item.snippet?.publishedAt || '',
+    },
+  ]));
+}
+
+async function enrichCandidatesWithDetails(candidates, apiKey) {
+  const details = await fetchVideoDetails(candidates.map(video => video.videoId), apiKey);
+  return candidates.map(video => ({
+    ...video,
+    ...(details.get(video.videoId) || {}),
+  }));
+}
+
+function buildDebugBody({ topic, selectedChannels, queries, usedSearches, rawCount, candidates, videos, sourceText }) {
+  return {
+    topic,
+    selectedChannels: selectedChannels.map(channel => ({
+      name: channel.name,
+      channelId: channel.channelId,
+    })),
+    queries,
+    usedSearches,
+    rawCount,
+    dedupedCount: candidates.length,
+    filteredCount: videos.length,
+    selectedCount: videos.length,
+    rejectedSamples: getRejectedVideoSamples(candidates, topic, sourceText),
+  };
 }
 
 export default async function handler(req) {
@@ -142,6 +237,7 @@ export default async function handler(req) {
 
   const { topic = '', sourceText = '', debug = false } = await req.json();
   const trimmedTopic = String(topic).trim();
+  const trimmedSourceText = String(sourceText || '');
 
   if (!trimmedTopic) {
     return new Response(JSON.stringify({ videos: [] }), { status: 200, headers: jsonHeaders });
@@ -156,29 +252,51 @@ export default async function handler(req) {
   }
 
   try {
-    const queries = buildVideoSearchQueries(trimmedTopic, String(sourceText || ''));
-    const { candidates, usedQueries, rawCount } = await collectCandidates(queries, apiKey);
+    const activeChannels = getActiveApprovedYoutubeChannels();
+    const selectedChannels = selectApprovedChannels(trimmedTopic, trimmedSourceText, activeChannels).slice(0, MAX_CHANNELS);
+    const queries = buildVideoSearchQueries(trimmedTopic, trimmedSourceText);
 
-    if (rawCount === 0) {
-      return new Response(
-        JSON.stringify({ videos: [], error: '추천 영상을 불러오지 못했어요.' }),
-        { status: 200, headers: jsonHeaders }
-      );
+    if (selectedChannels.length === 0 || queries.length === 0) {
+      const body = debug === true
+        ? {
+            videos: [],
+            debug: buildDebugBody({
+              topic: trimmedTopic,
+              selectedChannels,
+              queries,
+              usedSearches: [],
+              rawCount: 0,
+              candidates: [],
+              videos: [],
+              sourceText: trimmedSourceText,
+            }),
+          }
+        : { videos: [] };
+
+      return new Response(JSON.stringify(body), { status: 200, headers: jsonHeaders });
     }
 
-    const videos = filterVideosForStudents(candidates, trimmedTopic);
+    const { candidates, usedSearches, rawCount } = await collectApprovedChannelCandidates({
+      apiKey,
+      channels: selectedChannels,
+      queries,
+    });
+    const enrichedCandidates = await enrichCandidatesWithDetails(candidates, apiKey);
+    const videos = filterVideosForStudents(enrichedCandidates, trimmedTopic, trimmedSourceText);
 
     const body = debug === true
       ? {
           videos,
-          debug: {
+          debug: buildDebugBody({
             topic: trimmedTopic,
+            selectedChannels,
             queries,
-            usedQueries,
+            usedSearches,
             rawCount,
-            dedupedCount: candidates.length,
-            filteredCount: videos.length,
-          },
+            candidates: enrichedCandidates,
+            videos,
+            sourceText: trimmedSourceText,
+          }),
         }
       : { videos };
 

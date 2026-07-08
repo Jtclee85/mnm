@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 // 보조 기능이므로 실패하면 조용히 섹션을 숨긴다 (alert·큰 오류 표시 금지).
 // 데모 모드에서는 API를 호출하지 않고 snapshot의 예시 영상만 사용한다.
 
-const CACHE_PREFIX = 'mnm-recommended-videos:';
+const CACHE_PREFIX = 'mnm-recommended-videos:v2:';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24시간
 
 function readCache(topic) {
@@ -60,7 +60,7 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
         if (cancelled) return;
         const list = Array.isArray(data?.videos) ? data.videos : [];
         if (list.length === 0) {
-          console.warn('[recommended-videos] 추천 영상 없음', { topic: trimmedTopic });
+          console.warn('[recommended-videos] 승인 채널에서 추천 영상을 찾지 못했습니다.', { topic: trimmedTopic });
         }
         setVideos(list);
         if (list.length > 0) writeCache(trimmedTopic, list);
@@ -82,7 +82,7 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
   if (!isLoading && videos.length === 0) return null;
 
   const title = t?.recommendedVideosTitle || '함께 보면 좋은 영상';
-  const subtitle = t?.recommendedVideosSubtitle || '조사 주제와 관련된 영상을 골라봤어요.';
+  const subtitle = t?.recommendedVideosSubtitle || '믿을 수 있는 교육·공공 채널에서 관련 영상을 골라봤어요.';
   const openLabel = t?.recommendedVideosOpen || 'YouTube에서 보기';
   const loadingLabel = t?.recommendedVideosLoading || '관련 영상을 찾고 있어요...';
 
@@ -126,6 +126,9 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
               <span style={styles.textCol}>
                 <span style={styles.title}>{video.title}</span>
                 <span style={styles.channel}>{video.channelTitle}</span>
+                {video.approvedChannelName && (
+                  <span style={styles.approvedChannel}>공식/교육 채널 · {video.approvedChannelName}</span>
+                )}
                 {video.reason && <span style={styles.reasonBadge}>{video.reason}</span>}
                 <span style={styles.openLink}>{openLabel} ↗</span>
               </span>
@@ -167,6 +170,10 @@ const styles = {
   },
   channel: {
     fontSize: 12, color: 'var(--color-text-sub)', fontWeight: 600,
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  },
+  approvedChannel: {
+    fontSize: 11, color: 'var(--color-primary)', fontWeight: 800,
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   reasonBadge: {

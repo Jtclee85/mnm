@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "youtube:channels": "node scripts/resolve-youtube-channel-ids.js",
     "start": "next start",
     "test:e2e": "playwright test",
     "build:offline-demo": "NEXT_PUBLIC_OFFLINE_DEMO_MODE=true NEXT_PUBLIC_SUBMISSION_MODE=false next build",
