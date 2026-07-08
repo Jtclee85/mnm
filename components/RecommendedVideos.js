@@ -59,6 +59,9 @@ export default function RecommendedVideos({ topic, sourceText, enabled, demoMode
       .then(data => {
         if (cancelled) return;
         const list = Array.isArray(data?.videos) ? data.videos : [];
+        if (list.length === 0) {
+          console.warn('[recommended-videos] 추천 영상 없음', { topic: trimmedTopic });
+        }
         setVideos(list);
         if (list.length > 0) writeCache(trimmedTopic, list);
       })
