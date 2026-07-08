@@ -11,7 +11,7 @@ export const config = {
 const YOUTUBE_SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search';
 const YOUTUBE_VIDEOS_URL = 'https://www.googleapis.com/youtube/v3/videos';
 
-const MAX_CHANNELS = 4;
+const MAX_CHANNELS = 5;
 const MAX_QUERIES = 4;
 const MAX_QUERIES_PER_CHANNEL = 3;
 const MAX_CANDIDATES_BEFORE_DETAILS = 24;
@@ -35,27 +35,102 @@ function dedupe(list) {
   return [...new Set(list.filter(Boolean))];
 }
 
+function getFocusedChannelTags(text) {
+  if (/독도/.test(text)) return ['독도', '동북아'];
+  if (/독립운동|일제강점기|대한민국 임시정부|임시정부/.test(text)) {
+    return ['독립운동', '근현대사'];
+  }
+  if (/전쟁|임진왜란|6·25|호국/.test(text)) {
+    return ['전쟁사', '호국', '근현대사'];
+  }
+  if (/한국사|사료|조선|대한민국|고구려|발해|세종대왕/.test(text)) {
+    return ['한국사', '사료', '동북아'];
+  }
+  if (/문화유산|국가유산|문화재|국보|보물|사찰|유적|고인돌|지석묘|선사|청동기|석탑|석등|박물관/.test(text)) {
+    return ['문화유산', '박물관'];
+  }
+  if (/과학|광합성|전기|자석|화산|날씨|생물|식물|동물|우주|생태|환경|갯벌/.test(text)) {
+    return ['과학', '생태', '환경'];
+  }
+  return [];
+}
+
+function hasAnyTag(channel, tags) {
+  return channel.tags?.some(tag => tags.includes(tag));
+}
+
+function getFocusedTagRank(channel, focusedTags) {
+  const ranks = (channel.tags || [])
+    .map(tag => focusedTags.indexOf(tag))
+    .filter(index => index !== -1);
+  return ranks.length > 0 ? Math.min(...ranks) : 99;
+}
+
+function sortChannelsForTopic(channels, focusedTags) {
+  return [...channels].sort((a, b) => {
+    const aFocused = hasAnyTag(a, focusedTags) ? 0 : 1;
+    const bFocused = hasAnyTag(b, focusedTags) ? 0 : 1;
+    if (aFocused !== bFocused) return aFocused - bFocused;
+    const aFocusedRank = getFocusedTagRank(a, focusedTags);
+    const bFocusedRank = getFocusedTagRank(b, focusedTags);
+    if (aFocusedRank !== bFocusedRank) return aFocusedRank - bFocusedRank;
+    return (a.priority || 99) - (b.priority || 99);
+  });
+}
+
 export function selectApprovedChannels(topic, sourceText, channels) {
   const text = `${topic || ''} ${sourceText || ''}`;
+  const focusedTags = getFocusedChannelTags(text);
 
-  const isHeritage = /문화유산|문화재|국보|보물|사찰|유적|고인돌|지석묘|선사|청동기|석탑|석등|박물관|역사/.test(text);
+  const isHeritage = /문화유산|국가유산|문화재|국보|보물|사찰|유적|고인돌|지석묘|선사|청동기|석탑|석등|박물관|화엄사/.test(text);
+  const isHistory = /한국사|역사|사료|독립운동|일제강점기|근현대사|조선|대한민국|독도|고구려|발해|전쟁|임진왜란|6·25|호국|박물관/.test(text);
   const isScience = /과학|광합성|전기|자석|화산|날씨|생물|식물|동물|우주|생태|환경|갯벌/.test(text);
 
-  if (isHeritage) {
-    return channels.filter(c =>
-      c.tags?.some(tag => ['문화유산', '역사', '박물관', '사회'].includes(tag))
+  let selected = [];
+
+  if (isHeritage || isHistory) {
+    selected = channels.filter(c =>
+      c.tags?.some(tag =>
+        [
+          '문화유산',
+          '국가유산',
+          '역사',
+          '한국사',
+          '사료',
+          '근현대사',
+          '독립운동',
+          '동북아',
+          '독도',
+          '전쟁사',
+          '호국',
+          '박물관',
+          '사회',
+          '교육',
+        ].includes(tag)
+      )
+    );
+  } else if (isScience) {
+    selected = channels.filter(c =>
+      c.tags?.some(tag =>
+        ['과학', '생태', '환경'].includes(tag)
+      )
+    );
+    if (selected.length < MAX_CHANNELS) {
+      const selectedIds = new Set(selected.map(channel => channel.channelId));
+      selected.push(...channels.filter(c =>
+        !selectedIds.has(c.channelId) &&
+        c.tags?.some(tag => ['교육', '초등'].includes(tag))
+      ));
+    }
+  } else {
+    selected = channels.filter(c =>
+      c.tags?.some(tag =>
+        ['교육', '초등', '사회', '과학', '역사'].includes(tag)
+      )
     );
   }
 
-  if (isScience) {
-    return channels.filter(c =>
-      c.tags?.some(tag => ['과학', '생태', '환경', '교육', '초등'].includes(tag))
-    );
-  }
-
-  return channels.filter(c =>
-    c.tags?.some(tag => ['교육', '초등', '사회', '과학', '역사'].includes(tag))
-  );
+  return sortChannelsForTopic(selected, focusedTags).slice(0, MAX_CHANNELS);
 }
 
 // "어린이"를 무조건 넣지 않는다. 키즈/더빙/애니 영상 유입을 줄이기 위해
@@ -79,7 +154,8 @@ export function buildVideoSearchQueries(topic, sourceText = '') {
     queries.push('고인돌 문화유산');
   }
 
-  const isHeritage = /문화유산|문화재|국보|보물|사찰|유적|역사|석탑|석등|박물관/.test(text);
+  const isHeritage = /문화유산|국가유산|문화재|국보|보물|사찰|유적|역사|석탑|석등|박물관|화엄사/.test(text);
+  const isHistory = /한국사|사료|독립운동|일제강점기|근현대사|조선|대한민국|독도|고구려|발해|전쟁|임진왜란|6·25|호국|세종대왕/.test(text);
   const isScience = /과학|광합성|전기|자석|화산|날씨|생물|식물|동물|우주|생태|환경|갯벌/.test(text);
 
   if (normalized) {
@@ -87,6 +163,11 @@ export function buildVideoSearchQueries(topic, sourceText = '') {
       queries.push(normalized);
       queries.push(`${normalized} 문화유산`);
       queries.push(`${normalized} 역사`);
+      queries.push(`${normalized} 초등 사회`);
+    } else if (isHistory) {
+      queries.push(normalized);
+      queries.push(`${normalized} 역사`);
+      queries.push(`${normalized} 한국사`);
       queries.push(`${normalized} 초등 사회`);
     } else if (isScience) {
       queries.push(normalized);
@@ -210,12 +291,15 @@ async function enrichCandidatesWithDetails(candidates, apiKey) {
   }));
 }
 
-function buildDebugBody({ topic, selectedChannels, queries, usedSearches, rawCount, candidates, videos, sourceText }) {
+function buildDebugBody({ topic, activeChannelCount, selectedChannels, queries, usedSearches, rawCount, candidates, videos, sourceText }) {
   return {
     topic,
+    activeChannelCount,
     selectedChannels: selectedChannels.map(channel => ({
       name: channel.name,
       channelId: channel.channelId,
+      tags: channel.tags || [],
+      priority: channel.priority,
     })),
     queries,
     usedSearches,
@@ -253,8 +337,8 @@ export default async function handler(req) {
 
   try {
     const activeChannels = getActiveApprovedYoutubeChannels();
-    const selectedChannels = selectApprovedChannels(trimmedTopic, trimmedSourceText, activeChannels).slice(0, MAX_CHANNELS);
-    const queries = buildVideoSearchQueries(trimmedTopic, trimmedSourceText);
+    const selectedChannels = selectApprovedChannels(trimmedTopic, trimmedSourceText, activeChannels);
+    const queries = buildVideoSearchQueries(trimmedTopic, trimmedSourceText).slice(0, MAX_QUERIES);
 
     if (selectedChannels.length === 0 || queries.length === 0) {
       const body = debug === true
@@ -262,6 +346,7 @@ export default async function handler(req) {
             videos: [],
             debug: buildDebugBody({
               topic: trimmedTopic,
+              activeChannelCount: activeChannels.length,
               selectedChannels,
               queries,
               usedSearches: [],
@@ -289,6 +374,7 @@ export default async function handler(req) {
           videos,
           debug: buildDebugBody({
             topic: trimmedTopic,
+            activeChannelCount: activeChannels.length,
             selectedChannels,
             queries,
             usedSearches,
