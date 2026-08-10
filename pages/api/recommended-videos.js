@@ -1,20 +1,18 @@
 import { getActiveApprovedYoutubeChannels } from '../../lib/approvedYoutubeChannels';
 import { filterVideosForStudents, getRejectedVideoSamples } from '../../lib/youtubeVideoFilter';
 
-// 조사주제와 관련된 YouTube 영상을 교사가 승인한 채널 안에서만 검색해 추천한다.
-// API Key는 서버 환경변수(YOUTUBE_API_KEY)로만 다루며 클라이언트에 노출하지 않는다.
-// 보조 기능이므로 키가 없거나 호출이 실패해도 200 + 빈 배열로 답해 앱을 깨지 않는다.
+// 조사 주제와 관련된 영상을 승인 채널 안에서 실시간 검색한다. 요청당 YouTube API 호출은
+// 최대 3회로 제한하며, 실패해도 200 + 빈 배열로 답해 앱을 깨지 않는다.
 export const config = {
   runtime: 'edge',
 };
 
 const YOUTUBE_SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search';
-const YOUTUBE_VIDEOS_URL = 'https://www.googleapis.com/youtube/v3/videos';
 
 const MAX_CHANNELS = 5;
 const MAX_QUERIES = 4;
-const MAX_QUERIES_PER_CHANNEL = 3;
-const MAX_CANDIDATES_BEFORE_DETAILS = 24;
+const MAX_YOUTUBE_API_CALLS = 3;
+const MAX_CANDIDATES = 24;
 
 const jsonHeaders = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -214,81 +212,88 @@ async function searchYoutubeWithinChannel({ apiKey, channel, query }) {
 
   const res = await fetch(`${YOUTUBE_SEARCH_URL}?${params.toString()}`);
   if (!res.ok) {
-    console.error('YouTube 승인 채널 검색 오류:', channel.name, query, res.status);
-    return [];
+    const retryAfterSeconds = Number(res.headers.get('retry-after') || 0);
+    const errorText = await res.text().catch(() => '');
+    let errorReason = '';
+    try {
+      const errorBody = JSON.parse(errorText);
+      errorReason = errorBody?.error?.errors?.[0]?.reason || errorBody?.error?.status || '';
+    } catch {}
+    const quotaLimited =
+      res.status === 429 || /quota|rateLimit|dailyLimit/i.test(errorReason);
+
+    console.error(
+      'YouTube 승인 채널 검색 오류:',
+      channel.name,
+      query,
+      res.status,
+      errorReason || 'unknown',
+      retryAfterSeconds > 0 ? `retry-after=${retryAfterSeconds}s` : ''
+    );
+    return { videos: [], quotaLimited, retryAfterSeconds, status: res.status, errorReason };
   }
   const data = await res.json();
-  return (data.items || []).map(item => mapYoutubeItem(item, channel, query));
+  return {
+    videos: (data.items || []).map(item => mapYoutubeItem(item, channel, query)),
+    quotaLimited: false,
+    retryAfterSeconds: 0,
+    status: res.status,
+    errorReason: '',
+  };
+}
+
+export function buildYoutubeSearchPlan(channels = [], queries = []) {
+  const plan = [];
+  for (const query of queries.slice(0, MAX_QUERIES)) {
+    for (const channel of channels.slice(0, MAX_CHANNELS)) {
+      plan.push({ channel, query });
+      if (plan.length >= MAX_YOUTUBE_API_CALLS) return plan;
+    }
+  }
+  return plan;
 }
 
 async function collectApprovedChannelCandidates({ apiKey, channels, queries }) {
   const candidateMap = new Map();
   const usedSearches = [];
+  let quotaLimited = false;
+  let retryAfterSeconds = 0;
 
-  for (const channel of channels.slice(0, MAX_CHANNELS)) {
-    for (const query of queries.slice(0, MAX_QUERIES_PER_CHANNEL)) {
-      const results = await searchYoutubeWithinChannel({ apiKey, channel, query });
-      usedSearches.push({ channelName: channel.name, channelId: channel.channelId, query, count: results.length });
+  // 가장 구체적인 검색어를 우선순위가 높은 승인 채널 3곳에 적용한다.
+  for (const { channel, query } of buildYoutubeSearchPlan(channels, queries)) {
+    const outcome = await searchYoutubeWithinChannel({ apiKey, channel, query });
+    usedSearches.push({
+      channelName: channel.name,
+      channelId: channel.channelId,
+      query,
+      count: outcome.videos.length,
+      status: outcome.status,
+      errorReason: outcome.errorReason,
+    });
 
-      for (const video of results) {
-        if (video.videoId && !candidateMap.has(video.videoId)) {
-          candidateMap.set(video.videoId, video);
-        }
+    for (const video of outcome.videos) {
+      if (video.videoId && !candidateMap.has(video.videoId)) {
+        candidateMap.set(video.videoId, video);
       }
-
-      if (candidateMap.size >= MAX_CANDIDATES_BEFORE_DETAILS) break;
     }
-    if (candidateMap.size >= MAX_CANDIDATES_BEFORE_DETAILS) break;
+
+    // 일일 검색 한도나 순간 호출 제한은 뒤의 요청도 똑같이 실패한다. 첫 제한 응답에서
+    // 즉시 멈춰 오류 로그와 불필요한 추가 호출이 연쇄적으로 발생하지 않게 한다.
+    if (outcome.quotaLimited) {
+      quotaLimited = true;
+      retryAfterSeconds = outcome.retryAfterSeconds;
+      break;
+    }
+    if (candidateMap.size >= MAX_CANDIDATES) break;
   }
 
   return {
     candidates: [...candidateMap.values()],
     usedSearches,
     rawCount: usedSearches.reduce((sum, item) => sum + item.count, 0),
+    quotaLimited,
+    retryAfterSeconds,
   };
-}
-
-export function parseYoutubeDurationToSeconds(duration = '') {
-  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!match) return 0;
-  const [, h = 0, m = 0, s = 0] = match;
-  return Number(h) * 3600 + Number(m) * 60 + Number(s);
-}
-
-async function fetchVideoDetails(videoIds, apiKey) {
-  const ids = dedupe(videoIds).slice(0, 50);
-  if (ids.length === 0) return new Map();
-
-  const params = new URLSearchParams({
-    part: 'snippet,contentDetails,statistics',
-    id: ids.join(','),
-    key: apiKey,
-  });
-
-  const res = await fetch(`${YOUTUBE_VIDEOS_URL}?${params.toString()}`);
-  if (!res.ok) {
-    console.error('YouTube 영상 세부정보 조회 오류:', res.status);
-    return new Map();
-  }
-
-  const data = await res.json();
-  return new Map((data.items || []).map(item => [
-    item.id,
-    {
-      duration: item.contentDetails?.duration || '',
-      durationSeconds: parseYoutubeDurationToSeconds(item.contentDetails?.duration || ''),
-      viewCount: Number(item.statistics?.viewCount || 0),
-      publishedAt: item.snippet?.publishedAt || '',
-    },
-  ]));
-}
-
-async function enrichCandidatesWithDetails(candidates, apiKey) {
-  const details = await fetchVideoDetails(candidates.map(video => video.videoId), apiKey);
-  return candidates.map(video => ({
-    ...video,
-    ...(details.get(video.videoId) || {}),
-  }));
 }
 
 function buildDebugBody({ topic, activeChannelCount, selectedChannels, queries, usedSearches, rawCount, candidates, videos, sourceText }) {
@@ -312,14 +317,25 @@ function buildDebugBody({ topic, activeChannelCount, selectedChannels, queries, 
 }
 
 export default async function handler(req) {
-  if (req.method !== 'POST') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return new Response(JSON.stringify({ videos: [], error: 'Method Not Allowed' }), {
       status: 405,
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });
   }
 
-  const { topic = '', sourceText = '', debug = false } = await req.json();
+  let input = {};
+  if (req.method === 'GET') {
+    const url = new URL(req.url);
+    input = {
+      topic: url.searchParams.get('topic') || '',
+      debug: url.searchParams.get('debug') === 'true',
+    };
+  } else {
+    input = await req.json();
+  }
+
+  const { topic = '', sourceText = '', debug = false } = input;
   const trimmedTopic = String(topic).trim();
   const trimmedSourceText = String(sourceText || '');
 
@@ -327,16 +343,16 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ videos: [] }), { status: 200, headers: jsonHeaders });
   }
 
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) {
-    return new Response(
-      JSON.stringify({ videos: [], error: 'YOUTUBE_API_KEY가 설정되어 있지 않습니다.' }),
-      { status: 200, headers: jsonHeaders }
-    );
-  }
-
   try {
     const activeChannels = getActiveApprovedYoutubeChannels();
+    const apiKey = process.env.YOUTUBE_API_KEY;
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({ videos: [], source: 'live', error: 'YOUTUBE_API_KEY가 설정되어 있지 않습니다.' }),
+        { status: 200, headers: jsonHeaders }
+      );
+    }
+
     const selectedChannels = selectApprovedChannels(trimmedTopic, trimmedSourceText, activeChannels);
     const queries = buildVideoSearchQueries(trimmedTopic, trimmedSourceText).slice(0, MAX_QUERIES);
 
@@ -361,17 +377,18 @@ export default async function handler(req) {
       return new Response(JSON.stringify(body), { status: 200, headers: jsonHeaders });
     }
 
-    const { candidates, usedSearches, rawCount } = await collectApprovedChannelCandidates({
+    const { candidates, usedSearches, rawCount, quotaLimited, retryAfterSeconds } = await collectApprovedChannelCandidates({
       apiKey,
       channels: selectedChannels,
       queries,
     });
-    const enrichedCandidates = await enrichCandidatesWithDetails(candidates, apiKey);
-    const videos = filterVideosForStudents(enrichedCandidates, trimmedTopic, trimmedSourceText);
+    const videos = filterVideosForStudents(candidates, trimmedTopic, trimmedSourceText);
 
     const body = debug === true
       ? {
           videos,
+          quotaLimited,
+          retryAfterSeconds,
           debug: buildDebugBody({
             topic: trimmedTopic,
             activeChannelCount: activeChannels.length,
@@ -379,12 +396,12 @@ export default async function handler(req) {
             queries,
             usedSearches,
             rawCount,
-            candidates: enrichedCandidates,
+            candidates,
             videos,
             sourceText: trimmedSourceText,
           }),
         }
-      : { videos };
+        : { videos, quotaLimited, retryAfterSeconds, source: 'live' };
 
     return new Response(JSON.stringify(body), { status: 200, headers: jsonHeaders });
   } catch (error) {

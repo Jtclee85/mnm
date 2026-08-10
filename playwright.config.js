@@ -21,7 +21,10 @@ module.exports = defineConfig({
       origins: [
         {
           origin: 'http://localhost:3000',
-          localStorage: [{ name: 'mnmHistoryResearchTutorialSeen', value: 'true' }],
+          localStorage: [
+            { name: 'mnmHistoryResearchTutorialSeen', value: 'true' },
+            { name: 'mnmAppUsageTutorialSeen', value: 'true' },
+          ],
         },
       ],
     },
@@ -35,7 +38,8 @@ module.exports = defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev',
+    // E2E가 실제 YouTube 검색 할당량을 소모하지 않도록 테스트 서버에서는 키를 비운다.
+    command: 'YOUTUBE_API_KEY= npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

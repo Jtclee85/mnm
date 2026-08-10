@@ -3,33 +3,37 @@ import { useEffect, useState } from 'react';
 // 분석 완료 후 좌측 패널 하단에 보여주는 관련 YouTube 영상 추천.
 //
 // 정책 (교사 승인 채널 기반 외부 참고 링크):
-//  - 온라인 모드: /api/recommended-videos(승인 채널 검색) 결과를 표시. API 썸네일은
-//    실시간으로만 표시하고 파일로 저장하지 않는다.
+//  - 온라인 모드: 승인 채널 안에서 YouTube API로 실시간 검색한 결과를 표시한다.
+//    썸네일은 원본 URL로만 표시하고 파일로 저장하지 않는다.
 //  - 오프라인 데모 / 심사(submission) 모드: API를 호출하지 않고 snapshot의
 //    recommendedVideos만 사용한다. videoId가 있으면 youtube-nocookie 미리보기를
 //    (사용자가 눌렀을 때) 보여줄 수 있고, 없으면 텍스트 링크 카드만 보여준다.
 //  - 어떤 모드에서도 YouTube 썸네일/영상/음원/자막 파일을 저장하지 않는다.
 //  - autoplay 금지. 링크는 새 탭. 카드에는 채널명·승인 채널·출처(YouTube)를 표시한다.
-//  - 추천할 영상이 없으면 섹션을 숨긴다(억지 fallback 없음).
+//  - 추천할 영상이 없으면 사용자가 제공한 안내 이미지를 보여준다.
 
-const CACHE_PREFIX = 'mnm-recommended-videos:v2:';
+// 관련성 판정 규칙이 바뀌면 이전 오탐 결과를 다시 쓰지 않도록 버전을 올린다.
+const RECOMMENDATION_VERSION = '5';
+const CACHE_PREFIX = `mnm-recommended-videos:v${RECOMMENDATION_VERSION}:`;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24시간
+const EMPTY_CACHE_TTL_MS = 15 * 60 * 1000; // 결과 없음 재검색은 15분 뒤
+const QUOTA_LIMIT_CACHE_TTL_MS = 30 * 60 * 1000; // 429 연쇄 호출 방지
 
 function readCache(topic) {
   try {
     const raw = localStorage.getItem(`${CACHE_PREFIX}${topic}`);
     if (!raw) return null;
-    const { videos, savedAt } = JSON.parse(raw);
-    if (!Array.isArray(videos) || Date.now() - savedAt > CACHE_TTL_MS) return null;
+    const { videos, savedAt, ttlMs } = JSON.parse(raw);
+    if (!Array.isArray(videos) || Date.now() - savedAt > (ttlMs || CACHE_TTL_MS)) return null;
     return videos;
   } catch {
     return null;
   }
 }
 
-function writeCache(topic, videos) {
+function writeCache(topic, videos, ttlMs = CACHE_TTL_MS) {
   try {
-    localStorage.setItem(`${CACHE_PREFIX}${topic}`, JSON.stringify({ videos, savedAt: Date.now() }));
+    localStorage.setItem(`${CACHE_PREFIX}${topic}`, JSON.stringify({ videos, savedAt: Date.now(), ttlMs }));
   } catch {}
 }
 
@@ -75,8 +79,6 @@ function normalizeVideos(list) {
 
 export default function RecommendedVideos({
   topic,
-  sourceText,
-  gradeLevel,
   enabled,
   demoMode,
   submissionMode,
@@ -99,30 +101,26 @@ export default function RecommendedVideos({
     if (isStaticVideoMode) {
       const staticVideos = normalizeVideos(demoVideos);
       if (staticVideos.length === 0) {
-        console.warn('[recommended-videos] 승인 채널 예시 영상이 없어 섹션을 숨깁니다.', { topic: trimmedTopic });
+        console.warn('[recommended-videos] 승인 채널 예시 영상이 없어 안내 이미지를 표시합니다.', { topic: trimmedTopic });
       }
       setVideos(staticVideos);
+      setIsLoading(false);
       return;
     }
 
     const cached = readCache(trimmedTopic);
     if (cached) {
       setVideos(normalizeVideos(cached));
+      setIsLoading(false);
       return;
     }
 
     let cancelled = false;
     setIsLoading(true);
 
-    fetch('/api/recommended-videos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        topic: trimmedTopic,
-        sourceText: (sourceText || '').slice(0, 500),
-        gradeLevel: gradeLevel || '',
-      }),
-    })
+    // 주제만 GET 쿼리에 담아 동일 주제 요청을 CDN이 공용 캐시할 수 있게 한다.
+    // API는 승인 채널 안에서 실시간 검색하며, 서버가 YouTube 호출을 최대 3회로 제한한다.
+    fetch(`/api/recommended-videos?v=${RECOMMENDATION_VERSION}&topic=${encodeURIComponent(trimmedTopic)}`)
       .then(res => res.json())
       .then(data => {
         if (cancelled) return;
@@ -131,10 +129,19 @@ export default function RecommendedVideos({
           console.warn('[recommended-videos] 승인 채널에서 추천 영상을 찾지 못했습니다.', { topic: trimmedTopic });
         }
         setVideos(list);
-        if (list.length > 0) writeCache(trimmedTopic, list);
+        if (list.length > 0) {
+          writeCache(trimmedTopic, list);
+        } else {
+          // 한도 초과 때 빈 결과도 잠시 기억해야 같은 브라우저에서 화면을 다시 열 때
+          // 실패 요청을 즉시 반복하지 않는다. 일반적인 결과 없음은 더 짧게 보관한다.
+          const ttlMs = data?.quotaLimited
+            ? Math.max(QUOTA_LIMIT_CACHE_TTL_MS, Number(data?.retryAfterSeconds || 0) * 1000)
+            : EMPTY_CACHE_TTL_MS;
+          writeCache(trimmedTopic, [], ttlMs);
+        }
       })
       .catch(error => {
-        console.warn('[recommended-videos] 불러오기 실패 (섹션 숨김):', error);
+        console.warn('[recommended-videos] 불러오기 실패 (안내 이미지 표시):', error);
         if (!cancelled) setVideos([]);
       })
       .finally(() => {
@@ -142,15 +149,14 @@ export default function RecommendedVideos({
       });
 
     return () => { cancelled = true; };
-    // sourceText/gradeLevel은 보조 힌트일 뿐이라 topic이 같으면 다시 부르지 않는다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // sourceText/gradeLevel은 영상 요청에 보내지 않아 학생 자료가 URL·서버 로그에 남지 않는다.
   }, [enabled, trimmedTopic, isStaticVideoMode]);
 
   if (!enabled || !trimmedTopic) return null;
-  if (!isLoading && videos.length === 0) return null;
 
   const title = t?.recommendedVideosTitle || '함께 보면 좋은 영상';
   const subtitle = t?.recommendedVideosSubtitle || '믿을 수 있는 교육·공공 채널에서 관련 영상을 골라봤어요.';
+  const unavailableText = t?.recommendedVideosUnavailable || '관련 영상을 불러오지 못했어요.';
   const openLabel = t?.recommendedVideosOpen || 'YouTube에서 보기';
   const sourceLabel = t?.recommendedVideosSource || '출처';
   const disclaimer =
@@ -160,7 +166,7 @@ export default function RecommendedVideos({
   return (
     <aside data-testid="recommended-videos" style={styles.wrap} aria-label={title}>
       <p style={styles.heading}>🎬 {title}</p>
-      <p style={styles.subheading}>{subtitle}</p>
+      <p style={styles.subheading}>{!isLoading && videos.length === 0 ? unavailableText : subtitle}</p>
 
       {isLoading ? (
         <div style={styles.list} aria-label={t?.recommendedVideosLoading || '관련 영상을 찾고 있어요...'}>
@@ -174,7 +180,7 @@ export default function RecommendedVideos({
             </div>
           ))}
         </div>
-      ) : (
+      ) : videos.length > 0 ? (
         <div style={styles.list}>
           {videos.map((video, idx) => (
             <VideoCard
@@ -188,9 +194,19 @@ export default function RecommendedVideos({
             />
           ))}
         </div>
+      ) : (
+        <div data-testid="recommended-videos-fallback" style={styles.fallbackCard}>
+          {/* 사용자가 제공한 자체 안내 이미지이며 외부 영상·썸네일 파일이 아니다. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/youtube_not_found_nbg.webp"
+            alt={unavailableText}
+            style={styles.fallbackImage}
+          />
+        </div>
       )}
 
-      <p style={styles.disclaimer}>{disclaimer}</p>
+      {videos.length > 0 && <p style={styles.disclaimer}>{disclaimer}</p>}
     </aside>
   );
 }
@@ -286,6 +302,11 @@ const styles = {
   heading: { fontSize: 13, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 0 2px' },
   subheading: { fontSize: 12, color: 'var(--color-text-sub)', margin: '0 0 2px 2px' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
+  fallbackCard: {
+    width: '100%', display: 'flex', justifyContent: 'center', boxSizing: 'border-box',
+    padding: '8px 0', background: 'transparent',
+  },
+  fallbackImage: { width: '100%', maxWidth: 500, height: 'auto', display: 'block' },
 
   card: {
     display: 'flex', alignItems: 'center', gap: 12,

@@ -46,7 +46,7 @@ export default function ResultCanvas({
   toolResults, quizKey, parsedQuiz, quizResult, setQuizResult,
   onQuiz, onEvaluation, onTeacherComment,
   isBusy, loadingTool,
-  notes, updateNote, saveStatus, handleShare,
+  notes, updateNote, saveStatus, handleShare, onShareTutorialComplete,
   isMobile, onAskChatbotWithQuestion, t = getUiText('ko'),
   language, onLanguageChange,
   topic,
@@ -91,9 +91,12 @@ export default function ResultCanvas({
   useEffect(() => { if (toolResults.evaluation)  scrollCanvasTo(evalCardRef);    }, [toolResults.evaluation]);
   useEffect(() => { if (toolResults.teacher)     scrollCanvasTo(teacherCardRef); }, [toolResults.teacher]);
 
-  // 탭 전환 후 hidden-overflow인 canvas 컨테이너의 scrollLeft가 포커스 이동에 의해
-  // 튀는 현상을 막는다. 탭 전환마다 수평 스크롤 위치를 강제로 0으로 고정한다.
-  useEffect(() => { if (canvasRef.current) canvasRef.current.scrollLeft = 0; }, [activeMode]);
+  // 모드를 바꿀 때 이전 모드에서 읽던 위치가 남지 않도록 실제 결과 본문의 세로 위치를
+  // 최상단으로 되돌린다. 바깥 canvas의 포커스 이동에 따른 가로 스크롤도 함께 막는다.
+  useEffect(() => {
+    if (canvasRef.current) canvasRef.current.scrollLeft = 0;
+    if (canvasBodyRef.current) canvasBodyRef.current.scrollTop = 0;
+  }, [activeMode]);
 
   const result = analysisByMode[activeMode] || {};
   const isTabLoading = loadingMode === activeMode;
@@ -127,6 +130,7 @@ export default function ResultCanvas({
 
     setShareState('copied');
     setTimeout(() => setShareState('idle'), 4000);
+    onShareTutorialComplete?.();
   };
 
   const renderModeContent = () => {
@@ -153,36 +157,38 @@ export default function ResultCanvas({
         <SectionCard title={t.understandMisconceptionsTitle} icon="🧭" isMobile={isMobile}>
           <BulletList items={result.understandingMisconceptionLines} isMobile={isMobile} emptyText={t.understandMisconceptionsEmpty} />
         </SectionCard>
-        <SectionCard title={t.understandCheckTitle} icon="✅" isMobile={isMobile}>
-          <div style={s.checkList}>
-            {getUnderstandCheckQuestions(result).map((question, idx) => (
-              <div key={idx} style={s.checkItem}>
-                <p style={s.checkQuestion}>{idx + 1}. {question}</p>
-                <WorksheetField
-                  id={`u_check${idx + 1}`}
-                  value={notes?.[`u_check${idx + 1}`]}
-                  onChange={v => updateNote(`u_check${idx + 1}`, v)}
-                  placeholder={t.checkAnswerPlaceholder}
+        <div data-testid="tutorial-worksheet-understand">
+          <SectionCard title={t.understandCheckTitle} icon="✅" isMobile={isMobile}>
+            <div style={s.checkList}>
+              {getUnderstandCheckQuestions(result).map((question, idx) => (
+                <div key={idx} style={s.checkItem}>
+                  <p style={s.checkQuestion}>{idx + 1}. {question}</p>
+                  <WorksheetField
+                    id={`u_check${idx + 1}`}
+                    value={notes?.[`u_check${idx + 1}`]}
+                    onChange={v => updateNote(`u_check${idx + 1}`, v)}
+                    placeholder={t.checkAnswerPlaceholder}
+                    isMobile={isMobile}
+                    rows={2}
+                  />
+                </div>
+              ))}
+            </div>
+            {result.understandingQuiz && (
+              <div data-testid="understanding-quiz" style={s.understandQuizBox}>
+                <p style={s.understandQuizLabel}>🎯 {t.quizTitle}</p>
+                <QuizCard
+                  key={result.understandingQuiz.question}
+                  quizData={result.understandingQuiz}
+                  onReset={onQuiz}
                   isMobile={isMobile}
-                  rows={2}
+                  onResult={setQuizResult}
+                  t={t}
                 />
               </div>
-            ))}
-          </div>
-          {result.understandingQuiz && (
-            <div data-testid="understanding-quiz" style={s.understandQuizBox}>
-              <p style={s.understandQuizLabel}>🎯 {t.quizTitle}</p>
-              <QuizCard
-                key={result.understandingQuiz.question}
-                quizData={result.understandingQuiz}
-                onReset={onQuiz}
-                isMobile={isMobile}
-                onResult={setQuizResult}
-                t={t}
-              />
-            </div>
-          )}
-        </SectionCard>
+            )}
+          </SectionCard>
+        </div>
         {(result.understandingSentence || result.easy) && (
           <p style={s.coachHint}>{t.understandChatHint}</p>
         )}
@@ -191,6 +197,7 @@ export default function ResultCanvas({
 
     if (activeMode === 'inquiry') return (
       <>
+        <div data-testid="tutorial-worksheet-inquiry" style={s.tutorialWorksheetGroup}>
         <SectionCard title={t.inquiryQuestionsTitle} icon="❓" isMobile={isMobile}>
           <p style={s.sectionLead}>{t.inquiryQuestionsLead}</p>
           <InquiryQuestionButtons
@@ -267,6 +274,7 @@ export default function ResultCanvas({
             />
           </div>
         </SectionCard>
+        </div>
       </>
     );
 
@@ -313,21 +321,23 @@ export default function ResultCanvas({
           <BulletList items={result.presentationTemplateLines?.length > 0 ? result.presentationTemplateLines : result.presentationScriptLines} isMobile={isMobile} emptyText={t.presentationTemplatesEmpty} />
         </SectionCard>
         {/* 3차 구조 개편 — 완성 대본 대신, 학생이 직접 발표 흐름/문장을 채우는 입력 카드 */}
-        <SectionCard title={t.presentationPrepTitle} icon="🎤" isMobile={isMobile}>
-          <div style={s.fieldGroup}>
-            {PRESENTATION_FIELDS.map(({ key, labelKey, placeholderKey, numbered }) => (
-              <WorksheetField
-                key={key}
-                id={key}
-                label={numbered ? `${t[labelKey]} ${numbered}` : t[labelKey]}
-                value={notes?.[key]}
-                onChange={v => updateNote(key, v)}
-                placeholder={t[placeholderKey]}
-                isMobile={isMobile}
-              />
-            ))}
-          </div>
-        </SectionCard>
+        <div data-testid="tutorial-worksheet-presentation">
+          <SectionCard title={t.presentationPrepTitle} icon="🎤" isMobile={isMobile}>
+            <div style={s.fieldGroup}>
+              {PRESENTATION_FIELDS.map(({ key, labelKey, placeholderKey, numbered }) => (
+                <WorksheetField
+                  key={key}
+                  id={key}
+                  label={numbered ? `${t[labelKey]} ${numbered}` : t[labelKey]}
+                  value={notes?.[key]}
+                  onChange={v => updateNote(key, v)}
+                  placeholder={t[placeholderKey]}
+                  isMobile={isMobile}
+                />
+              ))}
+            </div>
+          </SectionCard>
+        </div>
         <SectionCard title={t.presentationChecklistTitle} icon="✅" isMobile={isMobile}>
           <WritingChecklist items={result.presentationChecklistLines} isMobile={isMobile} emptyText={t.presentationChecklistEmpty} />
         </SectionCard>
@@ -377,21 +387,23 @@ export default function ResultCanvas({
           <WritingOutlineCard outline={result.writingOutline} isMobile={isMobile} t={t} />
         </SectionCard>
         {/* 3차 구조 개편 — 완성글 대신, 학생이 직접 중심문장/개요를 채우는 입력 카드 */}
-        <SectionCard title={t.writingPrepTitle} icon="✏️" isMobile={isMobile}>
-          <div style={s.fieldGroup}>
-            {WRITING_FIELDS.map(({ key, labelKey, placeholderKey, numbered }) => (
-              <WorksheetField
-                key={key}
-                id={key}
-                label={numbered ? `${t[labelKey]} ${numbered}` : t[labelKey]}
-                value={notes?.[key]}
-                onChange={v => updateNote(key, v)}
-                placeholder={t[placeholderKey]}
-                isMobile={isMobile}
-              />
-            ))}
-          </div>
-        </SectionCard>
+        <div data-testid="tutorial-worksheet-writing">
+          <SectionCard title={t.writingPrepTitle} icon="✏️" isMobile={isMobile}>
+            <div style={s.fieldGroup}>
+              {WRITING_FIELDS.map(({ key, labelKey, placeholderKey, numbered }) => (
+                <WorksheetField
+                  key={key}
+                  id={key}
+                  label={numbered ? `${t[labelKey]} ${numbered}` : t[labelKey]}
+                  value={notes?.[key]}
+                  onChange={v => updateNote(key, v)}
+                  placeholder={t[placeholderKey]}
+                  isMobile={isMobile}
+                />
+              ))}
+            </div>
+          </SectionCard>
+        </div>
         <SectionCard title={t.writingChecklistTitle} icon="✅" isMobile={isMobile}>
           <WritingChecklist items={result.writingChecklistLines} isMobile={isMobile} emptyText={t.writingChecklistEmpty} />
         </SectionCard>
@@ -525,18 +537,18 @@ export default function ResultCanvas({
 
       {/* ── Tabs ── */}
       <div style={s.tabBar}>
-        <div style={{ display: 'flex', flex: 1 }}>
+        <div style={s.tabList}>
           {TAB_OPTIONS.map(({ value, labelKey, icon }) => (
             <button
               key={value}
               data-testid={`mode-tab-${value}`}
               role="tab"
               aria-selected={activeMode === value}
-              style={{ ...s.tab, ...(activeMode === value ? s.tabActive : {}) }}
+              style={{ ...s.tab, ...(isMobile ? s.tabMobile : {}), ...(activeMode === value ? s.tabActive : {}) }}
               onClick={() => onTabClick(value)}
               disabled={loadingMode !== null && loadingMode !== value}
             >
-              <span style={{ fontSize: 14 }}>{icon}</span>
+              <span style={{ fontSize: isMobile ? 16 : 18 }}>{icon}</span>
               {t[labelKey]}
               {loadingMode === value && <span style={s.tabSpinner} />}
             </button>
@@ -545,7 +557,7 @@ export default function ResultCanvas({
       </div>
 
       {/* ── Body ── */}
-      <div ref={canvasBodyRef} style={s.body}>
+      <div ref={canvasBodyRef} data-testid="result-canvas-body" style={s.body}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {renderModeContent()}
 
@@ -655,16 +667,25 @@ const s = {
   },
   tabBar: {
     display: 'flex', borderBottom: '1px solid var(--color-border)',
-    background: 'var(--color-bg)', flexShrink: 0,
+    background: 'var(--color-surface-alt)', flexShrink: 0,
   },
+  tabList: { display: 'flex', flex: 1, gap: 7, padding: '9px 12px' },
   tab: {
-    flex: 1, border: 'none', background: 'transparent',
-    color: 'var(--color-text-sub)', fontWeight: 700, fontSize: 12,
-    padding: '9px 4px', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-    borderBottom: '2px solid transparent', transition: 'all 0.15s ease',
+    flex: 1, minWidth: 0, minHeight: 50,
+    border: '1px solid var(--color-border)', borderRadius: 12,
+    background: 'var(--color-surface)', color: 'var(--color-text-sub)',
+    fontWeight: 900, fontSize: 14.5, lineHeight: 1.25,
+    padding: '10px 7px', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    boxShadow: '0 2px 7px rgba(var(--color-text-rgb),0.08)',
+    transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
   },
-  tabActive: { color: 'var(--color-primary)', borderBottom: '2px solid var(--color-primary)', background: 'var(--color-surface)' },
+  tabMobile: { minHeight: 58, padding: '8px 3px', fontSize: 12.5, flexDirection: 'column', gap: 3 },
+  tabActive: {
+    borderColor: 'var(--color-primary)', color: 'var(--color-surface)',
+    background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-dark))',
+    boxShadow: '0 6px 16px rgba(var(--color-primary-rgb),0.3)',
+  },
   // 생각 워크시트 CTA — 결과 모드 탭과 분리된 독립 행. 탭처럼 보이지 않도록
   // 둥근 필버튼 + 그라디언트 강조로 "산출물 제작" 핵심 액션임을 드러낸다.
   worksheetCtaRow: {
@@ -744,6 +765,7 @@ const s = {
   },
 
   // 3차 구조 개편 — 모드별 워크시트 입력 공통 스타일
+  tutorialWorksheetGroup: { display: 'flex', flexDirection: 'column', gap: 18 },
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: 14 },
   checkList: { display: 'flex', flexDirection: 'column', gap: 14 },
   understandQuizBox: { marginTop: 18, paddingTop: 16, borderTop: '1px dashed var(--color-border)' },

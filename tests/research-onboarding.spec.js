@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const TUTORIAL_SEEN_KEY = 'mnmHistoryResearchTutorialSeen';
+const APP_TUTORIAL_SEEN_KEY = 'mnmAppUsageTutorialSeen';
 const TUTORIAL_TITLE = '자료를 조사할 때 주의점 알아보기';
 
 const FAKE_ANALYSIS_TEXT = `
@@ -25,13 +26,22 @@ async function runAnalysis(page) {
 }
 
 test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 주의점 알아보기 (5차)', () => {
-  test.describe('자료를 조사할 때 주의점 알아보기 — 첫 방문 튜토리얼', () => {
-    // 전역 기본값(storageState)은 "이미 튜토리얼을 본 상태"이므로,
-    // 첫 방문 동작 자체를 검증하는 이 describe 블록에서는 매번 진짜 첫 방문으로 되돌린다.
-    test.use({ storageState: { cookies: [], origins: [] } });
+  test.describe('자료를 조사할 때 주의점 알아보기 — 교육자료 튜토리얼', () => {
+    // 첫 방문 자동 안내는 앱 사용법이 맡는다. 이 블록에서는 앱 사용법만 완료 상태로 두고
+    // 나침반의 교육자료 다시 보기 버튼으로 기존 5단계 콘텐츠를 검증한다.
+    test.use({
+      storageState: {
+        cookies: [],
+        origins: [{
+          origin: 'http://localhost:3000',
+          localStorage: [{ name: APP_TUTORIAL_SEEN_KEY, value: 'true' }],
+        }],
+      },
+    });
 
-    test('첫 방문 시 자동으로 뜨고, 5단계가 모두 존재한다', async ({ page }) => {
+    test('나침반에서 열 수 있고, 5단계가 모두 존재한다', async ({ page }) => {
       await page.goto('/');
+      await page.getByTestId('reopen-tutorial-button').click();
       await expect(page.getByText(TUTORIAL_TITLE)).toBeVisible();
       await expect(page.getByText('좋은 자료를 고르면, 좋은 탐구가 시작돼요.')).toBeVisible();
       await expect(page.getByText('Step 1 / 5')).toBeVisible();
@@ -52,6 +62,7 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
 
     test('교실 화면에서 큰 수업용 카드와 읽기 쉬운 글자로 표시된다', async ({ page }) => {
       await page.goto('/');
+      await page.getByTestId('reopen-tutorial-button').click();
 
       const dialog = page.getByTestId('research-tutorial-dialog');
       const dialogBox = await dialog.boundingBox();
@@ -70,6 +81,7 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
 
     test('이전 버튼으로 되돌아갈 수 있다', async ({ page }) => {
       await page.goto('/');
+      await page.getByTestId('reopen-tutorial-button').click();
       await expect(page.getByRole('button', { name: '이전' })).toHaveCount(0);
       await page.getByRole('button', { name: '다음' }).click();
       await expect(page.getByText('Step 2 / 5')).toBeVisible();
@@ -77,17 +89,21 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
       await expect(page.getByText('Step 1 / 5')).toBeVisible();
     });
 
-    test('건너뛰기는 이번 접속에서만 닫고, 새로고침하면 다시 뜬다', async ({ page }) => {
+    test('건너뛰기로 닫은 뒤 나침반에서 다시 열 수 있다', async ({ page }) => {
       await page.goto('/');
+      await page.getByTestId('reopen-tutorial-button').click();
       await page.getByRole('button', { name: '건너뛰기' }).click();
       await expect(page.getByText(TUTORIAL_TITLE)).toHaveCount(0);
 
       await page.reload();
+      await expect(page.getByText(TUTORIAL_TITLE)).toHaveCount(0);
+      await page.getByTestId('reopen-tutorial-button').click();
       await expect(page.getByText(TUTORIAL_TITLE)).toBeVisible();
     });
 
     test('"다시 보지 않기"는 완료로 표시되어 새로고침해도 다시 뜨지 않는다', async ({ page }) => {
       await page.goto('/');
+      await page.getByTestId('reopen-tutorial-button').click();
       await page.getByRole('button', { name: '다시 보지 않기' }).click();
       await expect(page.getByText(TUTORIAL_TITLE)).toHaveCount(0);
 
@@ -100,6 +116,7 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
 
     test('"조사 시작하기"로 완료하면 다시 뜨지 않는다', async ({ page }) => {
       await page.goto('/');
+      await page.getByTestId('reopen-tutorial-button').click();
       for (let i = 0; i < 4; i++) {
         await page.getByRole('button', { name: '다음' }).click();
       }
@@ -115,6 +132,7 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
 
     test('ESC로 닫을 수 있다', async ({ page }) => {
       await page.goto('/');
+      await page.getByTestId('reopen-tutorial-button').click();
       await expect(page.getByText(TUTORIAL_TITLE)).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(page.getByText(TUTORIAL_TITLE)).toHaveCount(0);
@@ -188,10 +206,20 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
   });
 
   test.describe('모바일(390px) — 튜토리얼 + 나침반', () => {
-    test.use({ viewport: { width: 390, height: 844 }, storageState: { cookies: [], origins: [] } });
+    test.use({
+      viewport: { width: 390, height: 844 },
+      storageState: {
+        cookies: [],
+        origins: [{
+          origin: 'http://localhost:3000',
+          localStorage: [{ name: APP_TUTORIAL_SEEN_KEY, value: 'true' }],
+        }],
+      },
+    });
 
     test('모바일에서도 튜토리얼이 뜨고, 닫으면 나침반이 세로 스택 안에 보인다', async ({ page }) => {
       await page.goto('/');
+      await page.getByTestId('reopen-tutorial-button').click();
       await expect(page.getByText(TUTORIAL_TITLE)).toBeVisible();
 
       const tutorialBox = await page.getByTestId('research-tutorial-dialog').boundingBox();

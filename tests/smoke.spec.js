@@ -136,12 +136,39 @@ test.describe('뭐냐면 — desktop-1920 기준 스모크 테스트', () => {
     const understandTab = page.getByTestId('mode-tab-understand');
     await expect(understandTab).toBeVisible();
     await expect(understandTab).toHaveAttribute('aria-selected', 'true');
+    expect(Number.parseFloat(await understandTab.evaluate(el => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(14);
+    await expect(understandTab).toHaveCSS('border-top-style', 'solid');
+    await expect(understandTab).not.toHaveCSS('box-shadow', 'none');
 
     for (const mode of ['inquiry', 'presentation', 'writing']) {
       const tab = page.getByTestId(`mode-tab-${mode}`);
       await expect(tab).toBeVisible();
       await tab.click();
       await expect(tab).toHaveAttribute('aria-selected', 'true');
+    }
+  });
+
+  test('[desktop-1920] 학습 모드를 바꾸면 결과 본문이 최상단으로 이동한다', async ({ page }) => {
+    await runAnalysis(page);
+
+    // 네 모드를 한 번 불러 두면 다음 전환에서는 로딩 화면의 높이 변화 없이
+    // 실제로 같은 스크롤 컨테이너의 위치가 초기화되는지 검증할 수 있다.
+    for (const mode of ['inquiry', 'presentation', 'writing']) {
+      await page.getByTestId(`mode-tab-${mode}`).click();
+      await expect(page.getByTestId('mode-tab-understand')).toBeEnabled();
+    }
+    await page.getByTestId('mode-tab-understand').click();
+
+    const body = page.getByTestId('result-canvas-body');
+    for (const mode of ['inquiry', 'presentation', 'writing', 'understand']) {
+      const scrolledTop = await body.evaluate((element) => {
+        element.scrollTop = Math.min(300, element.scrollHeight - element.clientHeight);
+        return element.scrollTop;
+      });
+      expect(scrolledTop).toBeGreaterThan(0);
+
+      await page.getByTestId(`mode-tab-${mode}`).click();
+      await expect.poll(() => body.evaluate(element => element.scrollTop)).toBe(0);
     }
   });
 

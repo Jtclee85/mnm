@@ -19,7 +19,8 @@
 
 ## YouTube 추천 영상 기능
 
-추천 영상은 YouTube 전체 검색 결과가 아니라, 교사가 승인한 채널 안에서만 검색합니다.
+추천 영상은 YouTube API로 승인 채널 안에서 실시간 검색합니다. 한 요청에서 YouTube
+검색 API는 최대 3회까지만 호출하고, 같은 주제의 GET 응답은 CDN과 브라우저가 재사용합니다.
 
 1. Vercel 또는 `.env.local`에 `YOUTUBE_API_KEY`를 설정합니다.
 2. `lib/approvedYoutubeChannels.js`에 승인 후보 채널의 `name`/`searchName`/`handle`을 입력합니다.
@@ -29,7 +30,7 @@
 
 ### 온라인 / 오프라인(심사) 동작
 
-- **온라인 배포본**: `/api/recommended-videos`가 승인 채널 안에서만 검색해 결과를 표시합니다. 승인 채널 밖 영상은 표시하지 않고, 조건을 만족하는 영상이 없으면 섹션을 숨깁니다.
+- **온라인 배포본**: `/api/recommended-videos`가 승인 채널 안에서 최대 3회의 실시간 검색을 실행합니다. 승인 채널 밖 영상은 표시하지 않고, 조건을 만족하는 영상이 없으면 안내 이미지를 보여줍니다.
 - **오프라인 데모 / 심사 제출본**: YouTube API를 호출하지 않고 snapshot의 `recommendedVideos`만 사용합니다. `videoId`가 있으면 사용자가 눌렀을 때만 `youtube-nocookie` 미리보기를 로드하고(자동재생 없음), 없으면 텍스트 링크 카드만 보여줍니다. 네트워크가 없어도 제목·채널명·출처·링크는 항상 표시됩니다.
 
 ### snapshot `recommendedVideos` 구조

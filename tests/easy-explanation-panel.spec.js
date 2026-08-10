@@ -47,6 +47,11 @@ test.describe('뭐냐면 — 왼쪽 패널 조사 원본자료/쉬운설명 (데
     await expect(leftPanel.getByRole('button', { name: '조사 원본자료' })).toBeVisible();
     await expect(leftPanel.getByRole('button', { name: '쉬운설명' })).toBeVisible();
     await expect(leftPanel.getByRole('button', { name: '대화' })).toHaveCount(0);
+
+    const sourceTab = page.getByTestId('left-panel-tab-source');
+    expect(Number.parseFloat(await sourceTab.evaluate(el => getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(15);
+    await expect(sourceTab).toHaveCSS('border-top-style', 'solid');
+    await expect(sourceTab).not.toHaveCSS('box-shadow', 'none');
   });
 
   test('[source-tab] 조사 원본자료 탭에서 조사 주제와 원본자료를 볼 수 있다', async ({ page }) => {
@@ -62,10 +67,10 @@ test.describe('뭐냐면 — 왼쪽 패널 조사 원본자료/쉬운설명 (데
   test('[easy-tab-default] 자료 분석 직후에는 별도 클릭 없이 왼쪽 패널이 쉬운설명 탭으로 열린다', async ({ page }) => {
     await runAnalysis(page);
     const leftPanel = page.getByTestId('left-panel');
-    // 쉬운설명 탭을 누르지 않아도 바로 쉬운설명 내용(3개 섹션)이 보여야 한다.
+    // 쉬운설명 탭을 누르지 않아도 바로 핵심 설명과 인라인 낱말 버튼이 보여야 한다.
     await expect(leftPanel.getByText('한 문장으로 이해하기')).toBeVisible();
     await expect(leftPanel.getByText('조사자료를 쉬운 말로 바꾸면')).toBeVisible();
-    await expect(leftPanel.getByText('어려운 낱말 클릭해서 보기')).toBeVisible();
+    await expect(leftPanel.getByText('어려운 낱말 클릭해서 보기')).toHaveCount(0);
     // 원본자료 입력 요소는 이 시점엔 보이지 않는다(조사 원본자료 탭으로 전환해야 나타남).
     await expect(page.getByTestId('topic-input')).toHaveCount(0);
   });
@@ -93,7 +98,7 @@ test.describe('뭐냐면 — 왼쪽 패널 조사 원본자료/쉬운설명 (데
     await expect(leftPanel.getByText('아직 쉬운설명이 준비되지 않았어요')).toBeVisible();
   });
 
-  test('[easy-tab-after] 분석 후 쉬운설명 탭에 3가지 핵심 섹션이 보인다', async ({ page }) => {
+  test('[easy-tab-after] 분석 후 쉬운설명 탭에 핵심 설명과 인라인 낱말 버튼이 보인다', async ({ page }) => {
     await runAnalysis(page);
     const leftPanel = page.getByTestId('left-panel');
     await leftPanel.getByRole('button', { name: '쉬운설명' }).click();
@@ -104,12 +109,10 @@ test.describe('뭐냐면 — 왼쪽 패널 조사 원본자료/쉬운설명 (데
     await expect(leftPanel.getByText('조사자료를 쉬운 말로 바꾸면')).toBeVisible();
     await expect(leftPanel.getByText('강화 부근리 지석묘는 아주 오래전')).toBeVisible();
 
-    await expect(leftPanel.getByText('어려운 낱말 클릭해서 보기')).toBeVisible();
-    // "지석묘"는 쉬운 말 문단 안의 클릭형 인라인 낱말과 낱말풀이 목록의 <summary> 양쪽에
-    // 모두 나타나므로, 낱말풀이 목록 쪽(summary)만 정확히 짚어 연다.
-    const glossarySummary = leftPanel.locator('summary', { hasText: '지석묘' });
-    await expect(glossarySummary).toBeVisible();
-    await glossarySummary.click();
+    await expect(leftPanel.getByText('어려운 낱말 클릭해서 보기')).toHaveCount(0);
+    const termButton = leftPanel.getByRole('button', { name: /지석묘/, exact: false }).first();
+    await expect(termButton).toBeVisible();
+    await termButton.click();
     await expect(leftPanel.getByText('큰 돌로 만든 옛날 무덤')).toBeVisible();
   });
 

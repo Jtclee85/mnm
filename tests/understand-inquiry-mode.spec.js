@@ -129,10 +129,8 @@ test.describe('뭐냐면 이해/탐구 모드 재조정', () => {
     await expect(termButton).toHaveAttribute('aria-expanded', 'false');
     await termButton.click();
     await expect(termButton).toHaveAttribute('aria-expanded', 'true');
-    // 같은 낱말풀이 텍스트가 아래 '어려운 낱말 클릭해서 보기' 목록(닫힌 <details>)에도
-    // 존재하므로, DOM 순서상 먼저 나오는 툴팁 쪽(.first())으로 좁혀서 확인한다.
-    await expect(leftPanel.getByText('큰 돌로 만든 옛날 무덤').first()).toBeVisible();
-    await expect(leftPanel.getByText('이 자료의 중심 대상이에요.').first()).toBeVisible();
+    await expect(leftPanel.getByText('큰 돌로 만든 옛날 무덤')).toBeVisible();
+    await expect(leftPanel.getByText('이 자료의 중심 대상이에요.')).toBeVisible();
   });
 
   test('[inquiry-mode] 추천 질문 버튼 중심으로 보인다', async ({ page }) => {

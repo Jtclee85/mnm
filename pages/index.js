@@ -13,6 +13,7 @@ import FloatingChatbot from '../components/FloatingChatbot';
 import EasyExplanationPanel from '../components/EasyExplanationPanel';
 import ResearchCompass from '../components/ResearchCompass';
 import ResearchTutorialQuest, { TUTORIAL_QUESTS } from '../components/ResearchTutorialQuest';
+import AppUsageTutorial, { APP_TUTORIAL_SCENES } from '../components/AppUsageTutorial';
 import SubmissionStartScreen from '../components/SubmissionStartScreen';
 
 import { createSystemMessage, createChatSystemMessage, createEvaluationSystemMessage } from '../lib/systemPrompt';
@@ -25,12 +26,20 @@ import { encodeShareData } from '../lib/shareUtils';
 import { LANGUAGE_OPTIONS, getLanguageReminder, getUiText } from '../lib/i18n';
 import { withSubjectParticle } from '../lib/koreanParticles';
 import { SUBMISSION_APP_URL } from '../lib/submissionMeta';
+import { APP_TUTORIAL_PRESET } from '../lib/appTutorialPreset';
 
 /** =========================
  *  메인
  *  ========================= */
 
 const TUTORIAL_SEEN_KEY = 'mnmHistoryResearchTutorialSeen';
+const APP_TUTORIAL_SEEN_KEY = 'mnmAppUsageTutorialSeen';
+const APP_TUTORIAL_MODE_BY_STEP = {
+  4: 'understand',
+  5: 'inquiry',
+  6: 'presentation',
+  7: 'writing',
+};
 
 // 연구대회 심사용 시작화면 — NEXT_PUBLIC_SUBMISSION_MODE=true일 때만 브라우저 세션당
 // 처음 한 번 표시한다. localStorage가 아닌 sessionStorage를 쓰는 이유: 심사자가
@@ -141,6 +150,7 @@ export default function Home({
 
   // 긴 자료 안내 — 자료를 차단하는 대신 핵심 중심으로 잘라 분석한다는 알림
   const [analysisNotice, setAnalysisNotice] = useState('');
+  const [usingAppTutorialPreset, setUsingAppTutorialPreset] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
   const [leftPanelTab, setLeftPanelTab] = useState('source');
@@ -178,15 +188,28 @@ export default function Home({
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [tutorialStep, setTutorialStep] = useState(0);
 
+  // 뭐냐면 사용법 — 실제 화면을 직접 조작하는 6과정 스포트라이트 튜토리얼.
+  // 자료조사 방법 교육자료와 완료 기록을 분리해 둘 중 하나를 다시 봐도 다른 쪽의
+  // 첫 방문 여부가 바뀌지 않게 한다.
+  const [appTutorialOpen, setAppTutorialOpen] = useState(false);
+  const [appTutorialStep, setAppTutorialStep] = useState(0);
+  const [appTutorialBusy, setAppTutorialBusy] = useState(false);
+  const [appTutorialAnalysisRequested, setAppTutorialAnalysisRequested] = useState(false);
+
   useEffect(() => {
     if (demoMode) {
       setTutorialOpen(true);
-      return;
     }
+  }, [demoMode]);
+
+  useEffect(() => {
+    // 오프라인 시연은 기존 자료조사 교육자료를, 심사 모드는 전용 시작화면을 먼저
+    // 보여 준다. 앱 사용법은 두 모드에서도 헤더 버튼으로 언제든 다시 열 수 있다.
+    if (demoMode || SUBMISSION_MODE) return;
     try {
-      if (localStorage.getItem(TUTORIAL_SEEN_KEY) !== 'true') setTutorialOpen(true);
+      if (localStorage.getItem(APP_TUTORIAL_SEEN_KEY) !== 'true') setAppTutorialOpen(true);
     } catch {
-      setTutorialOpen(true);
+      setAppTutorialOpen(true);
     }
   }, [demoMode]);
 
@@ -289,6 +312,7 @@ export default function Home({
     // 이미 분석된 세션을 불러온 경우에도 '쉬운설명'을 우선으로 보여준다.
     setLeftPanelTab(anyResult ? 'easy' : 'source');
     setLastAnalyzedTopic(anyResult ? (session.topic ?? '') : '');
+    setUsingAppTutorialPreset(false);
   };
 
   const resetWorkspace = () => {
@@ -303,6 +327,7 @@ export default function Home({
     setCanvasOpen(false);
     setLeftPanelTab('source');
     setLastAnalyzedTopic('');
+    setUsingAppTutorialPreset(false);
   };
 
   const handleDeleteSession = (savedTopic) => {
@@ -587,6 +612,31 @@ export default function Home({
         : ''
     );
 
+    if (appTutorialOpen && appTutorialStep === 2) {
+      // 사용법 연습은 API 생성 품질을 확인하는 과정이 아니다. 강화 고인돌 오프라인
+      // 결과를 즉시 넣어 사용량·네트워크 상태와 무관하게 네 모드를 끝까지 체험하게 한다.
+      const tutorialResults = Object.fromEntries(
+        Object.entries(INIT_BY_MODE()).map(([mode, emptyResult]) => [
+          mode,
+          { ...emptyResult, ...(APP_TUTORIAL_PRESET.analysisByMode[mode] || {}) },
+        ])
+      );
+      setAppTutorialAnalysisRequested(true);
+      setLastAnalyzedTopic(APP_TUTORIAL_PRESET.topic);
+      setUsingAppTutorialPreset(true);
+      setActiveMode('understand');
+      setLeftPanelTab('easy');
+      setConversation([{ role: 'assistant', content: t.initialMessage }]);
+      setAnalysisByMode(tutorialResults);
+      setToolResults(EMPTY_TOOLS);
+      Object.entries(APP_TUTORIAL_PRESET.worksheetNotes).forEach(([field, value]) => updateNote(field, value));
+      setLoadingMode(null);
+      setCanvasOpen(true);
+      return;
+    }
+
+    setUsingAppTutorialPreset(false);
+
     if (demoMode) {
       // 실제 온라인 분석과 동일한 흐름으로 로딩 화면을 먼저 보여준다.
       // 캔버스를 열고 '이해' 모드 로딩(자료조사 꿀팁)을 잠시 표시한 뒤,
@@ -627,13 +677,13 @@ export default function Home({
 
     const result = await analyzeForMode('understand');
 
-    // 실패 시 결과 화면을 열어두면 "아직 쉬운설명이 준비되지 않았어요" 같은
-    // 빈 결과 안내가 실제 원인(예: 자료가 너무 긺)을 덮어버린다.
-    // 캔버스를 닫고 입력 화면으로 되돌린 뒤 에러 박스로 원인을 보여준다.
+    // 일반 흐름은 캔버스를 닫아 빈 결과 안내가 실제 오류를 덮지 않게 한다.
+    // 다만 앱 사용법의 분석 장면에서는 캔버스를 닫으면 로딩 직후 첫 화면으로
+    // 튕겨 보이므로, 좌우 레이아웃과 강조 버튼을 유지해 그 자리에서 재시도하게 한다.
     if (!result.success) {
       const message = result.error || t.analysisFailed;
       setAnalysisError(message);
-      setCanvasOpen(false);
+      setCanvasOpen(appTutorialOpen && appTutorialStep === 2);
       setLeftPanelTab('source');
       setConversation([{ role: 'assistant', content: message }]);
       return;
@@ -667,6 +717,93 @@ export default function Home({
       await analyzeForMode(mode);
     }
   };
+
+  const markAppTutorialSeen = () => {
+    try { localStorage.setItem(APP_TUTORIAL_SEEN_KEY, 'true'); } catch {}
+  };
+
+  const startAppUsageTutorial = () => {
+    setTutorialOpen(false);
+    setIsChatPopupOpen(false);
+    setLeftPanelTab('source');
+    setAppTutorialStep(0);
+    setAppTutorialBusy(false);
+    setAppTutorialAnalysisRequested(false);
+    setAppTutorialOpen(true);
+  };
+
+  const skipAppUsageTutorial = () => {
+    setAppTutorialOpen(false);
+    setAppTutorialStep(0);
+    setAppTutorialBusy(false);
+    setAppTutorialAnalysisRequested(false);
+  };
+
+  const finishAppUsageTutorial = () => {
+    if (!demoMode) markAppTutorialSeen();
+    setAppTutorialOpen(false);
+    setAppTutorialStep(0);
+    setAppTutorialBusy(false);
+    setAppTutorialAnalysisRequested(false);
+  };
+
+  const appTutorialTopicExample = demoSession?.topic || APP_TUTORIAL_PRESET.topic;
+  const appTutorialSourceExample = demoSession?.sourceText || APP_TUTORIAL_PRESET.sourceText;
+
+  // 자동 시연 컴포넌트가 전달한 부분 문자열을 그대로 반영한다. 값 없이 호출하면
+  // 장면을 빠르게 넘겼을 때도 완성된 시연 자료가 남도록 전체 예시를 사용한다.
+  const fillAppTutorialTopic = (animatedValue) => {
+    setTopic(typeof animatedValue === 'string' ? animatedValue : appTutorialTopicExample);
+  };
+
+  const fillAppTutorialSource = (animatedValue) => {
+    setSourceText(typeof animatedValue === 'string' ? animatedValue : appTutorialSourceExample);
+  };
+
+  const moveAppTutorialTo = async (nextStep) => {
+    if (nextStep < 0 || nextStep >= APP_TUTORIAL_SCENES.length) return;
+
+    setIsChatPopupOpen(false);
+    const nextMode = APP_TUTORIAL_MODE_BY_STEP[nextStep];
+    if (nextMode && activeMode !== nextMode) {
+      setAppTutorialBusy(true);
+      await handleTabClick(nextMode);
+      setAppTutorialBusy(false);
+    }
+    if (nextStep <= 2) setLeftPanelTab('source');
+    if (nextStep === 2) setAppTutorialAnalysisRequested(false);
+    setAppTutorialStep(nextStep);
+  };
+
+  const handleAppTutorialNext = () => {
+    if (appTutorialStep === APP_TUTORIAL_SCENES.length - 1) {
+      finishAppUsageTutorial();
+      return;
+    }
+    // 학생이 튜토리얼을 보기 위해 내용을 억지로 입력할 필요는 없다.
+    // 빈칸이면 다음 과정에 필요한 공개 시연 자료만 자동으로 채운다.
+    if (appTutorialStep === 0) fillAppTutorialTopic();
+    if (appTutorialStep === 1) fillAppTutorialSource();
+    moveAppTutorialTo(appTutorialStep + 1);
+  };
+  const handleAppTutorialPrev = () => moveAppTutorialTo(appTutorialStep - 1);
+
+  // 분석 버튼과 챗봇 열기는 튜토리얼 카드의 '다음'이 아니라 실제 강조 버튼을
+  // 눌러 진행한다. 결과/팝업이 준비된 뒤에만 다음 장면으로 옮긴다.
+  useEffect(() => {
+    if (!appTutorialOpen || appTutorialStep !== 2) return;
+    if (appTutorialAnalysisRequested && canvasOpen && loadingMode === null && hasModeResult('understand')) {
+      setAppTutorialStep(3);
+    }
+  }, [appTutorialOpen, appTutorialStep, appTutorialAnalysisRequested, canvasOpen, loadingMode, analysisByMode]);
+
+  useEffect(() => {
+    if (appTutorialOpen && appTutorialStep === 8 && isChatPopupOpen) {
+      setAppTutorialStep(9);
+    }
+  }, [appTutorialOpen, appTutorialStep, isChatPopupOpen]);
+
+  const appTutorialCanAdvance = true;
 
   // ── 도구 공통 핸들러 ──
   const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey, buildSystem, retryTag }) => {
@@ -917,8 +1054,9 @@ export default function Home({
   // 재오픈 버튼 표시 여부
   const hasAnyResult = hasAnyAnalysisResult(analysisByMode);
 
-  // 아직 분석을 시작하지 않은 진짜 첫 랜딩 상태 — 추천 원본자료 사이드바를 보여줄 시점
-  const showLanding = !canvasOpen && !hasAnyResult;
+  // 아직 분석을 시작하지 않은 진짜 첫 랜딩 상태 — 분석 오류가 있으면 캔버스는
+  // 닫더라도 입력 작업 화면을 유지해 자료를 잃은 듯한 첫 화면 복귀를 막는다.
+  const showLanding = !canvasOpen && !hasAnyResult && !analysisError;
 
   // 좌측 패널 제목 — 가장 최근 분석한 조사주제 기준 (입력 중인 topic이 바뀌어도 즉시 따라가지 않음)
   const leftPanelTitle = (language === 'ko' && lastAnalyzedTopic)
@@ -930,12 +1068,14 @@ export default function Home({
   const renderLeftPanelTabs = () => (
     <div style={styles.leftPanelTabs}>
       <button
+        data-testid="left-panel-tab-source"
         style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'source' ? styles.leftPanelTabActive : {}) }}
         onClick={() => setLeftPanelTab('source')}
       >
         {t.sourceTab}
       </button>
       <button
+        data-testid="left-panel-tab-easy"
         style={{ ...styles.leftPanelTab, ...(leftPanelTab === 'easy' ? styles.leftPanelTabActive : {}) }}
         onClick={() => setLeftPanelTab('easy')}
       >
@@ -974,6 +1114,14 @@ export default function Home({
 
   const renderHeaderActions = () => (
     <div style={styles.headerActions}>
+      <button
+        type="button"
+        data-testid="reopen-app-tutorial-button"
+        style={styles.tutorialHelpBtn}
+        onClick={startAppUsageTutorial}
+      >
+        {t.appTutorial.reopen}
+      </button>
       <button style={styles.goHomeBtn} onClick={handleGoHome}>
         {t.goHome}
       </button>
@@ -1102,19 +1250,21 @@ export default function Home({
 
               {/* 쉬운설명 — 오른쪽에서 탐구/발표/글쓰기 활동을 하는 동안 참고하는 패널 */}
               {leftPanelTab === 'easy' && (
-              <SectionCard
-                title={leftPanelTitle} icon="" isMobile={isMobile}
-                actions={renderHeaderActions()}
-              >
-                {renderSavedTopicChips()}
-                {renderLeftPanelTabs()}
-                <EasyExplanationPanel
-                  result={analysisByMode.understand}
-                  isMobile={isMobile}
-                  t={t}
-                  isLoading={loadingMode === 'understand'}
-                />
-              </SectionCard>
+              <div data-testid="tutorial-easy-explanation">
+                <SectionCard
+                  title={leftPanelTitle} icon="" isMobile={isMobile}
+                  actions={renderHeaderActions()}
+                >
+                  {renderSavedTopicChips()}
+                  {renderLeftPanelTabs()}
+                  <EasyExplanationPanel
+                    result={analysisByMode.understand}
+                    isMobile={isMobile}
+                    t={t}
+                    isLoading={loadingMode === 'understand'}
+                  />
+                </SectionCard>
+              </div>
               )}
 
               {/* 생각 워크시트 — 오른쪽 분석 결과를 가리지 않도록 왼쪽 패널(조사자료) 자리에 임베드 */}
@@ -1139,15 +1289,17 @@ export default function Home({
 
               {/* 함께 보면 좋은 영상 — 분석이 성공적으로 끝난 뒤에만 좌측 하단에 표시.
                   로딩 중·분석 실패 시에는 호출하지 않는다 (보조 기능). */}
-              {canvasOpen && hasAnyResult && !analysisError && loadingMode === null && (
+              {canvasOpen && hasAnyResult && !analysisError && loadingMode === null && (!appTutorialOpen || usingAppTutorialPreset) && (
                 <RecommendedVideos
                   topic={lastAnalyzedTopic || topic}
                   sourceText={sourceText}
                   gradeLevel={gradeLevel}
                   enabled={true}
-                  demoMode={demoMode}
+                  demoMode={demoMode || usingAppTutorialPreset}
                   submissionMode={SUBMISSION_MODE}
-                  demoVideos={demoSession?.recommendedVideos || []}
+                  demoVideos={usingAppTutorialPreset
+                    ? APP_TUTORIAL_PRESET.recommendedVideos
+                    : (demoSession?.recommendedVideos || [])}
                   allowEmbed={true}
                   t={t}
                   isMobile={isMobile}
@@ -1177,6 +1329,7 @@ export default function Home({
       updateNote={updateNote}
       saveStatus={saveStatus}
       handleShare={handleShare}
+      onShareTutorialComplete={appTutorialOpen && appTutorialStep === 10 ? finishAppUsageTutorial : undefined}
       isMobile={isMobile}
       onAskChatbotWithQuestion={handleAskChatbotWithQuestion}
       t={t}
@@ -1247,7 +1400,8 @@ export default function Home({
           />
         )}
 
-        {/* 5차 — 자료를 조사할 때 주의점 알아보기: 첫 접속 시에만 자동으로 뜨는 튜토리얼 */}
+        {/* 자료조사 방법 교육자료 — 일반 모드에서는 나침반에서 열고, 오프라인 시연에서는
+            기존 제출 흐름을 보존하기 위해 처음 한 번 자동으로 보여 준다. */}
         <ResearchTutorialQuest
           isOpen={tutorialOpen}
           step={tutorialStep}
@@ -1258,6 +1412,24 @@ export default function Home({
           onComplete={finishTutorial}
           onClose={handleTutorialSkip}
           isMobile={isMobile}
+        />
+
+        <AppUsageTutorial
+          isOpen={appTutorialOpen}
+          step={appTutorialStep}
+          canAdvance={appTutorialCanAdvance}
+          isBusy={appTutorialBusy}
+          onNext={handleAppTutorialNext}
+          onPrev={handleAppTutorialPrev}
+          onSkip={skipAppUsageTutorial}
+          onDontShowAgain={finishAppUsageTutorial}
+          onClose={skipAppUsageTutorial}
+          onFillTopic={fillAppTutorialTopic}
+          onFillSource={fillAppTutorialSource}
+          topicExample={appTutorialTopicExample}
+          sourceExample={appTutorialSourceExample}
+          isMobile={isMobile}
+          text={{ ...t.appTutorial, close: t.close }}
         />
 
         {/* 연구대회 심사용 시작화면 — 심사 모드에서만 기존 앱 위에 오버레이로 표시 */}
@@ -1488,18 +1660,23 @@ const styles = {
 
   leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
   leftPanelTabs: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4,
-    background: 'var(--color-bg)', border: '1px solid var(--color-border)',
-    borderRadius: 12, padding: 4, marginBottom: 18,
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+    background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)',
+    borderRadius: 16, padding: 7, marginBottom: 18,
   },
   leftPanelTab: {
-    border: 'none', background: 'transparent', color: 'var(--color-text-sub)',
-    borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
-    fontWeight: 800, fontSize: 12,
+    minHeight: 48, border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)', color: 'var(--color-text-sub)',
+    borderRadius: 12, padding: '11px 14px', cursor: 'pointer',
+    fontWeight: 900, fontSize: 15, lineHeight: 1.3,
+    boxShadow: '0 2px 7px rgba(var(--color-text-rgb),0.08)',
+    transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
   },
   leftPanelTabActive: {
-    background: 'var(--color-surface)', color: 'var(--color-primary-dark)',
-    boxShadow: '0 1px 4px rgba(var(--color-text-rgb),0.10)',
+    borderColor: 'var(--color-primary)',
+    background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-dark))',
+    color: 'var(--color-surface)',
+    boxShadow: '0 6px 16px rgba(var(--color-primary-rgb),0.3)',
   },
 
   formGroup: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
@@ -1586,6 +1763,12 @@ const styles = {
   },
 
   headerActions: { display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 },
+  tutorialHelpBtn: {
+    border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)',
+    background: 'rgba(var(--color-accent-teal-rgb),0.1)', color: 'var(--color-primary-dark)',
+    borderRadius: 9, padding: '7px 10px', fontSize: 12.5, fontWeight: 800,
+    whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
+  },
   goHomeBtn: {
     border: '1.5px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-sub)',
     fontSize: 12, fontWeight: 800, padding: '5px 12px', borderRadius: 20,

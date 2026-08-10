@@ -51,7 +51,7 @@ test.describe('뭐냐면 — 로딩 꿀팁 / 추천 영상', () => {
       await new Promise(resolve => setTimeout(resolve, 1500));
       await route.fulfill({ status: 200, contentType: 'text/event-stream', body: FAKE_SSE_BODY });
     });
-    await page.route('**/api/recommended-videos', (route) =>
+    await page.route('**/api/recommended-videos**', (route) =>
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videos: [] }) })
     );
 
@@ -71,9 +71,13 @@ test.describe('뭐냐면 — 로딩 꿀팁 / 추천 영상', () => {
     await page.route('**/api/chat', (route) =>
       route.fulfill({ status: 200, contentType: 'text/event-stream', body: FAKE_SSE_BODY })
     );
-    await page.route('**/api/recommended-videos', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FAKE_VIDEOS) })
-    );
+    let requestMethod = '';
+    let requestUrl = '';
+    await page.route('**/api/recommended-videos**', (route) => {
+      requestMethod = route.request().method();
+      requestUrl = route.request().url();
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(FAKE_VIDEOS) });
+    });
 
     await fillAndAnalyze(page);
     await expect(page.getByTestId('result-canvas')).toBeVisible();
@@ -83,6 +87,8 @@ test.describe('뭐냐면 — 로딩 꿀팁 / 추천 영상', () => {
     await expect(section).toContainText('함께 보면 좋은 영상');
     await expect(section).toContainText('고인돌을 쉽게 설명하는 영상');
     await expect(section).toContainText('문화유산 교육 채널');
+    expect(requestMethod).toBe('GET');
+    expect(requestUrl).toContain('v=5');
 
     // 카드는 새 탭으로 YouTube를 연다
     const firstCard = section.locator('a').first();
@@ -91,11 +97,11 @@ test.describe('뭐냐면 — 로딩 꿀팁 / 추천 영상', () => {
     await expect(firstCard).toHaveAttribute('href', /youtube\.com\/watch/);
   });
 
-  test('[videos-hidden] 추천 결과가 없으면 섹션 자체가 숨겨진다', async ({ page }) => {
+  test('[videos-fallback] 추천 결과가 없으면 안내 이미지가 보인다', async ({ page }) => {
     await page.route('**/api/chat', (route) =>
       route.fulfill({ status: 200, contentType: 'text/event-stream', body: FAKE_SSE_BODY })
     );
-    await page.route('**/api/recommended-videos', (route) =>
+    await page.route('**/api/recommended-videos**', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -106,9 +112,48 @@ test.describe('뭐냐면 — 로딩 꿀팁 / 추천 영상', () => {
     await fillAndAnalyze(page);
     await expect(page.getByTestId('result-canvas')).toBeVisible();
 
-    // 섹션이 나타나지 않아야 한다 (로딩 skeleton이 정리될 시간을 준 뒤 확인)
-    await page.waitForTimeout(500);
-    await expect(page.getByTestId('recommended-videos')).toHaveCount(0);
+    const fallback = page.getByTestId('recommended-videos-fallback');
+    await expect(fallback).toBeVisible();
+    const fallbackImage = fallback.locator('img');
+    await expect(fallbackImage).toHaveAttribute('src', '/images/youtube_not_found_nbg.webp');
+    await expect(fallbackImage).toHaveAttribute('alt', '관련 영상을 불러오지 못했어요.');
+    const imageBox = await fallbackImage.boundingBox();
+    expect(imageBox.width).toBeGreaterThanOrEqual(490);
+    expect(imageBox.width).toBeLessThanOrEqual(500);
+  });
+
+  test('[videos-429-cache] 검색 한도 초과 결과를 잠시 저장해 같은 주제의 연쇄 호출을 막는다', async ({ page }) => {
+    let videosCalled = 0;
+    await page.route('**/api/chat', (route) =>
+      route.fulfill({ status: 200, contentType: 'text/event-stream', body: FAKE_SSE_BODY })
+    );
+    await page.route('**/api/recommended-videos**', (route) => {
+      videosCalled += 1;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ videos: [], quotaLimited: true, retryAfterSeconds: 60 }),
+      });
+    });
+
+    await fillAndAnalyze(page);
+    await expect(page.getByTestId('result-canvas')).toBeVisible();
+    await expect.poll(() => videosCalled).toBe(1);
+
+    const cached = await page.evaluate(() => {
+      const key = 'mnm-recommended-videos:v5:강화 부근리 지석묘';
+      return JSON.parse(localStorage.getItem(key) || 'null');
+    });
+    expect(cached.videos).toEqual([]);
+    expect(cached.ttlMs).toBeGreaterThanOrEqual(30 * 60 * 1000);
+
+    // 처음 화면으로 돌아가 같은 주제를 다시 분석해도 빈 결과 캐시를 사용하므로
+    // YouTube API 프록시를 또 호출하지 않아야 한다.
+    await page.getByRole('button', { name: '처음으로' }).click();
+    await fillAndAnalyze(page);
+    await expect(page.getByTestId('result-canvas')).toBeVisible();
+    await page.waitForTimeout(300);
+    expect(videosCalled).toBe(1);
   });
 
   test('[analysis-fail-no-videos] 분석 실패 시 추천 영상 API를 호출하지 않는다', async ({ page }) => {
@@ -120,7 +165,7 @@ test.describe('뭐냐면 — 로딩 꿀팁 / 추천 영상', () => {
         body: JSON.stringify({ error: '입력 자료가 너무 깁니다. 조사자료를 짧게 줄여 주세요.' }),
       })
     );
-    await page.route('**/api/recommended-videos', (route) => {
+    await page.route('**/api/recommended-videos**', (route) => {
       videosCalled = true;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videos: [] }) });
     });
@@ -136,7 +181,7 @@ test.describe('뭐냐면 — 로딩 꿀팁 / 추천 영상', () => {
 test.describe('뭐냐면 — 오프라인 데모의 추천 영상', () => {
   test('[demo-no-api] 데모 모드에서는 YouTube API를 호출하지 않고 snapshot 영상만 쓴다', async ({ page }) => {
     let videosCalled = false;
-    await page.route('**/api/recommended-videos', (route) => {
+    await page.route('**/api/recommended-videos**', (route) => {
       videosCalled = true;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ videos: [] }) });
     });

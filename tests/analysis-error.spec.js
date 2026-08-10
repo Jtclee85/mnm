@@ -5,6 +5,7 @@ const { test, expect } = require('@playwright/test');
 // "아직 쉬운설명이 준비되지 않았어요" 같은 빈 결과 안내가 원인을 덮으면 안 된다.
 
 const SERVER_TOO_LONG_ERROR = '입력 자료가 너무 깁니다. 조사자료를 짧게 줄여 주세요.';
+const SERVER_RATE_LIMIT_ERROR = '지금 너무 많이 사용 중이에요. 잠시 후 다시 시도해 주세요.';
 const NORMAL_SOURCE =
   '강화 부근리 지석묘는 청동기 시대에 만들어진 고인돌로, 강화 지역의 대표적인 문화유산이다.';
 
@@ -45,6 +46,11 @@ test.describe('뭐냐면 — 분석 실패 원인 표시', () => {
     // 결과 캔버스는 열리지 않고, 빈 결과 안내도 보이지 않는다
     await expect(page.getByTestId('result-canvas')).toHaveCount(0);
     await expect(page.getByText('아직 쉬운설명이 준비되지 않았어요')).toHaveCount(0);
+
+    // 실패해도 추천자료/나침반이 있는 첫 랜딩으로 돌아가지 않고 입력 작업 화면을 유지한다
+    await expect(page.getByTestId('layout-grid')).toBeVisible();
+    await expect(page.getByTestId('topic-input')).toHaveValue('강화 부근리 지석묘');
+    await expect(page.getByTestId('source-textarea')).toHaveValue(NORMAL_SOURCE);
 
     // 400은 비스트리밍 fallback으로 해결되지 않으므로 재시도하지 않는다
     expect(chatOnceCalled).toBe(false);
@@ -91,6 +97,27 @@ test.describe('뭐냐면 — 분석 실패 원인 표시', () => {
     // 축약 안내가 입력 카드에 보인다
     await expect(page.getByTestId('analysis-notice')).toBeVisible();
     await expect(page.getByTestId('analysis-notice')).toContainText('자료가 길어서 핵심 내용 중심으로');
+  });
+
+  test('[analysis-429] 사용량 제한이 발생해도 첫 화면으로 돌아가지 않고 재시도할 수 있다', async ({ page }) => {
+    await page.route('**/api/chat', (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: SERVER_RATE_LIMIT_ERROR }),
+      })
+    );
+
+    await page.getByTestId('topic-input').fill('강화 부근리 지석묘');
+    await page.getByTestId('source-textarea').fill(NORMAL_SOURCE);
+    await page.getByTestId('analyze-button').click();
+
+    await expect(page.getByTestId('analysis-error')).toContainText(SERVER_RATE_LIMIT_ERROR);
+    await expect(page.getByTestId('layout-grid')).toBeVisible();
+    await expect(page.getByTestId('result-canvas')).toHaveCount(0);
+    await expect(page.getByTestId('analyze-button')).toBeVisible();
+    await expect(page.getByTestId('topic-input')).toHaveValue('강화 부근리 지석묘');
+    await expect(page.getByTestId('source-textarea')).toHaveValue(NORMAL_SOURCE);
   });
 
   test('[error-clears] 실패 후 자료를 줄여 다시 분석하면 에러가 사라지고 정상 분석된다', async ({ page }) => {
