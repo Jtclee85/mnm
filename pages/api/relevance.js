@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { getLanguageOption } from "../../lib/i18n";
+import { isDirectTopicQuestion } from "../../lib/chatRelevance";
 
 export const config = {
   runtime: 'edge',
@@ -56,6 +57,20 @@ export default async function handler(req) {
       JSON.stringify({
         relevant: false,
         reason: 'moderation_unavailable',
+        redirect: '',
+      }),
+      { status: 200, headers: jsonHeaders }
+    );
+  }
+
+  // 안전성 검사는 그대로 거친 뒤, 조사 주제의 구체적인 핵심어를 직접 묻는 질문은
+  // 확률적인 관련성 모델이 오판하지 않도록 즉시 허용한다. 아이돌·게임처럼 명백한
+  // 이탈 신호가 함께 있는 질문은 이 규칙에서 제외되어 아래 AI 판정을 계속 거친다.
+  if (isDirectTopicQuestion(trimmedTopic, trimmedUserText)) {
+    return new Response(
+      JSON.stringify({
+        relevant: true,
+        reason: 'direct_topic_keyword',
         redirect: '',
       }),
       { status: 200, headers: jsonHeaders }
