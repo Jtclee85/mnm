@@ -50,6 +50,24 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
       await expect(page.getByRole('button', { name: '다음' })).toHaveCount(0);
     });
 
+    test('교실 화면에서 큰 수업용 카드와 읽기 쉬운 글자로 표시된다', async ({ page }) => {
+      await page.goto('/');
+
+      const dialog = page.getByTestId('research-tutorial-dialog');
+      const dialogBox = await dialog.boundingBox();
+      expect(dialogBox.width).toBeGreaterThanOrEqual(850);
+      expect(dialogBox.height).toBeGreaterThanOrEqual(650);
+
+      const bodyFontSize = await page.getByTestId('tutorial-body').evaluate(
+        (element) => Number.parseFloat(getComputedStyle(element).fontSize)
+      );
+      const nextButtonFontSize = await page.getByRole('button', { name: '다음' }).evaluate(
+        (element) => Number.parseFloat(getComputedStyle(element).fontSize)
+      );
+      expect(bodyFontSize).toBeGreaterThanOrEqual(18);
+      expect(nextButtonFontSize).toBeGreaterThanOrEqual(17);
+    });
+
     test('이전 버튼으로 되돌아갈 수 있다', async ({ page }) => {
       await page.goto('/');
       await expect(page.getByRole('button', { name: '이전' })).toHaveCount(0);
@@ -175,6 +193,10 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
     test('모바일에서도 튜토리얼이 뜨고, 닫으면 나침반이 세로 스택 안에 보인다', async ({ page }) => {
       await page.goto('/');
       await expect(page.getByText(TUTORIAL_TITLE)).toBeVisible();
+
+      const tutorialBox = await page.getByTestId('research-tutorial-dialog').boundingBox();
+      expect(tutorialBox.x).toBeGreaterThanOrEqual(0);
+      expect(tutorialBox.x + tutorialBox.width).toBeLessThanOrEqual(390 + 1);
 
       await page.getByRole('button', { name: '다시 보지 않기' }).click();
       await expect(page.getByText(TUTORIAL_TITLE)).toHaveCount(0);

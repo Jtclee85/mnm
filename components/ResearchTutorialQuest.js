@@ -87,6 +87,7 @@ export default function ResearchTutorialQuest({ isOpen, step, onNext, onPrev, on
         role="dialog"
         aria-modal="true"
         aria-labelledby="rtq-title"
+        data-testid="research-tutorial-dialog"
         className={isMobile ? 'rtq-anim-mobile' : 'rtq-anim'}
         style={{ ...s.dialog, ...(isMobile ? s.dialogMobile : {}) }}
       >
@@ -123,7 +124,7 @@ export default function ResearchTutorialQuest({ isOpen, step, onNext, onPrev, on
               <h3 style={s.questTitle}>{quest.title}</h3>
             </div>
           </div>
-          <p style={s.questBody}>{quest.body}</p>
+          <p data-testid="tutorial-body" style={s.questBody}>{quest.body}</p>
 
           {quest.visual && (
             <div style={s.visualCard}>
@@ -154,7 +155,7 @@ export default function ResearchTutorialQuest({ isOpen, step, onNext, onPrev, on
             </div>
           )}
 
-          <p style={s.missionBox}>{quest.mission}</p>
+          <p data-testid="tutorial-mission" style={s.missionBox}>{quest.mission}</p>
         </div>
 
         <div style={s.footer}>
@@ -187,31 +188,39 @@ const s = {
   dialog: {
     position: 'fixed', zIndex: 1201,
     top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-    width: 'min(600px, calc(100vw - 24px))', maxHeight: '85vh', overflowY: 'auto',
-    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-    borderRadius: 20, boxShadow: '0 24px 60px rgba(var(--color-text-rgb),0.3)',
-    padding: '22px 26px 18px', display: 'flex', flexDirection: 'column', gap: 14,
+    width: 'min(920px, calc(100vw - 64px))', minHeight: 'min(700px, calc(100vh - 64px))',
+    maxHeight: 'calc(100vh - 48px)', overflowY: 'auto',
+    background: 'var(--color-surface)', border: '2px solid var(--color-border)',
+    borderRadius: 28, boxShadow: '0 28px 80px rgba(var(--color-text-rgb),0.32)',
+    boxSizing: 'border-box', padding: '32px 40px 26px',
+    display: 'flex', flexDirection: 'column', gap: 20,
   },
   dialogMobile: {
     top: 'auto', bottom: 0, left: 0, right: 0, transform: 'none',
-    width: '100%', maxHeight: '88vh', borderRadius: '20px 20px 0 0',
-    padding: '18px 20px 16px',
+    width: '100%', minHeight: 0, maxHeight: '92vh', borderRadius: '22px 22px 0 0',
+    borderWidth: '1px 1px 0', padding: '20px 20px 16px', gap: 14,
   },
-  header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
-  headerTitle: { fontSize: 17, fontWeight: 900, color: 'var(--color-primary-dark)' },
-  headerSub: { fontSize: 12.5, fontWeight: 700, color: 'var(--color-text-sub)', marginTop: 3 },
+  header: {
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16,
+    paddingBottom: 18, borderBottom: '1px solid var(--color-border)',
+  },
+  headerTitle: { fontSize: 23, lineHeight: 1.35, fontWeight: 900, color: 'var(--color-primary-dark)' },
+  headerSub: { fontSize: 16, lineHeight: 1.5, fontWeight: 700, color: 'var(--color-text-sub)', marginTop: 6 },
   closeBtn: {
     border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-sub)',
-    width: 30, height: 30, borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+    width: 42, height: 42, borderRadius: 12, fontSize: 18, fontWeight: 700, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, padding: 0,
   },
 
-  steps: { display: 'flex', alignItems: 'center', gap: 6 },
+  steps: {
+    display: 'flex', alignItems: 'center', gap: 10,
+    background: 'var(--color-surface-alt)', borderRadius: 16, padding: '10px 14px',
+  },
   stepChip: {
-    width: 24, height: 24, borderRadius: '50%',
+    width: 34, height: 34, borderRadius: '50%',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)',
-    color: 'var(--color-text-sub)', fontSize: 11.5, fontWeight: 800,
+    color: 'var(--color-text-sub)', fontSize: 15, fontWeight: 800, flexShrink: 0,
   },
   stepChipActive: {
     background: 'var(--color-primary)', border: '1px solid var(--color-primary)',
@@ -222,65 +231,68 @@ const s = {
     border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)',
     color: 'var(--color-primary-dark)',
   },
-  stepLabel: { marginLeft: 4, fontSize: 11.5, fontWeight: 700, color: 'var(--color-text-sub)' },
+  stepLabel: { marginLeft: 6, fontSize: 15, fontWeight: 800, color: 'var(--color-text-sub)' },
 
-  body: { display: 'flex', flexDirection: 'column', gap: 12 },
-  questHead: { display: 'flex', alignItems: 'center', gap: 12 },
-  questIcon: { fontSize: 38, lineHeight: 1, flexShrink: 0 },
-  questHeadText: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 },
+  body: { display: 'flex', flex: 1, flexDirection: 'column', gap: 16, padding: '4px 2px' },
+  questHead: { display: 'flex', alignItems: 'center', gap: 18 },
+  questIcon: { fontSize: 54, lineHeight: 1, flexShrink: 0 },
+  questHeadText: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 7 },
   keywordBadge: {
     border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)',
     background: 'rgba(var(--color-accent-teal-rgb),0.1)',
     color: 'var(--color-primary-dark)', borderRadius: 999,
-    padding: '2px 10px', fontSize: 12, fontWeight: 800,
+    padding: '4px 13px', fontSize: 15, fontWeight: 800,
   },
-  questTitle: { margin: 0, fontSize: 18, fontWeight: 900, color: 'var(--color-text)' },
-  questBody: { margin: 0, fontSize: 14.5, lineHeight: 1.75, color: 'var(--color-text-sub)', whiteSpace: 'pre-line' },
+  questTitle: { margin: 0, fontSize: 27, lineHeight: 1.35, fontWeight: 900, color: 'var(--color-text)' },
+  questBody: { margin: 0, fontSize: 18, lineHeight: 1.8, color: 'var(--color-text-sub)', whiteSpace: 'pre-line' },
 
   visualCard: {
     background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)',
-    borderRadius: 12, padding: '11px 14px',
-    display: 'flex', flexDirection: 'column', gap: 3,
+    borderRadius: 16, padding: '15px 18px',
+    display: 'flex', flexDirection: 'column', gap: 5,
   },
-  visualTitle: { margin: 0, fontSize: 12.5, fontWeight: 900, color: 'var(--color-primary-dark)' },
-  visualContent: { margin: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.6 },
+  visualTitle: { margin: 0, fontSize: 15.5, fontWeight: 900, color: 'var(--color-primary-dark)' },
+  visualContent: { margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.65 },
 
-  exampleBox: { display: 'flex', flexWrap: 'wrap', gap: 6 },
+  exampleBox: { display: 'flex', flexWrap: 'wrap', gap: 9 },
   examplePill: {
     border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)', background: 'rgba(var(--color-accent-teal-rgb),0.08)',
-    color: 'var(--color-primary-dark)', borderRadius: 999, padding: '5px 11px', fontSize: 12.5, fontWeight: 800,
+    color: 'var(--color-primary-dark)', borderRadius: 999, padding: '8px 14px', fontSize: 15.5, fontWeight: 800,
   },
-  checkRow: { display: 'flex', flexWrap: 'wrap', gap: 6 },
+  checkRow: { display: 'flex', flexWrap: 'wrap', gap: 9 },
   checkPill: {
     border: '1px solid var(--color-border)', background: 'var(--color-surface-alt)',
-    color: 'var(--color-text)', borderRadius: 8, padding: '5px 11px', fontSize: 13, fontWeight: 700,
+    color: 'var(--color-text)', borderRadius: 10, padding: '8px 14px', fontSize: 16, fontWeight: 700,
   },
   frameBox: {
     background: 'var(--color-surface-alt)', border: '1px dashed var(--color-border)',
-    borderRadius: 10, padding: '10px 14px',
+    borderRadius: 14, padding: '14px 18px',
   },
-  frameLine: { margin: '2px 0', fontSize: 13.5, color: 'var(--color-text-sub)', fontStyle: 'italic', lineHeight: 1.65 },
+  frameLine: { margin: '3px 0', fontSize: 17, color: 'var(--color-text-sub)', fontStyle: 'italic', lineHeight: 1.7 },
   missionBox: {
-    margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--color-text)',
+    margin: 0, fontSize: 17.5, fontWeight: 800, color: 'var(--color-text)',
     background: 'color-mix(in srgb, var(--color-gold) 18%, var(--color-surface))',
-    border: '1px solid rgba(var(--color-gold-rgb),0.55)', borderRadius: 10, padding: '10px 14px', lineHeight: 1.6,
+    border: '1px solid rgba(var(--color-gold-rgb),0.55)', borderRadius: 14, padding: '14px 18px', lineHeight: 1.65,
   },
-  footer: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 2 },
-  footerRight: { display: 'flex', gap: 8 },
+  footer: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    marginTop: 2, paddingTop: 18, borderTop: '1px solid var(--color-border)',
+  },
+  footerRight: { display: 'flex', gap: 10 },
   skipBtn: {
     border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text-sub)',
-    fontWeight: 700, fontSize: 13, padding: '10px 15px', borderRadius: 12, cursor: 'pointer',
+    fontWeight: 700, fontSize: 16, padding: '13px 19px', borderRadius: 13, cursor: 'pointer',
   },
   secondaryBtn: {
     border: '1px solid var(--color-border)', background: 'var(--color-surface)', color: 'var(--color-text)',
-    fontWeight: 800, fontSize: 13, padding: '10px 15px', borderRadius: 12, cursor: 'pointer',
+    fontWeight: 800, fontSize: 16, padding: '13px 19px', borderRadius: 13, cursor: 'pointer',
   },
   primaryBtn: {
     border: 'none', background: 'linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%)',
-    color: 'var(--color-surface)', fontWeight: 800, fontSize: 13, padding: '10px 18px', borderRadius: 12, cursor: 'pointer',
+    color: 'var(--color-surface)', fontWeight: 800, fontSize: 17, padding: '13px 24px', borderRadius: 13, cursor: 'pointer',
   },
   dontShowBtn: {
     alignSelf: 'center', border: 'none', background: 'transparent', color: 'var(--color-text-sub)',
-    fontSize: 12, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', padding: 5,
+    fontSize: 14, fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', padding: 6,
   },
 };
