@@ -27,6 +27,11 @@ import { LANGUAGE_OPTIONS, getLanguageReminder, getUiText } from '../lib/i18n';
 import { withSubjectParticle } from '../lib/koreanParticles';
 import { SUBMISSION_APP_URL } from '../lib/submissionMeta';
 import { APP_TUTORIAL_PRESET } from '../lib/appTutorialPreset';
+import {
+  OFFLINE_REVIEWER_CHAT_SAFETY_SCENE,
+  OFFLINE_REVIEWER_TUTORIAL_TEXT,
+  OFFLINE_REVIEWER_YOUTUBE_SCENE,
+} from '../lib/offlineReviewerTutorial';
 
 /** =========================
  *  메인
@@ -34,12 +39,19 @@ import { APP_TUTORIAL_PRESET } from '../lib/appTutorialPreset';
 
 const TUTORIAL_SEEN_KEY = 'mnmHistoryResearchTutorialSeen';
 const APP_TUTORIAL_SEEN_KEY = 'mnmAppUsageTutorialSeen';
-const APP_TUTORIAL_MODE_BY_STEP = {
-  4: 'understand',
-  5: 'inquiry',
-  6: 'presentation',
-  7: 'writing',
+const APP_TUTORIAL_MODE_BY_SCENE_ID = {
+  understand: 'understand',
+  inquiry: 'inquiry',
+  presentation: 'presentation',
+  writing: 'writing',
 };
+const OFFLINE_REVIEWER_TUTORIAL_SCENES = APP_TUTORIAL_SCENES.flatMap(scene => {
+  const reviewerScene = scene.chapter === 5 ? { ...scene, substepTotal: 3 } : scene;
+  const extraScenes = [];
+  if (scene.id === 'easyExplanation') extraScenes.push(OFFLINE_REVIEWER_YOUTUBE_SCENE);
+  if (scene.id === 'chatbotAsk') extraScenes.push(OFFLINE_REVIEWER_CHAT_SAFETY_SCENE);
+  return [reviewerScene, ...extraScenes];
+});
 
 // 연구대회 심사용 시작화면 — NEXT_PUBLIC_SUBMISSION_MODE=true일 때만 브라우저 세션당
 // 처음 한 번 표시한다. localStorage가 아닌 sessionStorage를 쓰는 이유: 심사자가
@@ -195,6 +207,10 @@ export default function Home({
   const [appTutorialStep, setAppTutorialStep] = useState(0);
   const [appTutorialBusy, setAppTutorialBusy] = useState(false);
   const [appTutorialAnalysisRequested, setAppTutorialAnalysisRequested] = useState(false);
+  const activeAppTutorialScenes = demoMode
+    ? OFFLINE_REVIEWER_TUTORIAL_SCENES
+    : APP_TUTORIAL_SCENES;
+  const activeAppTutorialScene = activeAppTutorialScenes[appTutorialStep];
 
   const openAppTutorialIfNeeded = useCallback(() => {
     // 오프라인 시연은 자료조사 교육자료를, 심사 모드는 전용 시작화면을 우선한다.
@@ -208,7 +224,11 @@ export default function Home({
 
   useEffect(() => {
     if (demoMode) {
-      setTutorialOpen(true);
+      // 오프라인 시연은 학생용 자료조사 교육 대신 같은 스포트라이트 구조의
+      // 심사위원용 기능 안내로 시작한다. 자료조사 교육은 나침반에서 다시 볼 수 있다.
+      setTutorialOpen(false);
+      setAppTutorialStep(0);
+      setAppTutorialOpen(true);
       return;
     }
     if (SUBMISSION_MODE) return;
@@ -629,24 +649,28 @@ export default function Home({
         : ''
     );
 
-    if (appTutorialOpen && appTutorialStep === 2) {
+    if (appTutorialOpen && activeAppTutorialScene?.id === 'analyze') {
       // 사용법 연습은 API 생성 품질을 확인하는 과정이 아니다. 강화 고인돌 오프라인
       // 결과를 즉시 넣어 사용량·네트워크 상태와 무관하게 네 모드를 끝까지 체험하게 한다.
+      const tutorialAnalysis = demoMode ? demoSnapshotAnalysis : APP_TUTORIAL_PRESET.analysisByMode;
       const tutorialResults = Object.fromEntries(
         Object.entries(INIT_BY_MODE()).map(([mode, emptyResult]) => [
           mode,
-          { ...emptyResult, ...(APP_TUTORIAL_PRESET.analysisByMode[mode] || {}) },
+          { ...emptyResult, ...(tutorialAnalysis[mode] || {}) },
         ])
       );
       setAppTutorialAnalysisRequested(true);
-      setLastAnalyzedTopic(APP_TUTORIAL_PRESET.topic);
+      setLastAnalyzedTopic(demoSession?.topic || APP_TUTORIAL_PRESET.topic);
       setUsingAppTutorialPreset(true);
       setActiveMode('understand');
       setLeftPanelTab('easy');
-      setConversation([{ role: 'assistant', content: t.initialMessage }]);
+      setConversation(demoMode
+        ? cleanConversation(demoSession?.conversation, t)
+        : [{ role: 'assistant', content: t.initialMessage }]);
       setAnalysisByMode(tutorialResults);
       setToolResults(EMPTY_TOOLS);
-      Object.entries(APP_TUTORIAL_PRESET.worksheetNotes).forEach(([field, value]) => updateNote(field, value));
+      const tutorialNotes = demoMode ? (demoSession?.notes || {}) : APP_TUTORIAL_PRESET.worksheetNotes;
+      Object.entries(tutorialNotes).forEach(([field, value]) => updateNote(field, value));
       setLoadingMode(null);
       setCanvasOpen(true);
       return;
@@ -700,7 +724,7 @@ export default function Home({
     if (!result.success) {
       const message = result.error || t.analysisFailed;
       setAnalysisError(message);
-      setCanvasOpen(appTutorialOpen && appTutorialStep === 2);
+      setCanvasOpen(appTutorialOpen && activeAppTutorialScene?.id === 'analyze');
       setLeftPanelTab('source');
       setConversation([{ role: 'assistant', content: message }]);
       return;
@@ -750,6 +774,11 @@ export default function Home({
   };
 
   const skipAppUsageTutorial = () => {
+    // 자동 타이핑 도중 시연을 닫아도 심사용 예시가 반쯤 입력된 채 남지 않게 한다.
+    if (demoMode) {
+      setTopic(demoSession?.topic || APP_TUTORIAL_PRESET.topic);
+      setSourceText(demoSession?.sourceText || APP_TUTORIAL_PRESET.sourceText);
+    }
     setAppTutorialOpen(false);
     setAppTutorialStep(0);
     setAppTutorialBusy(false);
@@ -778,29 +807,30 @@ export default function Home({
   };
 
   const moveAppTutorialTo = async (nextStep) => {
-    if (nextStep < 0 || nextStep >= APP_TUTORIAL_SCENES.length) return;
+    if (nextStep < 0 || nextStep >= activeAppTutorialScenes.length) return;
 
-    setIsChatPopupOpen(false);
-    const nextMode = APP_TUTORIAL_MODE_BY_STEP[nextStep];
+    const nextScene = activeAppTutorialScenes[nextStep];
+    setIsChatPopupOpen(['chatbotAsk', 'chatSafety'].includes(nextScene.id));
+    const nextMode = APP_TUTORIAL_MODE_BY_SCENE_ID[nextScene.id];
     if (nextMode && activeMode !== nextMode) {
       setAppTutorialBusy(true);
       await handleTabClick(nextMode);
       setAppTutorialBusy(false);
     }
-    if (nextStep <= 2) setLeftPanelTab('source');
-    if (nextStep === 2) setAppTutorialAnalysisRequested(false);
+    if (['topic', 'source', 'analyze'].includes(nextScene.id)) setLeftPanelTab('source');
+    if (nextScene.id === 'analyze') setAppTutorialAnalysisRequested(false);
     setAppTutorialStep(nextStep);
   };
 
   const handleAppTutorialNext = () => {
-    if (appTutorialStep === APP_TUTORIAL_SCENES.length - 1) {
+    if (appTutorialStep === activeAppTutorialScenes.length - 1) {
       finishAppUsageTutorial();
       return;
     }
     // 학생이 튜토리얼을 보기 위해 내용을 억지로 입력할 필요는 없다.
     // 빈칸이면 다음 과정에 필요한 공개 시연 자료만 자동으로 채운다.
-    if (appTutorialStep === 0) fillAppTutorialTopic();
-    if (appTutorialStep === 1) fillAppTutorialSource();
+    if (activeAppTutorialScene?.id === 'topic') fillAppTutorialTopic();
+    if (activeAppTutorialScene?.id === 'source') fillAppTutorialSource();
     moveAppTutorialTo(appTutorialStep + 1);
   };
   const handleAppTutorialPrev = () => moveAppTutorialTo(appTutorialStep - 1);
@@ -808,19 +838,22 @@ export default function Home({
   // 분석 버튼과 챗봇 열기는 튜토리얼 카드의 '다음'이 아니라 실제 강조 버튼을
   // 눌러 진행한다. 결과/팝업이 준비된 뒤에만 다음 장면으로 옮긴다.
   useEffect(() => {
-    if (!appTutorialOpen || appTutorialStep !== 2) return;
+    if (!appTutorialOpen || activeAppTutorialScene?.id !== 'analyze') return;
     if (appTutorialAnalysisRequested && canvasOpen && loadingMode === null && hasModeResult('understand')) {
-      setAppTutorialStep(3);
+      setAppTutorialStep(step => step + 1);
     }
-  }, [appTutorialOpen, appTutorialStep, appTutorialAnalysisRequested, canvasOpen, loadingMode, analysisByMode]);
+  }, [appTutorialOpen, activeAppTutorialScene?.id, appTutorialAnalysisRequested, canvasOpen, loadingMode, analysisByMode]);
 
   useEffect(() => {
-    if (appTutorialOpen && appTutorialStep === 8 && isChatPopupOpen) {
-      setAppTutorialStep(9);
+    if (appTutorialOpen && activeAppTutorialScene?.id === 'chatbotOpen' && isChatPopupOpen) {
+      setAppTutorialStep(step => step + 1);
     }
-  }, [appTutorialOpen, appTutorialStep, isChatPopupOpen]);
+  }, [appTutorialOpen, activeAppTutorialScene?.id, isChatPopupOpen]);
 
   const appTutorialCanAdvance = true;
+  const activeTutorialText = demoMode
+    ? OFFLINE_REVIEWER_TUTORIAL_TEXT
+    : { ...t.appTutorial, close: t.close };
 
   // ── 도구 공통 핸들러 ──
   const handleSpecialRequest = async ({ promptText, withHistory = false, onDone, toolKey, buildSystem, retryTag }) => {
@@ -1137,7 +1170,7 @@ export default function Home({
         style={styles.tutorialHelpBtn}
         onClick={startAppUsageTutorial}
       >
-        {t.appTutorial.reopen}
+        {activeTutorialText.reopen}
       </button>
       <button style={styles.goHomeBtn} onClick={handleGoHome}>
         {t.goHome}
@@ -1314,9 +1347,9 @@ export default function Home({
                   enabled={true}
                   demoMode={demoMode || usingAppTutorialPreset}
                   submissionMode={SUBMISSION_MODE}
-                  demoVideos={usingAppTutorialPreset
-                    ? APP_TUTORIAL_PRESET.recommendedVideos
-                    : (demoSession?.recommendedVideos || [])}
+                  demoVideos={demoMode
+                    ? (demoSession?.recommendedVideos || [])
+                    : (usingAppTutorialPreset ? APP_TUTORIAL_PRESET.recommendedVideos : [])}
                   allowEmbed={true}
                   t={t}
                   isMobile={isMobile}
@@ -1346,7 +1379,7 @@ export default function Home({
       updateNote={updateNote}
       saveStatus={saveStatus}
       handleShare={handleShare}
-      onShareTutorialComplete={appTutorialOpen && appTutorialStep === 10 ? finishAppUsageTutorial : undefined}
+      onShareTutorialComplete={appTutorialOpen && activeAppTutorialScene?.id === 'share' ? finishAppUsageTutorial : undefined}
       isMobile={isMobile}
       onAskChatbotWithQuestion={handleAskChatbotWithQuestion}
       t={t}
@@ -1373,8 +1406,8 @@ export default function Home({
       >
         <div style={styles.container}>
           {demoMode && (
-            <div style={styles.demoBadge}>
-              오프라인 시연 모드 · 저장된 예시 자료가 입력되어 있어요
+            <div style={styles.demoBadge} data-testid="offline-demo-badge">
+              {OFFLINE_REVIEWER_TUTORIAL_TEXT.badge}
             </div>
           )}
           {showLanding ? (
@@ -1421,8 +1454,8 @@ export default function Home({
           />
         )}
 
-        {/* 자료조사 방법 교육자료 — 첫 방문과 오프라인 시연에서 먼저 보여 주며,
-            일반 모드에서는 나침반으로 언제든 다시 열 수 있다. */}
+        {/* 자료조사 방법 교육자료 — 온라인 첫 방문에는 사용법보다 먼저 보여 주고,
+            오프라인 시연에서는 나침반으로 필요할 때 열 수 있다. */}
         <ResearchTutorialQuest
           isOpen={tutorialOpen}
           step={tutorialStep}
@@ -1450,7 +1483,9 @@ export default function Home({
           topicExample={appTutorialTopicExample}
           sourceExample={appTutorialSourceExample}
           isMobile={isMobile}
-          text={{ ...t.appTutorial, close: t.close }}
+          text={activeTutorialText}
+          scenes={activeAppTutorialScenes}
+          showDontShowAgain={!demoMode}
         />
 
         {/* 연구대회 심사용 시작화면 — 심사 모드에서만 기존 앱 위에 오버레이로 표시 */}

@@ -332,6 +332,22 @@ function verifyFileProtocolPaths() {
   if (rootHtml && !rootHtml.includes('href="./offline-demo/index.html"')) {
     problems.push('index.html의 오프라인 시연 링크가 ./offline-demo/index.html이 아닙니다.');
   }
+  const startPageLinks = rootHtml.match(/<a\b[^>]*>/g) || [];
+  if (rootHtml && startPageLinks.length !== 2) {
+    problems.push(`index.html의 실행 선택지는 2개여야 합니다. 현재: ${startPageLinks.length}개`);
+  }
+  for (const { label, matches } of [
+    { label: '사용법 소개 및 오프라인 시연 보기', matches: anchor => anchor.includes('href="./offline-demo/index.html"') },
+    { label: '온라인 프로그램 실행', matches: anchor => /href="https:\/\//.test(anchor) },
+  ]) {
+    const link = startPageLinks.find(matches);
+    if (!rootHtml.includes(`>${label}</a>`)) {
+      problems.push(`index.html에 '${label}' 선택지가 없습니다.`);
+    }
+    if (!link || !link.includes('target="_blank"') || !link.includes('rel="noopener noreferrer"')) {
+      problems.push(`index.html의 '${label}' 링크는 새 탭에서 안전하게 열려야 합니다.`);
+    }
+  }
   if (offlineHtml && !offlineHtml.includes('../_next/')) {
     problems.push('offline-demo/index.html에서 ../_next/ 리소스 경로를 찾을 수 없습니다.');
   }

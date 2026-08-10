@@ -31,7 +31,15 @@
       "pres_expectedQuestion": "종은 어떻게 쳤나요?",
       "pres_preparedAnswer": "종 옆에 매달린 나무 막대(당목)로 쳐서 소리를 냈다.",
       "pres_openingSentence": "여러분, 우리나라에서 가장 큰 종의 소리를 상상해 본 적 있나요?",
-      "pres_closingSentence": "천 년 넘게 이어져 온 소리처럼, 우리 문화유산을 오래 지켜 나가요."
+      "pres_closingSentence": "천 년 넘게 이어져 온 소리처럼, 우리 문화유산을 오래 지켜 나가요.",
+      "write_topicSentence": "성덕대왕신종은 신라 사람들의 뛰어난 기술과 마음이 담긴 소중한 문화유산이다.",
+      "write_support1": "성덕대왕신종은 우리나라에서 가장 큰 종이다.",
+      "write_support2": "경덕왕이 아버지를 생각하며 만들기 시작했다.",
+      "write_support3": "종소리가 맑고 오래 울리는 것으로 유명하다.",
+      "write_evidence": "자료에는 종의 높이가 3.66m이고 무게가 약 18.9톤이라고 나와 있다.",
+      "write_closingThought": "신라 사람들이 이렇게 큰 종을 만든 것이 대단하고 오래 지켜야겠다고 생각했다.",
+      "write_openingSentence": "박물관에는 천 년이 넘도록 전해진 아주 큰 종이 있다.",
+      "write_closingSentence": "성덕대왕신종의 소리와 이야기가 앞으로도 오래 이어지면 좋겠다."
     },
     "analysisByMode": {
       "understand": {

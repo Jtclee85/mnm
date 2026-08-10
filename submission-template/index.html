@@ -42,8 +42,9 @@
     .meta dt { font-size: 12px; font-weight: 800; color: var(--color-primary); }
     .meta dd { margin-top: 4px; font-size: 15px; font-weight: 700; line-height: 1.6; }
     .buttons { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 28px; }
-    .buttons a, .buttons button {
-      display: inline-block; text-decoration: none; cursor: pointer;
+    .buttons a {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 260px; text-decoration: none; cursor: pointer;
       font-size: 14px; font-weight: 800; padding: 14px 26px; border-radius: 14px;
       font-family: inherit;
     }
@@ -56,24 +57,10 @@
       border: 2px solid var(--color-primary); color: var(--color-primary-dark);
       background: rgba(26, 63, 168, 0.08);
     }
-    .btn-ghost {
-      border: 2px solid var(--color-border); color: var(--color-text-sub);
-      background: var(--color-surface);
-    }
-    #guide {
-      display: none; margin-top: 24px; padding: 20px 22px; text-align: left;
-      background: var(--color-surface-alt); border: 1px solid var(--color-border);
-      border-radius: 16px; font-size: 14px; line-height: 1.8;
-    }
-    #guide.open { display: block; }
-    #guide h2 { font-size: 14px; color: var(--color-primary-dark); margin-bottom: 8px; }
-    #guide ol { padding-left: 20px; margin-bottom: 12px; }
-    #guide ul { padding-left: 20px; }
-    .footnote { margin-top: 18px; font-size: 12px; color: var(--color-text-sub); }
     @media (max-width: 600px) {
       .card { padding: 36px 22px; }
       h1 { font-size: 40px; }
-      .buttons a, .buttons button { width: 100%; }
+      .buttons a { width: 100%; min-width: 0; }
     }
   </style>
 </head>
@@ -95,26 +82,9 @@
     </dl>
 
     <div class="buttons">
-      <a class="btn-primary" href="{{APP_URL}}" target="_blank" rel="noopener">온라인 프로그램 실행</a>
-      <a class="btn-secondary" href="./offline-demo/index.html">오프라인 시연 보기</a>
-      <a class="btn-ghost" href="./실행안내.txt">실행안내 보기</a>
+      <a class="btn-primary" href="./offline-demo/index.html" target="_blank" rel="noopener noreferrer">사용법 소개 및 오프라인 시연 보기</a>
+      <a class="btn-secondary" href="{{APP_URL}}" target="_blank" rel="noopener noreferrer">온라인 프로그램 실행</a>
     </div>
-
-    <section id="guide">
-      <h2>[실행 방법]</h2>
-      <ol>
-        <li>인터넷 연결이 가능하면 ‘온라인 프로그램 실행’을 선택합니다.</li>
-        <li>인터넷 연결이 어렵다면 ‘오프라인 시연 보기’를 선택합니다.</li>
-        <li>실제 AI 분석 기능은 온라인 프로그램 실행 환경에서 작동합니다.</li>
-        <li>오프라인 시연은 프로그램의 학습 흐름을 보여주기 위한 예시 화면입니다.</li>
-      </ol>
-      <h2>[주의 사항]</h2>
-      <ul>
-        <li>실제 API 키나 개인정보는 제출 폴더에 포함되어 있지 않습니다.</li>
-      </ul>
-    </section>
-
-    <p class="footnote">자세한 내용은 같은 폴더의 ‘실행안내.txt’를 참고하세요.</p>
   </main>
 </body>
 </html>

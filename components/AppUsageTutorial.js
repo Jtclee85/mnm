@@ -55,13 +55,15 @@ export default function AppUsageTutorial({
   sourceExample,
   isMobile,
   text,
+  scenes = APP_TUTORIAL_SCENES,
+  showDontShowAgain = true,
 }) {
   const [targetRect, setTargetRect] = useState(null);
   const [isTypingTopic, setIsTypingTopic] = useState(false);
   const [isPastingSource, setIsPastingSource] = useState(false);
   const animationHandlersRef = useRef({ onFillTopic, onFillSource });
   animationHandlersRef.current = { onFillTopic, onFillSource };
-  const scene = APP_TUTORIAL_SCENES[step];
+  const scene = scenes[step];
 
   // 제목은 실제 입력처럼 한 글자씩 보여주고, 조사자료는 Ctrl+V 키를 누른 뒤
   // 한 번에 붙여넣는다. 콜백은 ref로 읽어 부모 재렌더링 때 애니메이션이 재시작되지 않게 한다.
@@ -190,11 +192,12 @@ export default function AppUsageTutorial({
   if (!isOpen || !scene) return null;
 
   const content = text.scenes[scene.contentKey];
-  const isLast = step === APP_TUTORIAL_SCENES.length - 1;
+  const isLast = step === scenes.length - 1;
+  const substepTotal = scene.substepTotal || (scene.chapter === 4 ? 4 : 2);
   const modeProgress = scene.chapter === 4 && scene.substep
-    ? `${text.modeLabel} ${scene.substep} / 4`
-    : scene.chapter === 5
-      ? `${text.substepLabel} ${scene.substep} / 2`
+    ? `${text.modeLabel} ${scene.substep} / ${substepTotal}`
+    : scene.chapter === 5 && scene.substep
+      ? `${text.substepLabel} ${scene.substep} / ${substepTotal}`
       : null;
 
   return (
@@ -304,7 +307,9 @@ export default function AppUsageTutorial({
           </div>
         </div>
 
-        <button type="button" onClick={onDontShowAgain} style={s.dontShowBtn}>{text.dontShowAgain}</button>
+        {showDontShowAgain && (
+          <button type="button" onClick={onDontShowAgain} style={s.dontShowBtn}>{text.dontShowAgain}</button>
+        )}
       </section>
     </div>
   );

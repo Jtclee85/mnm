@@ -189,9 +189,9 @@ test.describe('뭐냐면 — 오프라인 데모의 추천 영상', () => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/offline-demo');
 
-    // 튜토리얼이 실제로 뜬 뒤에 Escape로 닫아야 한다 — 뜨기 전에 누르면
+    // 심사위원 기능 안내가 실제로 뜬 뒤에 Escape로 닫아야 한다 — 뜨기 전에 누르면
     // 이후 나타난 오버레이가 analyze-button 클릭을 가로막아 타임아웃이 난다.
-    await expect(page.getByText('자료를 조사할 때 주의점 알아보기')).toBeVisible();
+    await expect(page.getByTestId('app-tutorial-coach')).toContainText('심사위원 기능 안내');
     await page.keyboard.press('Escape');
 
     await page.getByTestId('analyze-button').click();
@@ -205,7 +205,7 @@ test.describe('뭐냐면 — 오프라인 데모의 추천 영상', () => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/offline-demo');
 
-    await expect(page.getByText('자료를 조사할 때 주의점 알아보기')).toBeVisible();
+    await expect(page.getByTestId('app-tutorial-coach')).toContainText('심사위원 기능 안내');
     await page.keyboard.press('Escape');
 
     await page.getByTestId('analyze-button').click();
