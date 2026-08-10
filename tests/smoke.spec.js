@@ -253,4 +253,29 @@ test.describe('뭐냐면 — desktop-1920 기준 스모크 테스트', () => {
     // 왼쪽 패널에는 더 이상 상시 채팅창이 없다
     await expect(page.getByTestId('followup-chat-section')).toHaveCount(0);
   });
+
+  test('[desktop-1920] 채팅을 보내면 관련성 검사보다 먼저 로딩 표시가 보인다', async ({ page }) => {
+    await runAnalysis(page);
+
+    let releaseRelevance;
+    await page.route('**/api/relevance', async (route) => {
+      await new Promise(resolve => { releaseRelevance = resolve; });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ relevant: true, redirect: '' }),
+      });
+    });
+
+    await page.getByTestId('chatbot-toggle-button').click();
+    await page.getByTestId('chatbot-input').fill('훈민정음은 왜 만들었나요?');
+    await page.getByTestId('chatbot-send-button').click();
+
+    await expect.poll(() => typeof releaseRelevance).toBe('function');
+    await expect(page.getByTestId('chatbot-popup')).toContainText('훈민정음은 왜 만들었나요?');
+    await expect(page.getByTestId('chatbot-loading-indicator')).toBeVisible();
+
+    releaseRelevance();
+    await expect(page.getByTestId('chatbot-loading-indicator')).toHaveCount(0);
+  });
 });

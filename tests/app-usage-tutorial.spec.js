@@ -1,10 +1,16 @@
 const { test, expect } = require('@playwright/test');
 
+const RESEARCH_TUTORIAL_SEEN_KEY = 'mnmHistoryResearchTutorialSeen';
 const APP_TUTORIAL_SEEN_KEY = 'mnmAppUsageTutorialSeen';
+
+async function markResearchTutorialSeen(page) {
+  await page.addInitScript((key) => localStorage.setItem(key, 'true'), RESEARCH_TUTORIAL_SEEN_KEY);
+}
+
 test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리얼', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('첫 방문에 앱 사용법만 열리고 강조된 요소를 직접 조작해 6과정을 완료한다', async ({ page, context }) => {
+  test('첫 방문에는 자료조사 튜토리얼을 먼저 완료한 뒤 앱 사용법 6과정을 진행한다', async ({ page, context }) => {
     let tutorialApiCalls = 0;
     await page.route('**/api/chat', (route) => { tutorialApiCalls += 1; return route.abort(); });
     await page.route('**/api/chat-once', (route) => { tutorialApiCalls += 1; return route.abort(); });
@@ -13,11 +19,22 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
     await page.goto('/');
 
     const tutorial = page.getByTestId('app-usage-tutorial');
+    const researchTutorial = page.getByTestId('research-tutorial-dialog');
+    await expect(researchTutorial).toBeVisible();
+    await expect(tutorial).toHaveCount(0);
+    await expect(page.getByText('Step 1 / 5')).toBeVisible();
+
+    for (let step = 2; step <= 5; step++) {
+      await page.getByRole('button', { name: '다음' }).click();
+      await expect(page.getByText(`Step ${step} / 5`)).toBeVisible();
+    }
+    await page.getByRole('button', { name: '조사 시작하기' }).click();
+    await expect(researchTutorial).toHaveCount(0);
+
     await expect(page.getByTestId('app-tutorial-typing-caret')).toBeVisible();
     await expect(page.getByTestId('app-tutorial-coach')).toBeVisible();
     await expect(page.getByText('과정 1 / 6')).toBeVisible();
     await expect(page.getByText('1. 조사 제목 입력하기')).toBeVisible();
-    await expect(page.getByText('자료를 조사할 때 주의점 알아보기')).toHaveCount(0);
     await expect(page.getByTestId('app-tutorial-spotlight')).toBeVisible();
     await expect(tutorial.getByRole('button', { name: '대신 입력해주세요' })).toHaveCount(0);
     await expect(page.getByTestId('topic-input')).toHaveValue('강화 고인돌');
@@ -105,7 +122,20 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
     expect(tutorialApiCalls).toBe(0);
   });
 
+  test('자료조사 튜토리얼을 건너뛰어도 앱 사용법이 이어서 열린다', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('research-tutorial-dialog')).toBeVisible();
+
+    await page.getByRole('button', { name: '건너뛰기' }).click();
+
+    await expect(page.getByTestId('research-tutorial-dialog')).toHaveCount(0);
+    // 루트는 고정 배치 자식만 가져 자체 박스가 없으므로 실제 안내 카드로 노출을 확인한다.
+    await expect(page.getByTestId('app-tutorial-coach')).toBeVisible();
+    await expect(page.getByText('과정 1 / 6')).toBeVisible();
+  });
+
   test('나중에 보기로 닫으면 헤더의 사용법 버튼으로 다시 열 수 있다', async ({ page }) => {
+    await markResearchTutorialSeen(page);
     await page.goto('/');
     await page.getByRole('button', { name: '나중에 보기' }).click();
     await expect(page.getByTestId('app-usage-tutorial')).toHaveCount(0);
@@ -116,6 +146,7 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
   });
 
   test('다시 보지 않기는 완료 기록을 저장한다', async ({ page }) => {
+    await markResearchTutorialSeen(page);
     await page.goto('/');
     await page.getByRole('button', { name: '다시 보지 않기' }).click();
     await expect(page.getByTestId('app-usage-tutorial')).toHaveCount(0);
@@ -124,6 +155,7 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
   });
 
   test('API 사용량 제한과 무관하게 오프라인 결과로 분석 과정을 진행한다', async ({ page }) => {
+    await markResearchTutorialSeen(page);
     let chatApiCalls = 0;
     await page.route('**/api/chat', (route) => {
       chatApiCalls += 1;
@@ -157,6 +189,7 @@ test.describe('뭐냐면 — 모바일 앱 사용법 튜토리얼', () => {
   test.use({ viewport: { width: 390, height: 844 }, storageState: { cookies: [], origins: [] } });
 
   test('강조 영역과 안내 카드가 모바일 화면 밖으로 넘치지 않는다', async ({ page }) => {
+    await markResearchTutorialSeen(page);
     await page.goto('/');
     const coach = page.getByTestId('app-tutorial-coach');
     const coachBox = await coach.boundingBox();

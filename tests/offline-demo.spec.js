@@ -37,7 +37,7 @@ test.describe('뭐냐면 — 오프라인 데모', () => {
 
     await page.getByTestId('analyze-button').click();
     await expect(page.getByTestId('result-canvas')).toBeVisible();
-    await expect(page.getByTestId('mode-tab-presentation')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByTestId('mode-tab-understand')).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByText('조사 원본자료')).toBeVisible();
     await expect(page.getByText('쉬운설명')).toBeVisible();
     await expect(page.getByTestId('share-artifact-button')).toBeVisible();

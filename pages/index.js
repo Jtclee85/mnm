@@ -196,15 +196,8 @@ export default function Home({
   const [appTutorialBusy, setAppTutorialBusy] = useState(false);
   const [appTutorialAnalysisRequested, setAppTutorialAnalysisRequested] = useState(false);
 
-  useEffect(() => {
-    if (demoMode) {
-      setTutorialOpen(true);
-    }
-  }, [demoMode]);
-
-  useEffect(() => {
-    // 오프라인 시연은 기존 자료조사 교육자료를, 심사 모드는 전용 시작화면을 먼저
-    // 보여 준다. 앱 사용법은 두 모드에서도 헤더 버튼으로 언제든 다시 열 수 있다.
+  const openAppTutorialIfNeeded = useCallback(() => {
+    // 오프라인 시연은 자료조사 교육자료를, 심사 모드는 전용 시작화면을 우선한다.
     if (demoMode || SUBMISSION_MODE) return;
     try {
       if (localStorage.getItem(APP_TUTORIAL_SEEN_KEY) !== 'true') setAppTutorialOpen(true);
@@ -212,6 +205,28 @@ export default function Home({
       setAppTutorialOpen(true);
     }
   }, [demoMode]);
+
+  useEffect(() => {
+    if (demoMode) {
+      setTutorialOpen(true);
+      return;
+    }
+    if (SUBMISSION_MODE) return;
+
+    // 첫 방문에는 학습의 전제가 되는 자료조사 방법을 먼저 보여 준다. 두 교육자료를
+    // 동시에 열지 않고, 자료조사 튜토리얼을 닫은 뒤에만 앱 사용법을 이어서 연다.
+    try {
+      if (localStorage.getItem(TUTORIAL_SEEN_KEY) !== 'true') {
+        setAppTutorialOpen(false);
+        setTutorialOpen(true);
+        return;
+      }
+      openAppTutorialIfNeeded();
+    } catch {
+      setAppTutorialOpen(false);
+      setTutorialOpen(true);
+    }
+  }, [demoMode, openAppTutorialIfNeeded]);
 
   // 심사용 시작화면 — SSR/hydration 불일치를 막기 위해 마운트 후에만 판단한다.
   // /?submissionStart=1 쿼리로 sessionStorage와 무관하게 강제 표시할 수 있다.
@@ -258,6 +273,7 @@ export default function Home({
   const handleTutorialSkip = () => {
     setTutorialOpen(false);
     setTutorialStep(0);
+    openAppTutorialIfNeeded();
   };
 
   // 다시 보지 않기 / 완료: seen을 저장해 다음 접속부터 자동으로 뜨지 않게 한다.
@@ -265,6 +281,7 @@ export default function Home({
     if (!demoMode) markTutorialSeen();
     setTutorialOpen(false);
     setTutorialStep(0);
+    openAppTutorialIfNeeded();
   };
 
   const isBusy = loadingMode !== null || isAnalyzing;
@@ -1372,7 +1389,11 @@ export default function Home({
                   입력 폼이 정가운데에 오도록 좌우 대칭을 맞춘다. */}
               <ResearchCompass
                 isMobile={isMobile}
-                onReopenTutorial={() => { setTutorialStep(0); setTutorialOpen(true); }}
+                onReopenTutorial={() => {
+                  setAppTutorialOpen(false);
+                  setTutorialStep(0);
+                  setTutorialOpen(true);
+                }}
               />
             </div>
           ) : (
@@ -1400,8 +1421,8 @@ export default function Home({
           />
         )}
 
-        {/* 자료조사 방법 교육자료 — 일반 모드에서는 나침반에서 열고, 오프라인 시연에서는
-            기존 제출 흐름을 보존하기 위해 처음 한 번 자동으로 보여 준다. */}
+        {/* 자료조사 방법 교육자료 — 첫 방문과 오프라인 시연에서 먼저 보여 주며,
+            일반 모드에서는 나침반으로 언제든 다시 열 수 있다. */}
         <ResearchTutorialQuest
           isOpen={tutorialOpen}
           step={tutorialStep}

@@ -13,6 +13,13 @@ const POPUP_CSS = `
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+  @keyframes chatbot-loading-dot {
+    0%, 80%, 100% { opacity: 0.35; transform: translateY(0); }
+    40% { opacity: 1; transform: translateY(-3px); }
+  }
+  .chatbot-loading-dot { animation: chatbot-loading-dot 1s ease-in-out infinite; }
+  .chatbot-loading-dot:nth-child(2) { animation-delay: 0.14s; }
+  .chatbot-loading-dot:nth-child(3) { animation-delay: 0.28s; }
   .chatbot-fab:hover {
     transform: translateY(-3px);
     box-shadow: 0 14px 32px rgba(var(--color-primary-rgb),0.35);
@@ -48,7 +55,7 @@ const POPUP_CSS = `
     transform: translateY(0);
   }
   @media (prefers-reduced-motion: reduce) {
-    .chatbot-anim { animation: none !important; transition: none !important; }
+    .chatbot-anim, .chatbot-loading-dot { animation: none !important; transition: none !important; }
     .chatbot-fab:hover, .chatbot-fab:active { transform: none !important; }
   }
 `;
@@ -92,7 +99,7 @@ export default function FloatingChatbot({
   useEffect(() => {
     const el = bodyRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [conversation, isOpen]);
+  }, [conversation, isOpen, isChatLoading]);
 
   useEffect(() => {
     if (isOpen && !isChatLoading && inputRef.current) {
@@ -136,6 +143,23 @@ export default function FloatingChatbot({
             isMobile={isMobile}
           />
         ))}
+        {isChatLoading && (
+          <div
+            data-testid="chatbot-loading-indicator"
+            role="status"
+            aria-live="polite"
+            style={s.loadingRow}
+          >
+            <div style={{ ...s.loadingBubble, ...(isMobile ? s.loadingBubbleMobile : {}) }}>
+              <span aria-hidden="true" style={s.loadingDots}>
+                <span className="chatbot-loading-dot" style={s.loadingDot} />
+                <span className="chatbot-loading-dot" style={s.loadingDot} />
+                <span className="chatbot-loading-dot" style={s.loadingDot} />
+              </span>
+              <span>{t.sending}</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={s.inputRow}>
@@ -313,6 +337,20 @@ const s = {
 
   body: { flex: 1, overflowY: 'auto', padding: 14, background: 'var(--color-bg)' },
   bodyMobile: { padding: 10 },
+  loadingRow: { display: 'flex', justifyContent: 'flex-start', marginBottom: 10 },
+  loadingBubble: {
+    display: 'inline-flex', alignItems: 'center', gap: 9,
+    border: '1px solid var(--color-border)', borderRadius: 16,
+    padding: '11px 14px', background: 'var(--color-surface)',
+    color: 'var(--color-text-sub)', fontSize: 14, fontWeight: 800,
+    boxShadow: '0 6px 18px rgba(var(--color-text-rgb),0.06)',
+  },
+  loadingBubbleMobile: { padding: '10px 12px', fontSize: 13 },
+  loadingDots: { display: 'inline-flex', alignItems: 'center', gap: 3 },
+  loadingDot: {
+    display: 'block', width: 6, height: 6, borderRadius: 999,
+    background: 'var(--color-primary)',
+  },
 
   inputRow: {
     display: 'flex', flexDirection: 'column', gap: 8,

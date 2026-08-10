@@ -27,14 +27,16 @@ async function runAnalysis(page) {
 
 test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 주의점 알아보기 (5차)', () => {
   test.describe('자료를 조사할 때 주의점 알아보기 — 교육자료 튜토리얼', () => {
-    // 첫 방문 자동 안내는 앱 사용법이 맡는다. 이 블록에서는 앱 사용법만 완료 상태로 두고
-    // 나침반의 교육자료 다시 보기 버튼으로 기존 5단계 콘텐츠를 검증한다.
+    // 자동 온보딩과 별개로 나침반의 다시 보기 동작을 검증하므로 두 튜토리얼을 완료 상태로 둔다.
     test.use({
       storageState: {
         cookies: [],
         origins: [{
           origin: 'http://localhost:3000',
-          localStorage: [{ name: APP_TUTORIAL_SEEN_KEY, value: 'true' }],
+          localStorage: [
+            { name: TUTORIAL_SEEN_KEY, value: 'true' },
+            { name: APP_TUTORIAL_SEEN_KEY, value: 'true' },
+          ],
         }],
       },
     });
@@ -212,7 +214,10 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
         cookies: [],
         origins: [{
           origin: 'http://localhost:3000',
-          localStorage: [{ name: APP_TUTORIAL_SEEN_KEY, value: 'true' }],
+          localStorage: [
+            { name: TUTORIAL_SEEN_KEY, value: 'true' },
+            { name: APP_TUTORIAL_SEEN_KEY, value: 'true' },
+          ],
         }],
       },
     });
