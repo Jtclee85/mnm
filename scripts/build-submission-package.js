@@ -31,6 +31,8 @@ const MASCOT_CANDIDATES = [
   path.join(ROOT, 'public', 'images', 'chatbot-mascot.png'),
 ];
 const MASCOT_OUT = path.join(OUTPUT_DIR, 'assets', 'chatbot-mascot.png');
+const YOUTUBE_FALLBACK_SRC = path.join(ROOT, 'public', 'images', 'youtube_not_found_nbg.webp');
+const YOUTUBE_FALLBACK_OUT = path.join(OUTPUT_DIR, 'images', 'youtube_not_found_nbg.webp');
 
 // ── 1. lib/submissionMeta.js 읽기 ──
 // ESM(export const) 파일이므로 CJS require 대신 export 키워드를 제거한 뒤 평가한다.
@@ -151,7 +153,7 @@ function rewriteHtmlAssetPaths(htmlPath, depth) {
     .replace(/\s+crossorigin(?:="")?/g, '');
 
   html = html.replace(
-    /\b(src|href)=("|')\/(_next|assets|offline-demo|share)\//g,
+    /\b(src|href)=("|')\/(_next|assets|images|offline-demo|share)\//g,
     (_match, attr, quote, dir) => `${attr}=${quote}${prefix}${dir}/`
   );
 
@@ -179,7 +181,10 @@ function rewriteSharedNextAssets() {
           .replaceAll('`/_next/', '`../_next/')
           .replaceAll('"/assets/', '"../assets/')
           .replaceAll("'\/assets/", "'../assets/")
-          .replaceAll('`/assets/', '`../assets/');
+          .replaceAll('`/assets/', '`../assets/')
+          .replaceAll('"/images/', '"../images/')
+          .replaceAll("'/images/", "'../images/")
+          .replaceAll('`/images/', '`../images/');
       }
       if (path.extname(entry.name) === '.css') {
         content = content.replace(/url\((["']?)\/_next\/static\/media\//g, 'url($1../media/');
@@ -208,6 +213,15 @@ function copyMascot() {
   if (!found) return false;
   fs.mkdirSync(path.dirname(MASCOT_OUT), { recursive: true });
   fs.copyFileSync(found, MASCOT_OUT);
+  return true;
+}
+
+// 추천 영상을 찾지 못했을 때 보여 주는 자체 제작 이미지는 public 경로를 쓰므로,
+// file://에서도 열리도록 제출물 루트에 별도로 복사한다.
+function copyYoutubeFallbackImage() {
+  if (!fs.existsSync(YOUTUBE_FALLBACK_SRC)) return false;
+  fs.mkdirSync(path.dirname(YOUTUBE_FALLBACK_OUT), { recursive: true });
+  fs.copyFileSync(YOUTUBE_FALLBACK_SRC, YOUTUBE_FALLBACK_OUT);
   return true;
 }
 
@@ -297,7 +311,7 @@ function verifyFileProtocolPaths() {
     { rel: path.join('offline-demo', 'index.html'), depth: 1 },
     { rel: path.join('share', 'index.html'), depth: 1 },
   ];
-  const absoluteAssetAttr = /\b(?:src|href)=["']\/(?:_next|assets|offline-demo|share)\//;
+  const absoluteAssetAttr = /\b(?:src|href)=["']\/(?:_next|assets|images|offline-demo|share)\//;
 
   for (const { rel } of htmlTargets) {
     const fullPath = path.join(OUTPUT_DIR, rel);
@@ -326,6 +340,9 @@ function verifyFileProtocolPaths() {
   }
   if (!fs.existsSync(NEXT_OUTPUT_DIR)) {
     problems.push('dist-submission/_next 폴더가 없습니다.');
+  }
+  if (!fs.existsSync(YOUTUBE_FALLBACK_OUT)) {
+    problems.push('추천 영상 대체 이미지가 없습니다: dist-submission/images/youtube_not_found_nbg.webp');
   }
   for (const nested of [
     path.join(OFFLINE_OUTPUT_DIR, '_next'),
@@ -356,6 +373,7 @@ function main() {
   copySubmissionShell(meta);
   const usedRealSnapshot = buildOfflineDemo();
   const mascotCopied = copyMascot();
+  const youtubeFallbackCopied = copyYoutubeFallbackImage();
 
   const problems = verifyOutput();
   if (problems.length > 0) {
@@ -375,6 +393,7 @@ function main() {
   console.log('  - share/index.html');
   console.log(`  - _next/static/* ${usedRealSnapshot ? '(실제 세션 스냅샷 기반)' : '(예시 스냅샷 기반)'}`);
   if (mascotCopied) console.log('  - assets/chatbot-mascot.png');
+  if (youtubeFallbackCopied) console.log('  - images/youtube_not_found_nbg.webp');
   console.log('\n다음 단계: dist-submission/ 폴더를 USB에 복사하세요.');
   console.log('USB의 program/ 폴더 안에 dist-submission/ 내용물을 복사한 뒤 index.html을 실행하세요.');
 }
