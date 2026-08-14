@@ -142,7 +142,8 @@ export function buildVideoSearchQueries(topic, sourceText = '') {
   const text = `${topic || ''} ${sourceText || ''}`;
   const queries = [];
 
-  const hasDolmen = /고인돌|지석묘|선사|청동기|세계문화유산|강화/.test(text);
+  // 강화는 지명이고 세계문화유산은 범위가 넓으므로, 둘만으로 고인돌 주제로 단정하지 않는다.
+  const hasDolmen = /고인돌|지석묘|선사|청동기/.test(text);
 
   if (hasDolmen) {
     queries.push('고인돌');
