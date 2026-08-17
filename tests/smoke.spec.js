@@ -72,6 +72,8 @@ test.describe('뭐냐면 — desktop-1920 기준 스모크 테스트', () => {
 
   test('[desktop-1920] 앱 제목이 보인다', async ({ page }) => {
     await expect(page.getByRole('heading', { name: '뭐냐면' })).toBeVisible();
+    await expect(page.getByText('역사 조사학습 AI 코스웨어', { exact: true })).toBeVisible();
+    await expect(page.getByText('역사자료를 좀더 쉽게 읽고 깊이 탐구하기', { exact: true })).toBeVisible();
   });
 
   test('[desktop-1920] 조사 주제 입력창에 입력할 수 있다', async ({ page }) => {
