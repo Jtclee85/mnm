@@ -32,7 +32,8 @@
       box-shadow: 0 18px 48px rgba(31, 42, 68, 0.12);
     }
     .app-name-label { font-size: 13px; font-weight: 800; letter-spacing: 2px; color: var(--color-text-sub); }
-    h1 { margin-top: 6px; font-size: 52px; font-weight: 900; line-height: 1.2; color: var(--color-primary-dark); }
+    .logo-heading { margin-top: 10px; line-height: 0; }
+    .app-logo { display: block; width: 100%; max-width: 360px; height: auto; margin: 0 auto; }
     .description { margin-top: 14px; font-size: 14px; line-height: 1.7; color: var(--color-text-sub); }
     .meta {
       margin-top: 28px; padding: 20px 22px; text-align: left;
@@ -59,7 +60,7 @@
     }
     @media (max-width: 600px) {
       .card { padding: 36px 22px; }
-      h1 { font-size: 40px; }
+      .app-logo { max-width: 280px; }
       .buttons a { width: 100%; min-width: 0; }
     }
   </style>
@@ -67,7 +68,9 @@
 <body>
   <main class="card">
     <p class="app-name-label">프로그램명</p>
-    <h1>{{APP_NAME}}</h1>
+    <h1 class="logo-heading">
+      <img class="app-logo" src="./assets/title-mnm.png" alt="{{APP_NAME}}" />
+    </h1>
     <p class="description">{{DESCRIPTION}}</p>
 
     <dl class="meta">

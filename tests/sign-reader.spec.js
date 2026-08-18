@@ -17,6 +17,17 @@ async function makeTestImageBuffer(page, { width, height, color = '#1a3fa8' }) {
   return Buffer.from(base64, 'base64');
 }
 
+async function openPermissionNotice(page) {
+  await page.getByTestId('sign-reader-button').click();
+  await expect(page.getByTestId('sign-reader-permission-notice')).toBeVisible();
+}
+
+async function acceptPermissionAndGetFileChooser(page) {
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByTestId('sign-reader-permission-agree').click();
+  return chooserPromise;
+}
+
 test.describe('뭐냐면 — 안내판 사진에서 글자 읽기', () => {
   test('[sign-reader] 기존 텍스트 직접 입력은 그대로 동작한다', async ({ page }) => {
     await page.goto('/');
@@ -25,19 +36,34 @@ test.describe('뭐냐면 — 안내판 사진에서 글자 읽기', () => {
     await expect(sourceTextarea).toHaveValue('직접 입력한 조사자료 내용입니다.');
   });
 
-  test('[sign-reader] 버튼을 누르면 모달이 열리고 안내 문구가 보인다', async ({ page }) => {
+  test('[sign-reader] 사진 접근 전에 선택적 접근권한 항목·목적·거부 가능성을 안내한다', async ({ page }) => {
     await page.goto('/');
-    await page.getByTestId('sign-reader-button').click();
+    await openPermissionNotice(page);
     const modal = page.getByTestId('sign-reader-modal');
     await expect(modal).toBeVisible();
-    await expect(modal).toContainText('얼굴, 이름표, 연락처, 학생 개인정보가 포함된 사진은 올리지 마세요');
+    await expect(modal).toContainText('선택적 접근권한');
+    await expect(modal).toContainText('카메라 및 사진');
+    await expect(modal).toContainText('전시 안내판을 촬영하거나 기기에 저장된 사진을 선택');
+    await expect(modal).toContainText('동의하지 않아도 조사자료를 직접 입력');
+  });
+
+  test('[sign-reader] 접근권한에 동의하지 않아도 조사자료를 직접 입력할 수 있다', async ({ page }) => {
+    await page.goto('/');
+    await openPermissionNotice(page);
+    await page.getByTestId('sign-reader-permission-decline').click();
+    await expect(page.getByTestId('sign-reader-modal')).toBeHidden();
+
+    const sourceTextarea = page.getByTestId('source-textarea');
+    await sourceTextarea.fill('권한 없이 직접 입력한 조사자료입니다.');
+    await expect(sourceTextarea).toHaveValue('권한 없이 직접 입력한 조사자료입니다.');
   });
 
   test('[sign-reader] 잘못된 파일 형식은 차단된다', async ({ page }) => {
     await page.goto('/');
-    await page.getByTestId('sign-reader-button').click();
+    await openPermissionNotice(page);
+    const fileChooser = await acceptPermissionAndGetFileChooser(page);
 
-    await page.getByTestId('sign-reader-file-input').setInputFiles({
+    await fileChooser.setFiles({
       name: 'note.txt',
       mimeType: 'text/plain',
       buffer: Buffer.from('이것은 이미지가 아닙니다'),
@@ -61,10 +87,10 @@ test.describe('뭐냐면 — 안내판 사진에서 글자 읽기', () => {
       });
     });
 
-    await page.getByTestId('sign-reader-button').click();
-
+    await openPermissionNotice(page);
     const bigImage = await makeTestImageBuffer(page, { width: 2400, height: 1800 });
-    await page.getByTestId('sign-reader-file-input').setInputFiles({
+    const fileChooser = await acceptPermissionAndGetFileChooser(page);
+    await fileChooser.setFiles({
       name: 'big-sign.png',
       mimeType: 'image/png',
       buffer: bigImage,
@@ -96,9 +122,10 @@ test.describe('뭐냐면 — 안내판 사진에서 글자 읽기', () => {
       });
     });
 
-    await page.getByTestId('sign-reader-button').click();
+    await openPermissionNotice(page);
     const smallImage = await makeTestImageBuffer(page, { width: 400, height: 300 });
-    await page.getByTestId('sign-reader-file-input').setInputFiles({
+    const fileChooser = await acceptPermissionAndGetFileChooser(page);
+    await fileChooser.setFiles({
       name: 'sign.png',
       mimeType: 'image/png',
       buffer: smallImage,
@@ -124,9 +151,10 @@ test.describe('뭐냐면 — 안내판 사진에서 글자 읽기', () => {
       });
     });
 
-    await page.getByTestId('sign-reader-button').click();
+    await openPermissionNotice(page);
     const img = await makeTestImageBuffer(page, { width: 400, height: 300 });
-    await page.getByTestId('sign-reader-file-input').setInputFiles({
+    const fileChooser = await acceptPermissionAndGetFileChooser(page);
+    await fileChooser.setFiles({
       name: 'sign.png',
       mimeType: 'image/png',
       buffer: img,

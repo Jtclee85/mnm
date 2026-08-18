@@ -19,6 +19,7 @@ export default function SignTextReader({ isMobile, onExtracted, t = getUiText('k
   const [status, setStatus] = useState('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [warnings, setWarnings] = useState([]);
+  const [permissionAccepted, setPermissionAccepted] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function SignTextReader({ isMobile, onExtracted, t = getUiText('k
     setStatus('idle');
     setErrorMessage('');
     setWarnings([]);
+    setPermissionAccepted(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -53,7 +55,19 @@ export default function SignTextReader({ isMobile, onExtracted, t = getUiText('k
   };
   const closeModal = () => { setIsOpen(false); resetState(); };
 
+  const handlePermissionAgree = () => {
+    setPermissionAccepted(true);
+    // 사용자의 동의 클릭과 파일 선택 요청을 같은 동작 안에서 실행해야
+    // 브라우저가 파일 선택창을 팝업으로 차단하지 않는다.
+    if (!demoMode) fileInputRef.current?.click();
+  };
+
   const handleFileChange = (e) => {
+    if (!permissionAccepted) {
+      e.target.value = '';
+      return;
+    }
+
     const selected = e.target.files?.[0] || null;
     const errorCode = validateImageFile(selected);
 
@@ -139,8 +153,6 @@ export default function SignTextReader({ isMobile, onExtracted, t = getUiText('k
             </div>
 
             <div style={s.body}>
-              <p style={s.privacyNotice}>{t.signReaderPrivacyNotice}</p>
-
               <input
                 ref={fileInputRef}
                 type="file"
@@ -150,49 +162,86 @@ export default function SignTextReader({ isMobile, onExtracted, t = getUiText('k
                 data-testid="sign-reader-file-input"
               />
 
-              {previewUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl} alt="" style={s.preview} />
+              {!permissionAccepted ? (
+                <section style={s.permissionNotice} data-testid="sign-reader-permission-notice">
+                  <span style={s.permissionBadge}>{t.signReaderPermissionBadge}</span>
+                  <h2 style={s.permissionTitle}>{t.signReaderPermissionTitle}</h2>
+                  <div style={s.permissionItem}>
+                    <span aria-hidden="true" style={s.permissionIcon}>📷</span>
+                    <div>
+                      <strong style={s.permissionItemTitle}>{t.signReaderPermissionItem}</strong>
+                      <p style={s.permissionReason}>{t.signReaderPermissionReason}</p>
+                    </div>
+                  </div>
+                  <p style={s.permissionRefusal}>{t.signReaderPermissionRefusal}</p>
+                  <div style={s.permissionActions}>
+                    <button
+                      type="button"
+                      data-testid="sign-reader-permission-decline"
+                      style={s.secondaryBtn}
+                      onClick={closeModal}
+                    >
+                      {t.signReaderPermissionDecline}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="sign-reader-permission-agree"
+                      style={s.primaryBtn}
+                      onClick={handlePermissionAgree}
+                    >
+                      {t.signReaderPermissionAgree}
+                    </button>
+                  </div>
+                </section>
+              ) : (
+                <>
+                  <p style={s.privacyNotice}>{t.signReaderPrivacyNotice}</p>
+
+                  {previewUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={previewUrl} alt="" style={s.preview} />
+                  )}
+
+                  <div style={s.actionRow}>
+                    <button
+                      type="button"
+                      style={s.secondaryBtn}
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isBusy}
+                    >
+                      {file ? t.signReaderChangeFile : t.signReaderChooseFile}
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="sign-reader-extract-button"
+                      style={{ ...s.primaryBtn, opacity: (!file || isBusy) ? 0.6 : 1 }}
+                      onClick={handleExtract}
+                      disabled={!file || isBusy}
+                    >
+                      {isBusy ? t.signReaderExtracting : t.signReaderStart}
+                    </button>
+                  </div>
+
+                  {status === 'success' && (
+                    <div style={s.successBox} data-testid="sign-reader-success">
+                      <p style={s.successText}>{t.signReaderSuccess}</p>
+                      {warnings.map((w, i) => <p key={i} style={s.warningText}>⚠ {w}</p>)}
+                      <button type="button" style={s.confirmBtn} onClick={closeModal}>
+                        {t.signReaderClose}
+                      </button>
+                    </div>
+                  )}
+
+                  {status === 'error' && (
+                    <div style={s.errorBox} data-testid="sign-reader-error">
+                      <p style={s.errorText}>{errorMessage}</p>
+                      {warnings.map((w, i) => <p key={i} style={s.warningText}>⚠ {w}</p>)}
+                    </div>
+                  )}
+
+                  <p style={s.accuracyNotice}>{t.signReaderAccuracyNotice}</p>
+                </>
               )}
-
-              <div style={s.actionRow}>
-                <button
-                  type="button"
-                  style={s.secondaryBtn}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isBusy}
-                >
-                  {file ? t.signReaderChangeFile : t.signReaderChooseFile}
-                </button>
-                <button
-                  type="button"
-                  data-testid="sign-reader-extract-button"
-                  style={{ ...s.primaryBtn, opacity: (!file || isBusy) ? 0.6 : 1 }}
-                  onClick={handleExtract}
-                  disabled={!file || isBusy}
-                >
-                  {isBusy ? t.signReaderExtracting : t.signReaderStart}
-                </button>
-              </div>
-
-              {status === 'success' && (
-                <div style={s.successBox} data-testid="sign-reader-success">
-                  <p style={s.successText}>{t.signReaderSuccess}</p>
-                  {warnings.map((w, i) => <p key={i} style={s.warningText}>⚠ {w}</p>)}
-                  <button type="button" style={s.confirmBtn} onClick={closeModal}>
-                    {t.signReaderClose}
-                  </button>
-                </div>
-              )}
-
-              {status === 'error' && (
-                <div style={s.errorBox} data-testid="sign-reader-error">
-                  <p style={s.errorText}>{errorMessage}</p>
-                  {warnings.map((w, i) => <p key={i} style={s.warningText}>⚠ {w}</p>)}
-                </div>
-              )}
-
-              <p style={s.accuracyNotice}>{t.signReaderAccuracyNotice}</p>
             </div>
           </div>
         </div>
@@ -231,6 +280,26 @@ const s = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
   },
   body: { padding: 18, display: 'flex', flexDirection: 'column', gap: 12 },
+  permissionNotice: { display: 'flex', flexDirection: 'column', gap: 12 },
+  permissionBadge: {
+    alignSelf: 'flex-start', padding: '5px 10px', borderRadius: 20,
+    background: 'rgba(var(--color-primary-rgb),0.1)', color: 'var(--color-primary-dark)',
+    fontSize: 12, fontWeight: 800,
+  },
+  permissionTitle: { margin: 0, fontSize: 21, lineHeight: 1.35, color: 'var(--color-text)' },
+  permissionItem: {
+    display: 'flex', gap: 12, alignItems: 'flex-start', padding: 14,
+    border: '1.5px solid rgba(var(--color-primary-rgb),0.25)', borderRadius: 14,
+    background: 'rgba(var(--color-primary-rgb),0.05)',
+  },
+  permissionIcon: { fontSize: 24, lineHeight: 1.2 },
+  permissionItemTitle: { display: 'block', marginBottom: 5, fontSize: 16, color: 'var(--color-text)' },
+  permissionReason: { margin: 0, fontSize: 14, lineHeight: 1.65, color: 'var(--color-text)' },
+  permissionRefusal: {
+    margin: 0, padding: '10px 12px', borderRadius: 10,
+    background: 'var(--color-surface-alt)', color: 'var(--color-text-sub)', fontSize: 13, lineHeight: 1.6,
+  },
+  permissionActions: { display: 'flex', gap: 10, flexWrap: 'wrap' },
   privacyNotice: {
     margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--color-text)',
     background: 'color-mix(in srgb, var(--color-coral) 10%, var(--color-surface))',
