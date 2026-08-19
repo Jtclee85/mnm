@@ -48,28 +48,28 @@ async function expectNoHorizontalOverflow(page) {
 
 for (const viewport of LAPTOP_VIEWPORTS) {
   test.describe(`${viewport.name} (${viewport.width}×${viewport.height})`, () => {
-    test('첫 화면은 입력 카드가 위, 보조 패널 두 개가 아래에 안정적으로 배치된다', async ({ page }) => {
+    test('첫 화면은 추천 자료·입력 카드·조사 나침반이 한 줄 3단으로 유지된다', async ({ page }) => {
       await preparePage(page, viewport);
 
       const compact = page.getByTestId('landing-compact');
-      const leftPanel = page.getByTestId('left-panel');
-      const auxiliary = page.getByTestId('landing-compact-aux');
+      const sources = page.getByLabel('추천 원본자료 목록');
+      const form = page.getByTestId('landing-form-column');
+      const compass = page.getByTestId('research-compass');
       await expect(compact).toBeVisible();
 
-      const [formBox, auxBox] = await Promise.all([
-        leftPanel.boundingBox(),
-        auxiliary.boundingBox(),
+      const [sourcesBox, formBox, compassBox] = await Promise.all([
+        sources.boundingBox(),
+        form.boundingBox(),
+        compass.boundingBox(),
       ]);
+      expect(sourcesBox).not.toBeNull();
       expect(formBox).not.toBeNull();
-      expect(auxBox).not.toBeNull();
-      expect(formBox.y + formBox.height).toBeLessThanOrEqual(auxBox.y + 2);
+      expect(compassBox).not.toBeNull();
+      expect(Math.abs(sourcesBox.y - formBox.y)).toBeLessThanOrEqual(2);
+      expect(Math.abs(formBox.y - compassBox.y)).toBeLessThanOrEqual(2);
+      expect(sourcesBox.x + sourcesBox.width).toBeLessThanOrEqual(formBox.x);
+      expect(formBox.x + formBox.width).toBeLessThanOrEqual(compassBox.x);
       expect(formBox.width).toBeGreaterThan(700);
-
-      const auxiliaryCards = auxiliary.locator(':scope > *');
-      await expect(auxiliaryCards).toHaveCount(2);
-      const first = await auxiliaryCards.nth(0).boundingBox();
-      const second = await auxiliaryCards.nth(1).boundingBox();
-      expect(first.x + first.width).toBeLessThanOrEqual(second.x);
       await expectNoHorizontalOverflow(page);
     });
 

@@ -1430,12 +1430,28 @@ export default function Home({
             </div>
           )}
           {showLanding ? (
-            isCompact ? (
+            isCompact && !isStacked ? (
               <div style={styles.landingCompact} data-testid="landing-compact">
-                {/* 120%/125% 배율 노트북에서는 입력 카드를 가장 먼저 넓게 보여 주고,
-                    두 보조 패널은 아래 한 줄에 배치해 3열 줄바꿈 깨짐을 막는다. */}
+                {/* 120%/125% 배율에서도 기존 정보 구조(추천 자료 | 입력 | 나침반)를
+                    유지한다. 양쪽 패널만 270px로 줄이고 가운데 입력 영역을 유동 폭으로 둔다. */}
+                <RecommendedSources isMobile={false} isCompact />
+                <div style={styles.landingFormColMobile} data-testid="landing-form-column">
+                  {leftColEl}
+                </div>
+                <ResearchCompass
+                  isMobile={false}
+                  isCompact
+                  onReopenTutorial={() => {
+                    setAppTutorialOpen(false);
+                    setTutorialStep(0);
+                    setTutorialOpen(true);
+                  }}
+                />
+              </div>
+            ) : isStacked ? (
+              <div style={styles.landingNarrow}>
                 <div style={styles.landingFormColMobile}>{leftColEl}</div>
-                <div style={styles.landingCompactAux} data-testid="landing-compact-aux">
+                <div style={styles.landingNarrowAux}>
                   <RecommendedSources isMobile={false} />
                   <ResearchCompass
                     isMobile={false}
@@ -1759,10 +1775,15 @@ const styles = {
   landingRow:         { display: 'flex', gap: 28, alignItems: 'stretch', justifyContent: 'center', flexWrap: 'wrap' },
   landingStackMobile: { display: 'flex', flexDirection: 'column', gap: 18 },
   landingCompact: {
+    width: '100%', margin: '0 auto',
+    display: 'grid', gridTemplateColumns: '270px minmax(0, 1fr) 270px',
+    alignItems: 'start', gap: 14, minWidth: 0,
+  },
+  landingNarrow: {
     width: '100%', maxWidth: 960, margin: '0 auto',
     display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0,
   },
-  landingCompactAux: {
+  landingNarrowAux: {
     display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 340px))',
     justifyContent: 'center', alignItems: 'start', gap: 18, minWidth: 0,
   },

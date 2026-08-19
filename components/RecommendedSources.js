@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import { RECOMMENDED_SOURCES } from '../lib/recommendedSources';
 
-export default function RecommendedSources({ isMobile }) {
+export default function RecommendedSources({ isMobile, isCompact = false }) {
   return (
-    <aside style={isMobile ? styles.wrapMobile : styles.wrap} aria-label="추천 원본자료 목록">
+    <aside
+      style={isMobile
+        ? styles.wrapMobile
+        : { ...styles.wrap, ...(isCompact ? styles.wrapCompact : {}) }}
+      aria-label="추천 원본자료 목록"
+    >
       <p style={styles.heading}>이런 자료를 찾아봐요</p>
       <div style={styles.list}>
         {RECOMMENDED_SOURCES.map(source => (
@@ -56,6 +61,7 @@ function SourceBanner({ source, isMobile }) {
 const styles = {
   // 오른쪽 자료 조사 나침반(340px)과 같은 폭 — 랜딩 3컬럼 좌우 대칭 유지
   wrap:       { width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 },
+  wrapCompact: { width: 270 },
   wrapMobile: { width: '100%', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 4 },
   heading:    { fontSize: 13, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 2px 2px' },
   list:       { display: 'flex', flexDirection: 'column', gap: 10 },

@@ -37,13 +37,17 @@ const CHECKLIST = [
 // 하단 미니 흐름도 — 자료조사 순서를 step chip으로 한눈에 보여 준다.
 const FLOW_STEPS = ['자료 찾기', '출처 확인', '핵심 낱말', '근거 쓰기'];
 
-export default function ResearchCompass({ isMobile, onReopenTutorial }) {
+export default function ResearchCompass({ isMobile, isCompact = false, onReopenTutorial }) {
   return (
     <aside
       data-testid="research-compass"
       role="complementary"
       aria-label="자료 조사 나침반"
-      style={{ ...s.panel, ...(isMobile ? s.panelMobile : {}) }}
+      style={{
+        ...s.panel,
+        ...(isCompact ? s.panelCompact : {}),
+        ...(isMobile ? s.panelMobile : {}),
+      }}
     >
       <div style={s.header}>
         <div style={s.headerTitle}>🧭 자료 조사 나침반</div>
@@ -102,6 +106,7 @@ const s = {
     padding: '16px 18px 18px', display: 'flex', flexDirection: 'column', gap: 14,
     boxSizing: 'border-box',
   },
+  panelCompact: { width: 270, padding: '14px 14px 16px', gap: 12 },
   panelMobile: { width: '100%', alignSelf: 'stretch' },
 
   header: { display: 'flex', flexDirection: 'column', gap: 3 },
