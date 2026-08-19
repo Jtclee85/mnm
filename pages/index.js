@@ -165,6 +165,11 @@ export default function Home({
   const [usingAppTutorialPreset, setUsingAppTutorialPreset] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
+  // Windows 1920×1080에서 디스플레이 배율 120%/125%를 사용하면 브라우저의
+  // 실제 CSS 폭은 약 1600/1536px가 된다. 모바일(900px)과 넓은 데스크톱 사이에
+  // 별도 노트북 구간을 두어 3열 랜딩과 분석 결과 2열이 어색하게 줄바꿈되지 않게 한다.
+  const [isCompact, setIsCompact] = useState(false);
+  const [isStacked, setIsStacked] = useState(false);
   const [leftPanelTab, setLeftPanelTab] = useState('source');
 
   // 좌측 패널 제목용 — "가장 최근 분석을 실행한" 조사주제 (입력 중인 topic과는 별개)
@@ -308,7 +313,12 @@ export default function Home({
 
   // ── 반응형 ──
   useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth <= 900);
+    const fn = () => {
+      const width = window.innerWidth;
+      setIsMobile(width <= 900);
+      setIsCompact(width > 900 && width <= 1640);
+      setIsStacked(width > 900 && width <= 1180);
+    };
     fn();
     window.addEventListener('resize', fn);
     return () => window.removeEventListener('resize', fn);
@@ -1180,7 +1190,9 @@ export default function Home({
 
   // ── 레이아웃 ──
   const layoutStyle = (canvasOpen && !isMobile)
-    ? styles.splitLayout
+    ? (isStacked
+      ? styles.stackedResultsLayout
+      : (isCompact ? styles.splitLayoutCompact : styles.splitLayout))
     : styles.centeredLayout;
 
   // 첫 화면(랜딩)에서만 메인 입력 카드 맨 위에 얹는 로고+설명 — 독립 상단 히어로 영역 대체
@@ -1381,6 +1393,8 @@ export default function Home({
       handleShare={handleShare}
       onShareTutorialComplete={appTutorialOpen && activeAppTutorialScene?.id === 'share' ? finishAppUsageTutorial : undefined}
       isMobile={isMobile}
+      isCompact={isCompact}
+      isStacked={isStacked}
       onAskChatbotWithQuestion={handleAskChatbotWithQuestion}
       t={t}
       language={language}
@@ -1402,7 +1416,12 @@ export default function Home({
       <div
         dir={isRtl ? 'rtl' : 'ltr'}
         lang={language}
-        style={{ ...styles.page, ...(isRtl ? styles.pageRtl : {}), ...(isMobile ? styles.pageMobile : {}) }}
+        style={{
+          ...styles.page,
+          ...(isRtl ? styles.pageRtl : {}),
+          ...(isCompact ? styles.pageCompact : {}),
+          ...(isMobile ? styles.pageMobile : {}),
+        }}
       >
         <div style={styles.container}>
           {demoMode && (
@@ -1411,24 +1430,43 @@ export default function Home({
             </div>
           )}
           {showLanding ? (
-            <div style={isMobile ? styles.landingStackMobile : styles.landingRow}>
-              <RecommendedSources isMobile={isMobile} />
-              {/* 모바일 세로 스택에서는 flex-basis(860px)가 높이로 적용되어
-                  폼 아래 빈 공간을 만들므로 데스크톱에서만 쓴다. */}
-              <div style={isMobile ? styles.landingFormColMobile : styles.landingFormCol}>
-                {leftColEl}
+            isCompact ? (
+              <div style={styles.landingCompact} data-testid="landing-compact">
+                {/* 120%/125% 배율 노트북에서는 입력 카드를 가장 먼저 넓게 보여 주고,
+                    두 보조 패널은 아래 한 줄에 배치해 3열 줄바꿈 깨짐을 막는다. */}
+                <div style={styles.landingFormColMobile}>{leftColEl}</div>
+                <div style={styles.landingCompactAux} data-testid="landing-compact-aux">
+                  <RecommendedSources isMobile={false} />
+                  <ResearchCompass
+                    isMobile={false}
+                    onReopenTutorial={() => {
+                      setAppTutorialOpen(false);
+                      setTutorialStep(0);
+                      setTutorialOpen(true);
+                    }}
+                  />
+                </div>
               </div>
-              {/* 자료 조사 나침반 — 추천 사이트(340px)와 같은 폭의 오른쪽 컬럼으로,
-                  입력 폼이 정가운데에 오도록 좌우 대칭을 맞춘다. */}
-              <ResearchCompass
-                isMobile={isMobile}
-                onReopenTutorial={() => {
-                  setAppTutorialOpen(false);
-                  setTutorialStep(0);
-                  setTutorialOpen(true);
-                }}
-              />
-            </div>
+            ) : (
+              <div style={isMobile ? styles.landingStackMobile : styles.landingRow}>
+                <RecommendedSources isMobile={isMobile} />
+                {/* 모바일 세로 스택에서는 flex-basis(860px)가 높이로 적용되어
+                    폼 아래 빈 공간을 만들므로 데스크톱에서만 쓴다. */}
+                <div style={isMobile ? styles.landingFormColMobile : styles.landingFormCol}>
+                  {leftColEl}
+                </div>
+                {/* 자료 조사 나침반 — 추천 사이트(340px)와 같은 폭의 오른쪽 컬럼으로,
+                    입력 폼이 정가운데에 오도록 좌우 대칭을 맞춘다. */}
+                <ResearchCompass
+                  isMobile={isMobile}
+                  onReopenTutorial={() => {
+                    setAppTutorialOpen(false);
+                    setTutorialStep(0);
+                    setTutorialOpen(true);
+                  }}
+                />
+              </div>
+            )
           ) : (
             <div style={layoutStyle} data-testid="layout-grid">
               {leftColEl}
@@ -1641,8 +1679,9 @@ const INIT_BY_MODE = () => ({
 const styles = {
   page:      { minHeight: '100vh', background: 'linear-gradient(180deg, var(--color-bg) 0%, var(--color-surface-alt) 45%, var(--color-bg) 100%)', padding: '24px 16px 48px' },
   pageRtl:   { textAlign: 'right' },
+  pageCompact: { padding: '16px 12px 36px' },
   pageMobile: { padding: '16px 10px 32px' },
-  container: { maxWidth: 1680, margin: '0 auto' },
+  container: { width: '100%', maxWidth: 1680, margin: '0 auto', boxSizing: 'border-box' },
   demoBadge: {
     width: 'fit-content', maxWidth: '100%', margin: '0 auto 12px',
     border: '1px solid rgba(var(--color-primary-rgb),0.25)',
@@ -1707,14 +1746,30 @@ const styles = {
 
   centeredLayout: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
   splitLayout:    { display: 'grid', gridTemplateColumns: '1fr 1.25fr', gap: 20, alignItems: 'start' },
+  splitLayoutCompact: {
+    display: 'grid', gridTemplateColumns: 'minmax(430px, 0.85fr) minmax(0, 1.15fr)',
+    gap: 14, alignItems: 'start', minWidth: 0,
+  },
+  stackedResultsLayout: {
+    width: '100%', maxWidth: 960, margin: '0 auto',
+    display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0,
+  },
 
   // 랜딩 화면 전용 — 추천 원본자료 사이드바 + 자료입력 폼
   landingRow:         { display: 'flex', gap: 28, alignItems: 'stretch', justifyContent: 'center', flexWrap: 'wrap' },
   landingStackMobile: { display: 'flex', flexDirection: 'column', gap: 18 },
+  landingCompact: {
+    width: '100%', maxWidth: 960, margin: '0 auto',
+    display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0,
+  },
+  landingCompactAux: {
+    display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 340px))',
+    justifyContent: 'center', alignItems: 'start', gap: 18, minWidth: 0,
+  },
   landingFormCol:       { flex: '0 1 860px', minWidth: 0 },
   landingFormColMobile: { width: '100%' },
 
-  leftCol: { display: 'flex', flexDirection: 'column', gap: 18 },
+  leftCol: { display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 },
   leftPanelTabs: {
     display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
     background: 'var(--color-surface-alt)', border: '1px solid var(--color-border)',

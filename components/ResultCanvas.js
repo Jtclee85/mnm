@@ -47,7 +47,8 @@ export default function ResultCanvas({
   onQuiz, onEvaluation, onTeacherComment,
   isBusy, loadingTool,
   notes, updateNote, saveStatus, handleShare, onShareTutorialComplete,
-  isMobile, onAskChatbotWithQuestion, t = getUiText('ko'),
+  isMobile, isCompact = false, isStacked = false,
+  onAskChatbotWithQuestion, t = getUiText('ko'),
   language, onLanguageChange,
   topic,
   onOpenWorksheet, isWorksheetActive,
@@ -68,7 +69,12 @@ export default function ResultCanvas({
     const el = canvasRef.current;
     if (!el) return;
     el.style.opacity = '0';
-    el.style.transform = isMobile ? 'translateY(16px)' : 'translateX(24px)';
+    // 좁은 노트북 화면에서 오른쪽 진입 애니메이션을 쓰면 0.22초 동안 패널이
+    // viewport 밖으로 나가 가로 스크롤이 생길 수 있다. 컴팩트/세로 화면은
+    // 아래에서 살짝 올라오게 해 레이아웃 폭을 끝까지 고정한다.
+    el.style.transform = (isMobile || isCompact || isStacked)
+      ? 'translateY(12px)'
+      : 'translateX(24px)';
     const id = requestAnimationFrame(() => {
       el.style.transition = 'opacity 0.22s ease, transform 0.22s ease';
       el.style.opacity = '1';
@@ -420,7 +426,13 @@ export default function ResultCanvas({
   const visibleTools = TOOL_CONFIG.filter(({ key }) => !HIDDEN_TOOL_KEYS.includes(key));
 
   return (
-    <div ref={canvasRef} data-testid="result-canvas" style={isMobile ? s.canvasMobile : s.canvas}>
+    <div
+      ref={canvasRef}
+      data-testid="result-canvas"
+      style={isMobile
+        ? s.canvasMobile
+        : { ...s.canvas, ...(isCompact ? s.canvasCompact : {}), ...(isStacked ? s.canvasStacked : {}) }}
+    >
       <style>{`
         @keyframes cv-spin { to { transform: rotate(360deg); } }
         .worksheet-cta-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(var(--color-primary-rgb),0.4); }
@@ -537,14 +549,19 @@ export default function ResultCanvas({
 
       {/* ── Tabs ── */}
       <div style={s.tabBar}>
-        <div style={s.tabList}>
+        <div style={{ ...s.tabList, ...(isCompact ? s.tabListCompact : {}) }}>
           {TAB_OPTIONS.map(({ value, labelKey, icon }) => (
             <button
               key={value}
               data-testid={`mode-tab-${value}`}
               role="tab"
               aria-selected={activeMode === value}
-              style={{ ...s.tab, ...(isMobile ? s.tabMobile : {}), ...(activeMode === value ? s.tabActive : {}) }}
+              style={{
+                ...s.tab,
+                ...(isCompact ? s.tabCompact : {}),
+                ...(isMobile ? s.tabMobile : {}),
+                ...(activeMode === value ? s.tabActive : {}),
+              }}
               onClick={() => onTabClick(value)}
               disabled={loadingMode !== null && loadingMode !== value}
             >
@@ -557,7 +574,11 @@ export default function ResultCanvas({
       </div>
 
       {/* ── Body ── */}
-      <div ref={canvasBodyRef} data-testid="result-canvas-body" style={s.body}>
+      <div
+        ref={canvasBodyRef}
+        data-testid="result-canvas-body"
+        style={{ ...s.body, ...(isCompact ? s.bodyCompact : {}) }}
+      >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {renderModeContent()}
 
@@ -620,8 +641,15 @@ const s = {
     display: 'flex', flexDirection: 'column',
     background: 'var(--color-surface)', border: '1px solid var(--color-border)',
     borderRadius: 20, boxShadow: '0 2px 8px rgba(var(--color-text-rgb),0.08)',
-    overflow: 'hidden',
+    overflow: 'hidden', width: '100%', minWidth: 0, boxSizing: 'border-box',
     height: 'calc(100vh - 48px)', position: 'sticky', top: 24, alignSelf: 'start',
+  },
+  canvasCompact: {
+    height: 'calc(100vh - 32px)', top: 16, borderRadius: 16,
+  },
+  canvasStacked: {
+    position: 'relative', top: 0, width: '100%',
+    height: 'min(900px, calc(100vh - 32px))', minHeight: 640,
   },
   canvasMobile: {
     position: 'fixed', inset: 0, zIndex: 200, borderRadius: 0,
@@ -669,7 +697,8 @@ const s = {
     display: 'flex', borderBottom: '1px solid var(--color-border)',
     background: 'var(--color-surface-alt)', flexShrink: 0,
   },
-  tabList: { display: 'flex', flex: 1, gap: 7, padding: '9px 12px' },
+  tabList: { display: 'flex', flex: 1, gap: 7, padding: '9px 12px', minWidth: 0 },
+  tabListCompact: { gap: 4, padding: '7px 8px' },
   tab: {
     flex: 1, minWidth: 0, minHeight: 50,
     border: '1px solid var(--color-border)', borderRadius: 12,
@@ -681,6 +710,7 @@ const s = {
     transition: 'transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
   },
   tabMobile: { minHeight: 58, padding: '8px 3px', fontSize: 12.5, flexDirection: 'column', gap: 3 },
+  tabCompact: { minHeight: 46, padding: '8px 4px', fontSize: 13.5, gap: 4 },
   tabActive: {
     borderColor: 'var(--color-primary)', color: 'var(--color-surface)',
     background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-dark))',
@@ -712,7 +742,8 @@ const s = {
     borderRadius: '50%', animation: 'cv-spin 0.8s linear infinite',
     marginLeft: 3, verticalAlign: 'middle',
   },
-  body: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 18 },
+  body: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 18, minWidth: 0 },
+  bodyCompact: { padding: 14 },
   loadingState: {
     display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center',
