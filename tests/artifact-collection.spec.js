@@ -88,7 +88,7 @@ test.describe('뭐냐면 — 익명 학습산출물 수집', () => {
     expect(payload.sourceUrl).toBe('');
 
     const serialized = JSON.stringify(payload);
-    for (const forbiddenKey of ['name', 'studentName', 'studentNumber', 'email', 'phone', 'school', 'ip', 'fingerprint', 'conversation', 'sourceText', 'easyExplanationSummary', 'analysisByMode']) {
+    for (const forbiddenKey of ['name', 'studentName', 'studentNumber', 'email', 'phone', 'school', 'ip', 'fingerprint', 'conversation', 'sourceText', 'easyExplanationSummary', 'analysisByMode', 'legacyEvidence']) {
       expect(Object.prototype.hasOwnProperty.call(payload, forbiddenKey)).toBe(false);
     }
     expect(serialized).not.toContain('AI가 만든 쉬운 설명 전문');

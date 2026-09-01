@@ -17,7 +17,8 @@
     maxBodyCharacters: 120000,
   });
 
-  const COLUMNS = Object.freeze([
+  // 전송 데이터의 키와 연구자가 보는 시트 제목을 분리해 저장 순서를 안전하게 유지한다.
+  const FIELD_KEYS = Object.freeze([
     'timestamp',
     'artifact_id',
     'anonymous_id',
@@ -54,11 +55,77 @@
     'writing_closing_thought',
     'writing_opening_sentence',
     'writing_closing_sentence',
+  ]);
+
+  const SHEET_HEADERS = Object.freeze([
+    '수집 시각',
+    '산출물 ID',
+    '익명 사용자 ID',
+    '앱 식별값',
+    '앱 버전',
+    '활동 모드',
+    '주제',
+    '자료 제목',
+    '자료 URL',
+    '공유 산출물 유형',
+    '이해 확인 1',
+    '이해 확인 2',
+    '이해 확인 3',
+    '이해 확인 4',
+    '학생이 만든 질문',
+    '질문 유형',
+    '탐구 전 생각',
+    '탐구 전 생각의 까닭',
+    '탐구 후 새롭게 알게 된 점',
+    '생각의 변화 또는 더 탐구할 질문',
+    '발표 핵심 메시지',
+    '발표 요점 1',
+    '발표 요점 2',
+    '발표 요점 3',
+    '발표 예상 질문',
+    '발표 준비 답변',
+    '발표 시작 문장',
+    '발표 마무리 문장',
+    '글쓰기 주제 문장',
+    '글쓰기 뒷받침 내용 1',
+    '글쓰기 뒷받침 내용 2',
+    '글쓰기 뒷받침 내용 3',
+    '글쓰기 근거',
+    '글쓰기 마무리 생각',
+    '글쓰기 시작 문장',
+    '글쓰기 마무리 문장',
+  ]);
+
+  const RETIRED_FIELD_KEYS = Object.freeze([
     'evidence_claim',
     'evidence_1',
     'evidence_2',
     'evidence_connection',
     'evidence_final_expression',
+  ]);
+
+  const RETIRED_KOREAN_HEADERS = Object.freeze([
+    '근거 활동 주장',
+    '근거 활동 근거 1',
+    '근거 활동 근거 2',
+    '주장과 근거의 연결',
+    '근거 기반 최종 표현',
+  ]);
+
+  const RETIRED_DESCRIPTIVE_HEADERS = Object.freeze([
+    '(이전 활동) 자료에서 증거 찾기 - 내 생각',
+    '(이전 활동) 자료에서 증거 찾기 - 증거 1',
+    '(이전 활동) 자료에서 증거 찾기 - 증거 2',
+    '(이전 활동) 자료에서 증거 찾기 - 생각과 증거의 연결',
+    '(이전 활동) 자료에서 증거 찾기 - 내 문장',
+  ]);
+
+  const ARCHIVED_HEADERS = Object.freeze([
+    '(보관·현재 미수집) 이전 활동 내 생각',
+    '(보관·현재 미수집) 이전 활동 증거 1',
+    '(보관·현재 미수집) 이전 활동 증거 2',
+    '(보관·현재 미수집) 이전 활동 생각과 증거의 연결',
+    '(보관·현재 미수집) 이전 활동 내 문장',
   ]);
 
   function doGet() {
@@ -137,20 +204,58 @@
 
   function ensureHeader_(sheet) {
     if (sheet.getLastRow() === 0) {
-      sheet.appendRow(COLUMNS);
+      sheet.appendRow(SHEET_HEADERS);
       sheet.setFrozenRows(1);
       return;
     }
 
-    const current = sheet.getRange(1, 1, 1, COLUMNS.length).getDisplayValues()[0];
-    if (current.join('\u0000') !== COLUMNS.join('\u0000')) {
-      throw new Error('unexpected_sheet_header');
+    const headerRange = sheet.getRange(1, 1, 1, FIELD_KEYS.length);
+    const current = headerRange.getDisplayValues()[0];
+    const currentHeader = current.join('\u0000');
+    if (currentHeader === SHEET_HEADERS.join('\u0000')) {
+      retireLegacyColumns_(sheet);
+      return;
+    }
+
+    // 이전 버전의 영문 헤더만 정확히 일치할 때 데이터 행은 건드리지 않고 제목만 이전한다.
+    if (currentHeader === FIELD_KEYS.join('\u0000')) {
+      headerRange.setValues([SHEET_HEADERS]);
+      sheet.setFrozenRows(1);
+      retireLegacyColumns_(sheet);
+      return;
+    }
+
+    throw new Error('unexpected_sheet_header');
+  }
+
+  function retireLegacyColumns_(sheet) {
+    const startColumn = FIELD_KEYS.length + 1;
+    if (sheet.getMaxColumns() < startColumn + RETIRED_FIELD_KEYS.length - 1) return;
+
+    const headerRange = sheet.getRange(1, startColumn, 1, RETIRED_FIELD_KEYS.length);
+    const currentHeaders = headerRange.getDisplayValues()[0];
+    const currentHeader = currentHeaders.join('\u0000');
+    const knownHeaders = [RETIRED_FIELD_KEYS, RETIRED_KOREAN_HEADERS, RETIRED_DESCRIPTIVE_HEADERS, ARCHIVED_HEADERS]
+      .map(headers => headers.join('\u0000'));
+    if (!knownHeaders.includes(currentHeader)) return;
+
+    const hasSavedLegacyData = sheet.getLastRow() > 1 && sheet
+      .getRange(2, startColumn, sheet.getLastRow() - 1, RETIRED_FIELD_KEYS.length)
+      .getDisplayValues()
+      .some(row => row.some(value => value !== ''));
+
+    // 과거 값이 실제로 있으면 삭제하지 않고 보관 열임을 밝힌다. 모두 비어 있으면
+    // 헤더를 비워 현재 연구 스키마에서 완전히 제외한다.
+    if (hasSavedLegacyData) {
+      headerRange.setValues([ARCHIVED_HEADERS]);
+    } else {
+      headerRange.clearContent();
     }
   }
 
   function artifactExists_(sheet, artifactId) {
     if (sheet.getLastRow() < 2) return false;
-    const artifactColumn = COLUMNS.indexOf('artifact_id') + 1;
+    const artifactColumn = FIELD_KEYS.indexOf('artifact_id') + 1;
     return sheet
       .getRange(2, artifactColumn, sheet.getLastRow() - 1, 1)
       .createTextFinder(artifactId)
@@ -163,7 +268,6 @@
     const i = objectOrEmpty_(payload.inquiry);
     const p = objectOrEmpty_(payload.presentation);
     const w = objectOrEmpty_(payload.writing);
-    const e = objectOrEmpty_(payload.legacyEvidence);
 
     const values = {
       timestamp: new Date().toISOString(),
@@ -202,14 +306,9 @@
       writing_closing_thought: w.closingThought,
       writing_opening_sentence: w.openingSentence,
       writing_closing_sentence: w.closingSentence,
-      evidence_claim: e.claim,
-      evidence_1: e.evidence1,
-      evidence_2: e.evidence2,
-      evidence_connection: e.connection,
-      evidence_final_expression: e.final,
     };
 
-    return COLUMNS.map(column => safeCell_(values[column]));
+    return FIELD_KEYS.map(column => safeCell_(values[column]));
   }
 
   function objectOrEmpty_(value) {

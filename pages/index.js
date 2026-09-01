@@ -1096,7 +1096,6 @@ export default function Home({
         activityMode: activeMode,
         topic: shareData.topic,
         modeInputs,
-        legacyEvidence,
         appVersion: packageInfo.version,
       }));
     }
