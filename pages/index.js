@@ -23,6 +23,12 @@ import { useSessionSave } from '../lib/useSessionSave';
 import { migrateLegacyWorksheetFields, getLegacyEvidenceFields } from '../lib/modeWorksheetFields';
 import { buildModeInputs, truncateForShare } from '../lib/shareArtifact';
 import { encodeShareData } from '../lib/shareUtils';
+import {
+  buildLearningArtifactPayload,
+  initializeAnonymousId,
+  submitLearningArtifact,
+} from '../lib/artifactCollection';
+import packageInfo from '../package.json';
 import { LANGUAGE_OPTIONS, getLanguageReminder, getUiText } from '../lib/i18n';
 import { withSubjectParticle } from '../lib/koreanParticles';
 import { SUBMISSION_APP_URL } from '../lib/submissionMeta';
@@ -163,6 +169,12 @@ export default function Home({
   // 긴 자료 안내 — 자료를 차단하는 대신 핵심 중심으로 잘라 분석한다는 알림
   const [analysisNotice, setAnalysisNotice] = useState('');
   const [usingAppTutorialPreset, setUsingAppTutorialPreset] = useState(false);
+
+  // 회원가입 없이 같은 브라우저의 반복 활동만 묶을 수 있는 익명 UUID를 최초 접속에
+  // 한 번 만든다. 오프라인 시연은 외부 수집을 하지 않으므로 별도 ID도 만들지 않는다.
+  useEffect(() => {
+    if (!demoMode) initializeAnonymousId();
+  }, [demoMode]);
 
   const [isMobile, setIsMobile] = useState(false);
   // Windows 1920×1080에서 디스플레이 배율 120%/125%를 사용하면 브라우저의
@@ -1058,6 +1070,8 @@ export default function Home({
   // 호환(3차 이전 생각 워크시트 데이터 포함)을 유지한다.
   const handleShare = () => {
     const u = analysisByMode.understand || {};
+    const modeInputs = buildModeInputs(notes);
+    const legacyEvidence = getLegacyEvidenceFields(notes);
     const shareData = {
       topic: lastAnalyzedTopic || topic || t.untitled,
       sourceText: truncateForShare(sourceText, demoMode ? 2500 : 500),
@@ -1065,15 +1079,29 @@ export default function Home({
         oneSentence: u.understandingSentence || '',
         easyFullText: truncateForShare(u.easy, demoMode ? 1200 : 400),
       },
-      modeInputs: buildModeInputs(notes),
-      legacyEvidence: getLegacyEvidenceFields(notes),
+      modeInputs,
+      legacyEvidence,
       legacyWorksheet: notes,
       sharedAt: new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })
     };
     const encoded = encodeShareData(shareData);
-    return demoMode
+    const shareUrl = demoMode
       ? `../share/index.html?d=${encoded}`
       : `${window.location.origin}/share?d=${encoded}`;
+
+    // 공유 URL 생성에 성공한 뒤에만 연구용 익명 전송을 시작한다. 반환값을 기다리지
+    // 않으므로 Apps Script 장애·timeout은 기존 링크 복사/새 창 열기를 막지 않는다.
+    if (!demoMode) {
+      void submitLearningArtifact(buildLearningArtifactPayload({
+        activityMode: activeMode,
+        topic: shareData.topic,
+        modeInputs,
+        legacyEvidence,
+        appVersion: packageInfo.version,
+      }));
+    }
+
+    return shareUrl;
   };
 
   // ── 퀴즈 파싱 (quiz 텍스트 변경 시만) ──

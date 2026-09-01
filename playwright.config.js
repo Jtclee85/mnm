@@ -38,8 +38,9 @@ module.exports = defineConfig({
   ],
 
   webServer: {
-    // E2E가 실제 YouTube 검색 할당량을 소모하지 않도록 테스트 서버에서는 키를 비운다.
-    command: 'YOUTUBE_API_KEY= npm run dev',
+    // 외부 API를 쓰지 않고 익명 산출물 POST도 page.route로 가로챌 수 있게 테스트 전용
+    // same-origin 주소를 주입한다. 실제 Apps Script나 YouTube 할당량은 사용하지 않는다.
+    command: 'YOUTUBE_API_KEY= NEXT_PUBLIC_ARTIFACT_ENDPOINT=http://localhost:3000/__artifact-test-collector NEXT_PUBLIC_ARTIFACT_APP_ID=mnm-e2e npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
