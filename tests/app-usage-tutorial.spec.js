@@ -10,7 +10,7 @@ async function markResearchTutorialSeen(page) {
 test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리얼', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test('첫 방문에는 자료조사 튜토리얼을 먼저 완료한 뒤 앱 사용법 6과정을 진행한다', async ({ page, context }) => {
+  test('첫 방문에는 앱 사용법 6과정이 먼저 열린다', async ({ page, context }) => {
     let tutorialApiCalls = 0;
     await page.route('**/api/chat', (route) => { tutorialApiCalls += 1; return route.abort(); });
     await page.route('**/api/chat-once', (route) => { tutorialApiCalls += 1; return route.abort(); });
@@ -19,17 +19,8 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
     await page.goto('/');
 
     const tutorial = page.getByTestId('app-usage-tutorial');
-    const researchTutorial = page.getByTestId('research-tutorial-dialog');
-    await expect(researchTutorial).toBeVisible();
-    await expect(tutorial).toHaveCount(0);
-    await expect(page.getByText('Step 1 / 5')).toBeVisible();
-
-    for (let step = 2; step <= 5; step++) {
-      await page.getByRole('button', { name: '다음' }).click();
-      await expect(page.getByText(`Step ${step} / 5`)).toBeVisible();
-    }
-    await page.getByRole('button', { name: '조사 시작하기' }).click();
-    await expect(researchTutorial).toHaveCount(0);
+    // 자료조사 주의점은 사용법을 마친 뒤 마지막 과정의 버튼으로 연다.
+    await expect(page.getByTestId('research-tutorial-dialog')).toHaveCount(0);
 
     await expect(page.getByTestId('app-tutorial-typing-caret')).toBeVisible();
     await expect(page.getByTestId('app-tutorial-coach')).toBeVisible();
@@ -113,6 +104,7 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
 
     await expect(page.getByText('과정 6 / 6')).toBeVisible();
     await expect(tutorial.getByRole('button', { name: '마치기' })).toBeVisible();
+    await expect(page.getByTestId('app-tutorial-research-tips')).toBeVisible();
     await tutorial.getByRole('button', { name: '마치기' }).click();
 
     await expect(tutorial).toHaveCount(0);
@@ -122,16 +114,51 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
     expect(tutorialApiCalls).toBe(0);
   });
 
-  test('자료조사 튜토리얼을 건너뛰어도 앱 사용법이 이어서 열린다', async ({ page }) => {
+  test('마지막 과정의 버튼이 첫 화면과 자료조사 주의점 팝업으로 이어진다', async ({ page }) => {
+    await page.route('**/api/chat', (route) => route.abort());
+    await page.route('**/api/chat-once', (route) => route.abort());
+    await page.route('**/api/recommended-videos**', (route) => route.abort());
     await page.goto('/');
-    await expect(page.getByTestId('research-tutorial-dialog')).toBeVisible();
 
-    await page.getByRole('button', { name: '건너뛰기' }).click();
-
-    await expect(page.getByTestId('research-tutorial-dialog')).toHaveCount(0);
-    // 루트는 고정 배치 자식만 가져 자체 박스가 없으므로 실제 안내 카드로 노출을 확인한다.
-    await expect(page.getByTestId('app-tutorial-coach')).toBeVisible();
+    const tutorial = page.getByTestId('app-usage-tutorial');
     await expect(page.getByText('과정 1 / 6')).toBeVisible();
+    await tutorial.getByRole('button', { name: '다음' }).click();
+
+    await expect(page.getByTestId('source-textarea')).toHaveValue(/세계문화유산으로 등재되었다/);
+    await tutorial.getByRole('button', { name: '다음' }).click();
+
+    await expect(page.getByText('과정 3 / 6')).toBeVisible();
+    await page.getByTestId('analyze-button').click();
+
+    await expect(page.getByText('과정 4 / 6')).toBeVisible();
+    await tutorial.getByRole('button', { name: '다음' }).click();
+
+    // 모드 워크시트 4개를 지나 챗봇 과정으로 넘어간다.
+    for (let mode = 1; mode <= 4; mode++) {
+      await expect(page.getByText(`모드 ${mode} / 4`)).toBeVisible();
+      await tutorial.getByRole('button', { name: '다음' }).click();
+    }
+
+    await expect(page.getByText('과정 5 / 6')).toBeVisible();
+    await page.getByTestId('chatbot-toggle-button').click();
+    await expect(page.getByText('챗봇에 질문 쓰기')).toBeVisible();
+    await tutorial.getByRole('button', { name: '다음' }).click();
+
+    await expect(page.getByText('과정 6 / 6')).toBeVisible();
+    await page.getByTestId('app-tutorial-research-tips').click();
+
+    // 사용법은 완료로 기록하고, 첫 화면으로 돌아가 자료조사 주의점 팝업을 연다.
+    await expect(tutorial).toHaveCount(0);
+    await expect(page.getByTestId('research-tutorial-dialog')).toBeVisible();
+    await expect(page.getByText('Step 1 / 5')).toBeVisible();
+    await expect(page.getByText('Quest 1. 믿을 수 있는 자료 찾기')).toBeVisible();
+
+    // 시연용 예시가 남지 않은 첫 화면 위에서 열린다.
+    await expect(page.getByTestId('topic-input')).toHaveValue('');
+    await expect(page.getByTestId('research-compass')).toBeVisible();
+
+    const seen = await page.evaluate((key) => localStorage.getItem(key), APP_TUTORIAL_SEEN_KEY);
+    expect(seen).toBe('true');
   });
 
   test('나중에 보기로 닫으면 헤더의 사용법 버튼으로 다시 열 수 있다', async ({ page }) => {

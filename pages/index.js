@@ -250,19 +250,11 @@ export default function Home({
     }
     if (SUBMISSION_MODE) return;
 
-    // 첫 방문에는 학습의 전제가 되는 자료조사 방법을 먼저 보여 준다. 두 교육자료를
-    // 동시에 열지 않고, 자료조사 튜토리얼을 닫은 뒤에만 앱 사용법을 이어서 연다.
-    try {
-      if (localStorage.getItem(TUTORIAL_SEEN_KEY) !== 'true') {
-        setAppTutorialOpen(false);
-        setTutorialOpen(true);
-        return;
-      }
-      openAppTutorialIfNeeded();
-    } catch {
-      setAppTutorialOpen(false);
-      setTutorialOpen(true);
-    }
+    // 첫 방문에는 앱 사용법을 먼저 익히게 한다. 자료조사 주의점은 사용법 마지막
+    // 과정의 버튼이나 나침반의 다시 보기로 첫 화면에서 이어 보므로, 두 교육자료가
+    // 동시에 열리지 않는다.
+    setTutorialOpen(false);
+    openAppTutorialIfNeeded();
   }, [demoMode, openAppTutorialIfNeeded]);
 
   // 심사용 시작화면 — SSR/hydration 불일치를 막기 위해 마운트 후에만 판단한다.
@@ -306,19 +298,17 @@ export default function Home({
   const handleTutorialNext = () => setTutorialStep(s => Math.min(s + 1, TUTORIAL_QUESTS.length - 1));
   const handleTutorialPrev = () => setTutorialStep(s => Math.max(s - 1, 0));
 
-  // 건너뛰기: 이번 방문에서만 닫는다 — seen을 저장하지 않으므로 다음 접속에 다시 보인다.
+  // 건너뛰기: 이번 방문에서만 닫는다 — seen을 저장하지 않으므로 나중에 다시 볼 수 있다.
   const handleTutorialSkip = () => {
     setTutorialOpen(false);
     setTutorialStep(0);
-    openAppTutorialIfNeeded();
   };
 
-  // 다시 보지 않기 / 완료: seen을 저장해 다음 접속부터 자동으로 뜨지 않게 한다.
+  // 다시 보지 않기 / 완료: seen을 저장해 나침반 안내 없이도 본 것으로 기록한다.
   const finishTutorial = () => {
     if (!demoMode) markTutorialSeen();
     setTutorialOpen(false);
     setTutorialStep(0);
-    openAppTutorialIfNeeded();
   };
 
   const isBusy = loadingMode !== null || isAnalyzing;
@@ -813,6 +803,17 @@ export default function Home({
     setAppTutorialStep(0);
     setAppTutorialBusy(false);
     setAppTutorialAnalysisRequested(false);
+  };
+
+  // 사용법 마지막 과정의 '자료를 조사할 때 주의할 점 알아보기'.
+  // 시연용 예시가 남은 채로 주의점을 읽지 않도록 첫 화면으로 되돌린 뒤 팝업을 연다.
+  // 예시는 학생이 직접 쓴 내용이 아니므로 이전 조사로 저장하지 않는다.
+  const handleAppTutorialResearchTips = () => {
+    finishAppUsageTutorial();
+    setIsChatPopupOpen(false);
+    resetWorkspace();
+    setTutorialStep(0);
+    setTutorialOpen(true);
   };
 
   const appTutorialTopicExample = demoSession?.topic || APP_TUTORIAL_PRESET.topic;
@@ -1535,8 +1536,7 @@ export default function Home({
           />
         )}
 
-        {/* 자료조사 방법 교육자료 — 온라인 첫 방문에는 사용법보다 먼저 보여 주고,
-            오프라인 시연에서는 나침반으로 필요할 때 열 수 있다. */}
+        {/* 자료조사 방법 교육자료 — 사용법 마지막 과정의 버튼이나 나침반의 다시 보기로 연다. */}
         <ResearchTutorialQuest
           isOpen={tutorialOpen}
           step={tutorialStep}
@@ -1559,6 +1559,7 @@ export default function Home({
           onSkip={skipAppUsageTutorial}
           onDontShowAgain={finishAppUsageTutorial}
           onClose={skipAppUsageTutorial}
+          onResearchTips={demoMode ? undefined : handleAppTutorialResearchTips}
           onFillTopic={fillAppTutorialTopic}
           onFillSource={fillAppTutorialSource}
           topicExample={appTutorialTopicExample}

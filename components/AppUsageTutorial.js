@@ -49,6 +49,7 @@ export default function AppUsageTutorial({
   onSkip,
   onDontShowAgain,
   onClose,
+  onResearchTips,
   onFillTopic,
   onFillSource,
   topicExample,
@@ -288,6 +289,17 @@ export default function AppUsageTutorial({
         {scene.actionOnly && targetRect && <p style={s.actionHint}>☝️ {text.useHighlighted}</p>}
         {!scene.actionOnly && !canAdvance && <p style={s.requirement}>✏️ {content.requirement}</p>}
 
+        {isLast && onResearchTips && (
+          <button
+            type="button"
+            data-testid="app-tutorial-research-tips"
+            onClick={onResearchTips}
+            style={s.researchTipsBtn}
+          >
+            {text.researchTips}
+          </button>
+        )}
+
         <div style={s.actions}>
           <button type="button" onClick={onSkip} style={s.skipBtn}>{text.skip}</button>
           <div style={s.actionRight}>
@@ -364,6 +376,13 @@ const s = {
     fontSize: 14, fontWeight: 900,
   },
   requirement: { margin: '10px 0 0', fontSize: 13.5, fontWeight: 800, color: 'var(--color-text-sub)' },
+  // 마지막 과정에서만 보이는 다음 학습 안내 — '마치기'와 나란히 두면 좁아지므로 한 줄을 차지한다.
+  researchTipsBtn: {
+    display: 'block', width: '100%', marginTop: 14, padding: '11px 14px',
+    border: '1px solid rgba(var(--color-accent-teal-rgb),0.5)', borderRadius: 12,
+    background: 'rgba(var(--color-accent-teal-rgb),0.12)', color: 'var(--color-primary-dark)',
+    fontSize: 14, fontWeight: 900, lineHeight: 1.45, textAlign: 'center', cursor: 'pointer',
+  },
   actions: { marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   actionRight: { display: 'flex', gap: 8 },
   skipBtn: {
