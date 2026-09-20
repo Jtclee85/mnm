@@ -103,18 +103,21 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
     await tutorial.getByRole('button', { name: '다음' }).click();
 
     await expect(page.getByText('과정 6 / 6')).toBeVisible();
-    await expect(tutorial.getByRole('button', { name: '마치기' })).toBeVisible();
-    await expect(page.getByTestId('app-tutorial-research-tips')).toBeVisible();
-    await tutorial.getByRole('button', { name: '마치기' }).click();
+    await expect(tutorial.getByRole('button', { name: '마치기' })).toHaveCount(0);
+    await expect(page.getByTestId('app-tutorial-back-to-start')).toBeVisible();
+    await page.getByTestId('app-tutorial-explore-results').click();
 
+    // 튜토리얼만 닫히고 분석 결과 학습 화면은 그대로 남는다.
     await expect(tutorial).toHaveCount(0);
+    await expect(page.getByTestId('result-canvas')).toBeVisible();
+    await expect(page.getByTestId('research-tutorial-dialog')).toHaveCount(0);
     expect(context.pages()).toHaveLength(1);
     const seen = await page.evaluate((key) => localStorage.getItem(key), APP_TUTORIAL_SEEN_KEY);
     expect(seen).toBe('true');
     expect(tutorialApiCalls).toBe(0);
   });
 
-  test('마지막 과정의 버튼이 첫 화면과 자료조사 주의점 팝업으로 이어진다', async ({ page }) => {
+  test("마지막 과정의 '시작화면으로 돌아가기'가 첫 화면과 자료조사 주의점 팝업으로 이어진다", async ({ page }) => {
     await page.route('**/api/chat', (route) => route.abort());
     await page.route('**/api/chat-once', (route) => route.abort());
     await page.route('**/api/recommended-videos**', (route) => route.abort());
@@ -145,7 +148,7 @@ test.describe('뭐냐면 — 6과정 앱 사용법 스포트라이트 튜토리�
     await tutorial.getByRole('button', { name: '다음' }).click();
 
     await expect(page.getByText('과정 6 / 6')).toBeVisible();
-    await page.getByTestId('app-tutorial-research-tips').click();
+    await page.getByTestId('app-tutorial-back-to-start').click();
 
     // 사용법은 완료로 기록하고, 첫 화면으로 돌아가 자료조사 주의점 팝업을 연다.
     await expect(tutorial).toHaveCount(0);

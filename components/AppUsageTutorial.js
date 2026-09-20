@@ -289,15 +289,28 @@ export default function AppUsageTutorial({
         {scene.actionOnly && targetRect && <p style={s.actionHint}>☝️ {text.useHighlighted}</p>}
         {!scene.actionOnly && !canAdvance && <p style={s.requirement}>✏️ {content.requirement}</p>}
 
+        {/* 마지막 과정은 '마치기' 하나가 아니라 다음 행동 두 가지로 나눠 제시한다.
+            오프라인 시연(onResearchTips 없음)은 기존 '시연 마치기' 버튼을 그대로 쓴다. */}
         {isLast && onResearchTips && (
-          <button
-            type="button"
-            data-testid="app-tutorial-research-tips"
-            onClick={onResearchTips}
-            style={s.researchTipsBtn}
-          >
-            {text.researchTips}
-          </button>
+          <div style={s.finalChoices}>
+            <button
+              type="button"
+              data-testid="app-tutorial-back-to-start"
+              onClick={onResearchTips}
+              style={s.finalChoiceBtn}
+            >
+              {text.backToStart}
+            </button>
+            <button
+              type="button"
+              data-testid="app-tutorial-explore-results"
+              onClick={onNext}
+              disabled={isBusy}
+              style={{ ...s.finalChoiceBtn, ...s.finalChoicePrimary, ...(isBusy ? s.disabledBtn : {}) }}
+            >
+              {isBusy ? text.preparing : text.exploreResults}
+            </button>
+          </div>
         )}
 
         <div style={s.actions}>
@@ -306,7 +319,7 @@ export default function AppUsageTutorial({
             {step > 0 && (
               <button type="button" onClick={onPrev} disabled={isBusy} style={s.secondaryBtn}>{text.previous}</button>
             )}
-            {!scene.actionOnly && (
+            {!scene.actionOnly && !(isLast && onResearchTips) && (
               <button
                 type="button"
                 onClick={onNext}
@@ -376,12 +389,18 @@ const s = {
     fontSize: 14, fontWeight: 900,
   },
   requirement: { margin: '10px 0 0', fontSize: 13.5, fontWeight: 800, color: 'var(--color-text-sub)' },
-  // 마지막 과정에서만 보이는 다음 학습 안내 — '마치기'와 나란히 두면 좁아지므로 한 줄을 차지한다.
-  researchTipsBtn: {
-    display: 'block', width: '100%', marginTop: 14, padding: '11px 14px',
+  // 마지막 과정의 두 갈래 — 좁은 카드에서 나란히 두면 글자가 줄바꿈되므로 세로로 쌓는다.
+  finalChoices: { marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 },
+  finalChoiceBtn: {
+    display: 'block', width: '100%', padding: '11px 14px',
     border: '1px solid rgba(var(--color-accent-teal-rgb),0.5)', borderRadius: 12,
     background: 'rgba(var(--color-accent-teal-rgb),0.12)', color: 'var(--color-primary-dark)',
     fontSize: 14, fontWeight: 900, lineHeight: 1.45, textAlign: 'center', cursor: 'pointer',
+  },
+  finalChoicePrimary: {
+    border: 'none',
+    background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-dark))',
+    color: 'var(--color-surface)',
   },
   actions: { marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   actionRight: { display: 'flex', gap: 8 },
