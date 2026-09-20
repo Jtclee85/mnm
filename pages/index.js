@@ -1223,6 +1223,18 @@ export default function Home({
       : (isCompact ? styles.splitLayoutCompact : styles.splitLayout))
     : styles.centeredLayout;
 
+  const openResearchTutorial = () => {
+    setAppTutorialOpen(false);
+    setTutorialStep(0);
+    setTutorialOpen(true);
+  };
+
+  // 좌우 순서만 바뀌므로 같은 엘리먼트를 재사용한다.
+  const researchCompassEl = (
+    <ResearchCompass isMobile={isMobile} onReopenTutorial={openResearchTutorial} />
+  );
+  const recommendedSourcesEl = <RecommendedSources isMobile={isMobile} />;
+
   // 첫 화면(랜딩)에서만 메인 입력 카드 맨 위에 얹는 로고+설명 — 독립 상단 히어로 영역 대체
   const cardLogoSlot = showLanding ? (
     <div>
@@ -1460,55 +1472,38 @@ export default function Home({
           {showLanding ? (
             isCompact && !isStacked ? (
               <div style={styles.landingCompact} data-testid="landing-compact">
-                {/* 120%/125% 배율에서도 기존 정보 구조(추천 자료 | 입력 | 나침반)를
+                {/* 120%/125% 배율에서도 정보 구조(나침반 | 입력 | 추천 자료)를
                     유지한다. 양쪽 패널만 270px로 줄이고 가운데 입력 영역을 유동 폭으로 둔다. */}
-                <RecommendedSources isMobile={false} isCompact />
-                <div style={styles.landingFormColMobile} data-testid="landing-form-column">
-                  {leftColEl}
-                </div>
                 <ResearchCompass
                   isMobile={false}
                   isCompact
-                  onReopenTutorial={() => {
-                    setAppTutorialOpen(false);
-                    setTutorialStep(0);
-                    setTutorialOpen(true);
-                  }}
+                  onReopenTutorial={openResearchTutorial}
                 />
+                <div style={styles.landingFormColMobile} data-testid="landing-form-column">
+                  {leftColEl}
+                </div>
+                <RecommendedSources isMobile={false} isCompact />
               </div>
             ) : isStacked ? (
               <div style={styles.landingNarrow}>
                 <div style={styles.landingFormColMobile}>{leftColEl}</div>
                 <div style={styles.landingNarrowAux}>
                   <RecommendedSources isMobile={false} />
-                  <ResearchCompass
-                    isMobile={false}
-                    onReopenTutorial={() => {
-                      setAppTutorialOpen(false);
-                      setTutorialStep(0);
-                      setTutorialOpen(true);
-                    }}
-                  />
+                  <ResearchCompass isMobile={false} onReopenTutorial={openResearchTutorial} />
                 </div>
               </div>
             ) : (
               <div style={isMobile ? styles.landingStackMobile : styles.landingRow}>
-                <RecommendedSources isMobile={isMobile} />
+                {/* 데스크톱은 나침반(왼쪽) | 입력 | 추천 자료(오른쪽) 3단이고,
+                    두 패널은 340px로 같아 입력 폼이 정가운데에 온다.
+                    모바일 세로 스택은 좌우가 없으므로 기존 순서를 그대로 둔다. */}
+                {isMobile ? recommendedSourcesEl : researchCompassEl}
                 {/* 모바일 세로 스택에서는 flex-basis(860px)가 높이로 적용되어
                     폼 아래 빈 공간을 만들므로 데스크톱에서만 쓴다. */}
                 <div style={isMobile ? styles.landingFormColMobile : styles.landingFormCol}>
                   {leftColEl}
                 </div>
-                {/* 자료 조사 나침반 — 추천 사이트(340px)와 같은 폭의 오른쪽 컬럼으로,
-                    입력 폼이 정가운데에 오도록 좌우 대칭을 맞춘다. */}
-                <ResearchCompass
-                  isMobile={isMobile}
-                  onReopenTutorial={() => {
-                    setAppTutorialOpen(false);
-                    setTutorialStep(0);
-                    setTutorialOpen(true);
-                  }}
-                />
+                {isMobile ? researchCompassEl : recommendedSourcesEl}
               </div>
             )
           ) : (

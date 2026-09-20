@@ -1,5 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { RECOMMENDED_SOURCES } from '../lib/recommendedSources';
+
+// 설명 말풍선 크기 — 어느 쪽에 펼칠지 계산할 때 쓴다.
+const TIP_WIDTH = 200;
+const TIP_GAP = 12;
 
 export default function RecommendedSources({ isMobile, isCompact = false }) {
   return (
@@ -21,17 +25,47 @@ export default function RecommendedSources({ isMobile, isCompact = false }) {
 
 function SourceBanner({ source, isMobile }) {
   const [active, setActive] = useState(false);
+  // 이 배너가 화면 왼쪽에 있으면 오른쪽으로, 오른쪽 컬럼에 있으면 왼쪽으로 펼친다.
+  // 컬럼 위치는 배율·창 크기에 따라 달라지므로 값을 고정하지 않고 그때그때 잰다.
+  const [tipSide, setTipSide] = useState('right');
+  const cardRef = useRef(null);
+
+  const updateTipSide = useCallback(() => {
+    const rect = cardRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const roomRight = window.innerWidth - rect.right;
+    const roomLeft = rect.left;
+    const needed = TIP_WIDTH + TIP_GAP;
+    if (roomRight >= needed) setTipSide('right');
+    else if (roomLeft >= needed) setTipSide('left');
+    else setTipSide(roomLeft > roomRight ? 'left' : 'right');
+  }, []);
+
+  // 마우스를 올린 뒤에 방향을 정하면 첫 프레임이 반대쪽에 잡힐 수 있다.
+  // 배치가 끝난 직후와 창 크기가 바뀔 때 미리 계산해 둔다.
+  useEffect(() => {
+    if (isMobile) return undefined;
+    updateTipSide();
+    window.addEventListener('resize', updateTipSide);
+    return () => window.removeEventListener('resize', updateTipSide);
+  }, [isMobile, updateTipSide]);
+
+  const showTip = () => {
+    updateTipSide();
+    setActive(true);
+  };
 
   return (
     <div style={styles.cardWrap}>
       <a
+        ref={cardRef}
         href={source.url}
         target="_blank"
         rel="noopener noreferrer"
         style={{ ...styles.card, ...(active ? styles.cardActive : {}) }}
-        onMouseEnter={() => setActive(true)}
+        onMouseEnter={showTip}
         onMouseLeave={() => setActive(false)}
-        onFocus={() => setActive(true)}
+        onFocus={showTip}
         onBlur={() => setActive(false)}
         aria-describedby={!isMobile ? `tip-${source.id}` : undefined}
         aria-label={`${source.name}, ${source.org}. ${source.tip}. 새 탭에서 열립니다.`}
@@ -47,10 +81,18 @@ function SourceBanner({ source, isMobile }) {
       {!isMobile && (
         <div
           id={`tip-${source.id}`}
+          data-testid={`source-tip-${source.id}`}
           role="tooltip"
-          style={{ ...styles.tip, ...(active ? styles.tipVisible : styles.tipHidden) }}
+          style={{
+            ...styles.tip,
+            ...(tipSide === 'left' ? styles.tipLeft : styles.tipRight),
+            ...(active ? styles.tipVisible : styles.tipHidden),
+          }}
         >
-          <span style={styles.tipArrow} aria-hidden="true" />
+          <span
+            style={tipSide === 'left' ? styles.tipArrowRightEdge : styles.tipArrow}
+            aria-hidden="true"
+          />
           {source.tip}
         </div>
       )}
@@ -89,18 +131,31 @@ const styles = {
   tipInline: { fontSize: 12, color: 'var(--color-text-sub)', lineHeight: 1.45, marginTop: 2 },
 
   tip: {
-    position: 'absolute', left: 'calc(100% + 12px)', top: '50%',
+    position: 'absolute', top: '50%',
     background: 'var(--color-primary-dark)', color: 'var(--color-surface)', borderRadius: 12,
-    padding: '10px 14px', fontSize: 13, lineHeight: 1.5, width: 200, boxSizing: 'border-box',
+    padding: '10px 14px', fontSize: 13, lineHeight: 1.5, width: TIP_WIDTH, boxSizing: 'border-box',
     boxShadow: '0 8px 20px rgba(var(--color-primary-dark-rgb),0.25)', zIndex: 50, pointerEvents: 'none',
     transition: 'opacity 0.18s ease, transform 0.18s ease',
   },
-  tipHidden:  { opacity: 0, visibility: 'hidden', transform: 'translateY(-50%) translateX(-6px)' },
+  tipRight: { left: `calc(100% + ${TIP_GAP}px)` },
+  tipLeft:  { right: `calc(100% + ${TIP_GAP}px)` },
+  // 숨어 있을 때도 절대 위치 박스는 스크롤 폭에 잡힌다. 오른쪽 컬럼에서 가로
+  // 스크롤이 생기지 않도록, 보이지 않는 동안에는 배너 안쪽에 접어 둔다.
+  tipHidden: {
+    opacity: 0, visibility: 'hidden', left: 0, right: 'auto',
+    transform: 'translateY(-50%)',
+  },
   tipVisible: { opacity: 1, visibility: 'visible', transform: 'translateY(-50%) translateX(0)' },
   tipArrow: {
     position: 'absolute', left: -6, top: '50%', transform: 'translateY(-50%)',
     width: 0, height: 0,
     borderTop: '6px solid transparent', borderBottom: '6px solid transparent',
     borderRight: '6px solid var(--color-primary-dark)',
+  },
+  tipArrowRightEdge: {
+    position: 'absolute', right: -6, top: '50%', transform: 'translateY(-50%)',
+    width: 0, height: 0,
+    borderTop: '6px solid transparent', borderBottom: '6px solid transparent',
+    borderLeft: '6px solid var(--color-primary-dark)',
   },
 };

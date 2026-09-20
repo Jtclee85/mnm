@@ -48,7 +48,7 @@ async function expectNoHorizontalOverflow(page) {
 
 for (const viewport of LAPTOP_VIEWPORTS) {
   test.describe(`${viewport.name} (${viewport.width}×${viewport.height})`, () => {
-    test('첫 화면은 추천 자료·입력 카드·조사 나침반이 한 줄 3단으로 유지된다', async ({ page }) => {
+    test('첫 화면은 조사 나침반·입력 카드·추천 자료가 한 줄 3단으로 유지된다', async ({ page }) => {
       await preparePage(page, viewport);
 
       const compact = page.getByTestId('landing-compact');
@@ -67,8 +67,8 @@ for (const viewport of LAPTOP_VIEWPORTS) {
       expect(compassBox).not.toBeNull();
       expect(Math.abs(sourcesBox.y - formBox.y)).toBeLessThanOrEqual(2);
       expect(Math.abs(formBox.y - compassBox.y)).toBeLessThanOrEqual(2);
-      expect(sourcesBox.x + sourcesBox.width).toBeLessThanOrEqual(formBox.x);
-      expect(formBox.x + formBox.width).toBeLessThanOrEqual(compassBox.x);
+      expect(compassBox.x + compassBox.width).toBeLessThanOrEqual(formBox.x);
+      expect(formBox.x + formBox.width).toBeLessThanOrEqual(sourcesBox.x);
       expect(formBox.width).toBeGreaterThan(700);
       await expectNoHorizontalOverflow(page);
     });

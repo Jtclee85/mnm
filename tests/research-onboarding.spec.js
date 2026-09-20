@@ -140,7 +140,7 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
       await expect(page.getByText(TUTORIAL_TITLE)).toHaveCount(0);
     });
 
-    test('나침반의 "자료 조사 주의점 다시 보기"로 튜토리얼을 다시 열 수 있다', async ({ page }) => {
+    test('나침반의 "자료를 조사할 때 무엇을 주의해야 할까요?"로 튜토리얼을 다시 열 수 있다', async ({ page }) => {
       await page.addInitScript((key) => localStorage.setItem(key, 'true'), TUTORIAL_SEEN_KEY);
       await page.goto('/');
       await expect(page.getByText(TUTORIAL_TITLE)).toHaveCount(0);
@@ -180,7 +180,7 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
       }
     });
 
-    test('입력 폼이 추천 사이트와 나침반 사이 정가운데에 배치된다', async ({ page }) => {
+    test('나침반이 왼쪽 첫 단, 추천 사이트가 오른쪽 끝 단에 배치된다', async ({ page }) => {
       await page.goto('/');
       const sourcesBox = await page.getByRole('complementary', { name: '추천 원본자료 목록' }).boundingBox();
       const compassBox = await page.getByTestId('research-compass').boundingBox();
@@ -188,13 +188,54 @@ test.describe('뭐냐면 — 자료 조사 나침반 / 자료를 조사할 때 �
 
       // 좌우 컬럼 폭이 같고(대칭), 입력 폼이 두 컬럼 사이에 있다.
       expect(Math.abs(sourcesBox.width - compassBox.width)).toBeLessThanOrEqual(2);
-      expect(formBox.x).toBeGreaterThan(sourcesBox.x + sourcesBox.width);
-      expect(formBox.x + formBox.width).toBeLessThan(compassBox.x);
+      expect(formBox.x).toBeGreaterThan(compassBox.x + compassBox.width);
+      expect(formBox.x + formBox.width).toBeLessThan(sourcesBox.x);
 
       // 입력 폼 중심이 화면 중심과 거의 일치한다.
       const viewportCenter = 1920 / 2;
       const formCenter = formBox.x + formBox.width / 2;
       expect(Math.abs(formCenter - viewportCenter)).toBeLessThanOrEqual(40);
+    });
+
+    test('나침반 제목 바로 아래에 자료조사 주의점 버튼이 있다', async ({ page }) => {
+      await page.goto('/');
+      const compass = page.getByTestId('research-compass');
+      const button = compass.getByTestId('reopen-tutorial-button');
+      await expect(button).toHaveText('❓ 자료를 조사할 때 무엇을 주의해야 할까요?');
+
+      // 체크리스트 첫 항목보다 위에 있어야 제목 바로 아래라고 할 수 있다.
+      const buttonBox = await button.boundingBox();
+      const firstItemBox = await compass.getByText('어디에서 가져온 자료인가요?').boundingBox();
+      expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(firstItemBox.y);
+
+      await button.click();
+      await expect(page.getByTestId('research-tutorial-dialog')).toBeVisible();
+    });
+
+    test('추천 자료 배너의 설명 말풍선이 화면 밖으로 넘어가지 않는다', async ({ page }) => {
+      await page.goto('/');
+      const sources = page.getByRole('complementary', { name: '추천 원본자료 목록' });
+      const banners = sources.getByRole('link');
+      const count = await banners.count();
+      expect(count).toBeGreaterThan(0);
+
+      for (let index = 0; index < count; index++) {
+        const banner = banners.nth(index);
+        await banner.hover();
+        const tipId = await banner.getAttribute('aria-describedby');
+        const tip = page.locator(`#${tipId}`);
+        await expect(tip).toBeVisible();
+
+        // 펼침 애니메이션이 끝난 위치를 본다.
+        await expect.poll(async () => {
+          const box = await tip.boundingBox();
+          return box.x >= 0 && box.x + box.width <= 1920;
+        }).toBe(true);
+
+        // 오른쪽 컬럼이므로 배너 왼쪽으로 펼쳐져야 한다.
+        const [box, bannerBox] = await Promise.all([tip.boundingBox(), banner.boundingBox()]);
+        expect(box.x + box.width).toBeLessThanOrEqual(bannerBox.x + 1);
+      }
     });
 
     test('분석을 시작하면(랜딩 화면을 벗어나면) 나침반이 사라진다', async ({ page }) => {

@@ -54,6 +54,17 @@ export default function ResearchCompass({ isMobile, isCompact = false, onReopenT
         <div style={s.headerSub}>조사하기 전, 이 5가지만 살펴봐요.</div>
       </div>
 
+      {/* 체크리스트를 훑기 전에 먼저 눈에 들어오도록 제목 바로 아래에 둔다. */}
+      {onReopenTutorial && (
+        <button
+          data-testid="reopen-tutorial-button"
+          onClick={onReopenTutorial}
+          style={s.reopenBtn}
+        >
+          ❓ 자료를 조사할 때 무엇을 주의해야 할까요?
+        </button>
+      )}
+
       <div style={s.list}>
         {CHECKLIST.map(({ icon, keyword, q, a }) => (
           <div key={q} style={s.item}>
@@ -83,16 +94,6 @@ export default function ResearchCompass({ isMobile, isCompact = false, onReopenT
           ))}
         </div>
       </div>
-
-      {onReopenTutorial && (
-        <button
-          data-testid="reopen-tutorial-button"
-          onClick={onReopenTutorial}
-          style={s.reopenBtn}
-        >
-          🧭 자료 조사 주의점 다시 보기
-        </button>
-      )}
     </aside>
   );
 }
@@ -155,7 +156,7 @@ const s = {
 
   reopenBtn: {
     border: '1px solid rgba(var(--color-accent-teal-rgb),0.45)', background: 'rgba(var(--color-accent-teal-rgb),0.08)',
-    color: 'var(--color-primary-dark)', fontWeight: 800, fontSize: 12.5,
-    padding: '11px 12px', borderRadius: 12, cursor: 'pointer',
+    color: 'var(--color-primary-dark)', fontWeight: 800, fontSize: 12.5, lineHeight: 1.45,
+    padding: '11px 12px', borderRadius: 12, cursor: 'pointer', textAlign: 'center',
   },
 };
