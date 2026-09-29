@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import '../styles/globals.css';
 import { playClick } from '../lib/sounds';
+import { Analytics } from '@vercel/analytics/next';
 
 function MyApp({ Component, pageProps }) {
   useEffect(() => {
@@ -12,7 +13,12 @@ function MyApp({ Component, pageProps }) {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  return <Component {...pageProps} />;
+  return (
+    <>
+      <Component {...pageProps} />
+      <Analytics />
+    </>
+  );
 }
 
 export default MyApp;
